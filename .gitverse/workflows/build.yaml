@@ -6,6 +6,10 @@ jobs:
     name: Build application
     runs-on: ubuntu-latest
     steps:
+      - name: APT Update
+        run: apt update
+      - name: Install JRE
+        run: apt install default-jre
       - name: Clone repo
         run: git clone https://${{ gitverse.token }}@gitverse.ru/${{ gitverse.repository }}.git .
       - name: Build
