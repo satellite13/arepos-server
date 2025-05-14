@@ -1,0 +1,12 @@
+name: Build ArchRepo Server
+on:
+ push:
+jobs:
+  build:
+    name: Build application
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repo
+        run: git clone https://${{ gitverse.token }}@gitverse.ru/${{ gitverse.repository }}.git .
+      - name: Build
+        run: ./gradlew build
