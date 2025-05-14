@@ -9,7 +9,7 @@ jobs:
       - name: APT Update
         run: apt update
       - name: Install JRE
-        run: apt install default-jre
+        run: apt install -y default-jre
       - name: Clone repo
         run: git clone https://${{ gitverse.token }}@gitverse.ru/${{ gitverse.repository }}.git .
       - name: Build
