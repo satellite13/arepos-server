@@ -4,7 +4,7 @@ on:
 jobs:
   build:
     name: Build application
-    runs-on: bellsoft/liberica-openjdk-alpine:latest
+    runs-on: ubuntu-latest
     steps:
       - name: Clone repo
         run: git clone https://${{ gitverse.token }}@gitverse.ru/${{ gitverse.repository }}.git .
