@@ -46,6 +46,7 @@ kotlin {
 tasks {
     bootBuildImage {
         environment.set(mapOf("BP_JVM_VERSION" to "24.0.1"))
+        imageName.set("arch/${rootProject.name}:${rootProject.version}")
     }
     test {
         useJUnitPlatform()
