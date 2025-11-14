@@ -1,9 +1,9 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    kotlin("jvm") version "2.2.0-Beta2"
-    kotlin("plugin.spring") version "2.2.0-Beta2"
-    id("org.springframework.boot") version "3.4.5"
+    kotlin("jvm") version "2.2.21"
+    kotlin("plugin.spring") version "2.2.21"
+    id("org.springframework.boot") version "3.5.7"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -12,7 +12,7 @@ version = "0.0.1-SNAPSHOT"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(24)
+        languageVersion = JavaLanguageVersion.of(25)
     }
     sourceCompatibility = JavaVersion.VERSION_24
     targetCompatibility = JavaVersion.VERSION_24
@@ -35,7 +35,7 @@ dependencies {
 
 kotlin {
     jvmToolchain {
-        languageVersion = JavaLanguageVersion.of(24)
+        languageVersion = JavaLanguageVersion.of(25)
     }
     compilerOptions {
         jvmTarget = JvmTarget.JVM_24
@@ -45,7 +45,7 @@ kotlin {
 
 tasks {
     bootBuildImage {
-        environment.set(mapOf("BP_JVM_VERSION" to "24.0.1"))
+        environment.set(mapOf("BP_JVM_VERSION" to "25.0.1"))
         imageName.set("arch/${rootProject.name}:${rootProject.version}")
     }
     test {
