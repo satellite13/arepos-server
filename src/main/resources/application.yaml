@@ -1,6 +1,20 @@
 spring:
   application:
     name: arepos-server
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/arepos}
+    username: ${DB_USERNAME:arepos}
+    password: ${DB_PASSWORD:arepos}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
 
 management:
   endpoints:
