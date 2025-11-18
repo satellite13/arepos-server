@@ -3,8 +3,9 @@ package ru.kavader.arepos
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import ru.kavader.arepos.controller.HelloWorldController
-import ru.kavader.arepos.controller.NotationController
+import ru.kavader.arepos.controller.ModelsController
+import ru.kavader.arepos.controller.NotationsController
+import ru.kavader.arepos.controller.UsersController
 import ru.kavader.arepos.support.PostgresContainerTest
 import kotlin.test.assertNotNull
 
@@ -12,15 +13,19 @@ import kotlin.test.assertNotNull
 class AreposServerApplicationTests : PostgresContainerTest() {
 
     @Autowired
-    lateinit var helloWorldController: HelloWorldController
+    lateinit var modelsController: ModelsController
 
     @Autowired
-    lateinit var notationController: NotationController
+    lateinit var usersController: UsersController
+
+    @Autowired
+    lateinit var notationsController: NotationsController
 
     @Test
     fun contextLoads() {
-        assertNotNull(helloWorldController)
-        assertNotNull(notationController)
+        assertNotNull(modelsController)
+        assertNotNull(usersController)
+        assertNotNull(notationsController)
     }
 }
 

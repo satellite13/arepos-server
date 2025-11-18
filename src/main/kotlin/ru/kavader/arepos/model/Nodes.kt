@@ -1,9 +1,11 @@
 package ru.kavader.arepos.model
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
 import java.time.Instant
 import java.util.*
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import org.hibernate.type.SqlTypes
 
 @Entity
 @Table(name = "nodes", schema = "public")
@@ -23,6 +25,7 @@ data class Nodes(
     @Column(name = "updated_at")
     val updatedAt: Instant? = null,
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
     val attrs: String? = null,
 

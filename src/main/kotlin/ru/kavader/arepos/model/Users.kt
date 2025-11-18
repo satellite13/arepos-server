@@ -2,8 +2,10 @@ package ru.kavader.arepos.model
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
 import java.time.Instant
 import java.util.*
+import org.hibernate.type.SqlTypes
 
 @Entity
 @Table(
@@ -21,6 +23,7 @@ data class Users(
     @Column(name = "email", nullable = false, unique = true, columnDefinition = "email_type")
     val email: String,
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
     val attrs: String? = null,
 

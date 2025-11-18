@@ -1,9 +1,11 @@
 package ru.kavader.arepos.model
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
 import java.time.Instant
 import java.util.*
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import org.hibernate.type.SqlTypes
 
 @Entity
 @Table(name = "audit_log", schema = "public", indexes = [
@@ -30,9 +32,11 @@ data class AuditLog(
     @Column(name = "row_id", nullable = false)
     val rowId: UUID,
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "old_values", columnDefinition = "jsonb")
     val oldValues: String? = null,
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "new_values", columnDefinition = "jsonb")
     val newValues: String? = null,
 
