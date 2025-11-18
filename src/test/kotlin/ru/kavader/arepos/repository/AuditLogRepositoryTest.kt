@@ -8,14 +8,15 @@ import kotlin.test.assertTrue
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class ModelsRepositoryTest : RepositoryTestBase() {
+class AuditLogRepositoryTest : RepositoryTestBase() {
 
     @Test
-    fun `persists model with owner`() {
-        val saved = persistModel()
-        val found = modelsRepository.findById(saved.id!!)
+    fun `stores audit record for entity`() {
+        val log = persistAuditLog()
+
+        val found = auditLogRepository.findById(log.id!!)
         assertTrue(found.isPresent)
-        assertEquals(saved.owner.id, found.get().owner.id)
+        assertEquals("users", found.get().tableName)
     }
 }
 

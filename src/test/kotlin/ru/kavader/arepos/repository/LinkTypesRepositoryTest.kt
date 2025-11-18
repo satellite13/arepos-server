@@ -8,14 +8,14 @@ import kotlin.test.assertTrue
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class ModelsRepositoryTest : RepositoryTestBase() {
+class LinkTypesRepositoryTest : RepositoryTestBase() {
 
     @Test
-    fun `persists model with owner`() {
-        val saved = persistModel()
-        val found = modelsRepository.findById(saved.id!!)
+    fun `saves link type`() {
+        val linkType = persistLinkType()
+        val found = linkTypesRepository.findById(linkType.id!!)
         assertTrue(found.isPresent)
-        assertEquals(saved.owner.id, found.get().owner.id)
+        assertEquals(linkType.name, found.get().name)
     }
 }
 

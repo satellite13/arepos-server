@@ -8,14 +8,14 @@ import kotlin.test.assertTrue
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class ModelsRepositoryTest : RepositoryTestBase() {
+class ComponentsRepositoryTest : RepositoryTestBase() {
 
     @Test
-    fun `persists model with owner`() {
-        val saved = persistModel()
-        val found = modelsRepository.findById(saved.id!!)
+    fun `persists component bound to notation`() {
+        val component = persistComponent()
+        val found = componentsRepository.findById(component.id!!)
         assertTrue(found.isPresent)
-        assertEquals(saved.owner.id, found.get().owner.id)
+        assertEquals(component.notation.id, found.get().notation.id)
     }
 }
 
