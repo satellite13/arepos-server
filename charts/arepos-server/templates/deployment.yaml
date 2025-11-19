@@ -23,6 +23,19 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      {{- if .Values.postgresql.enabled }}
+      initContainers:
+        - name: wait-for-postgresql
+          image: postgres:16-alpine
+          command: ['sh', '-c']
+          args:
+            - |
+              until pg_isready -h {{ .Release.Name }}-postgresql.{{ .Release.Namespace }}.svc.cluster.local -p 5432 -U {{ .Values.postgresql.auth.username }}; do
+                echo "Waiting for PostgreSQL to be ready..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+      {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -52,6 +65,57 @@ spec:
           readinessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- if .Values.database.existingSecret }}
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.secretKeyUrl }}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.secretKeyUsername }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.secretKeyPassword }}
+            {{- else }}
+            - name: DB_URL
+              value: "jdbc:postgresql://{{ if .Values.postgresql.enabled }}{{ .Release.Name }}-postgresql{{ else }}{{ .Values.database.host }}{{ end }}:{{ .Values.database.port }}/{{ .Values.database.name }}"
+            - name: DB_USERNAME
+              {{- if and .Values.postgresql.enabled (not .Values.database.existingSecret) }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgresql
+                  key: username
+              {{- else }}
+              value: {{ .Values.database.username | quote }}
+              {{- end }}
+            - name: DB_PASSWORD
+              {{- if and .Values.postgresql.enabled (not .Values.database.existingSecret) }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgresql
+                  key: password
+              {{- else if .Values.database.password }}
+              value: {{ .Values.database.password | quote }}
+              {{- else if not .Values.database.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "arepos-server.fullname" . }}-db-secret
+                  key: password
+              {{- end }}
+            {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

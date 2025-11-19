@@ -83,6 +83,7 @@ $$
 declare
     audit_row public.audit_log;
     user_id   uuid;
+    audit_user_id uuid;
 begin
     begin
         user_id := current_setting('app.current_user_id', true)::uuid;
@@ -90,6 +91,14 @@ begin
         when invalid_text_representation or undefined_object then
             user_id := null;
     end;
+
+    -- Для INSERT в таблицу users: если user_id равен NEW.id (пользователь создает сам себя),
+    -- устанавливаем audit_user_id = NULL, чтобы избежать нарушения foreign key constraint
+    if (TG_TABLE_NAME = 'users' and TG_OP = 'INSERT' and user_id = NEW.id) then
+        audit_user_id := null;
+    else
+        audit_user_id := user_id;
+    end if;
 
     if (TG_OP = 'DELETE') then
         audit_row = ROW (
@@ -99,7 +108,7 @@ begin
             OLD.id,
             row_to_json(OLD),
             null,
-            user_id,
+            audit_user_id,
             now()
             );
     elsif (TG_OP = 'INSERT') then
@@ -110,7 +119,7 @@ begin
             NEW.id,
             null,
             row_to_json(NEW),
-            user_id,
+            audit_user_id,
             now()
             );
     elsif (TG_OP = 'UPDATE') then
@@ -121,7 +130,7 @@ begin
             NEW.id,
             row_to_json(OLD),
             row_to_json(NEW),
-            user_id,
+            audit_user_id,
             now()
             );
     end if;
@@ -396,7 +405,7 @@ DECLARE
 BEGIN
     SELECT COUNT(DISTINCT n.model),
            COUNT(n.id),
-           MAX(n.model)
+           (SELECT n2.model FROM public.nodes n2 WHERE n2.id IN (NEW.source, NEW.target) LIMIT 1)
     INTO
         model_count,
         node_exists_count,

@@ -51,15 +51,22 @@ kotlin {
         languageVersion = JavaLanguageVersion.of(24)
     }
     compilerOptions {
-        jvmTarget = JvmTarget.JVM_24
+        jvmTarget = JvmTarget.fromTarget("24")
         freeCompilerArgs.addAll("-Xjsr305=strict")
     }
 }
 
 tasks {
     bootBuildImage {
-        environment.set(mapOf("BP_JVM_VERSION" to "25.0.1"))
         imageName.set("arch/${rootProject.name}:${rootProject.version}")
+        environment.set(mapOf(
+            "BP_JVM_VERSION" to "25",
+            "BP_IMAGE_TAG" to "${rootProject.version}"
+        ))
+        // Используем paketobuildpacks/builder-jammy-base для более легкого образа
+        builder.set("paketobuildpacks/builder-jammy-base:latest")
+        // Или paketobuildpacks/builder-jammy-tiny для минимального размера
+        // builder.set("paketobuildpacks/builder-jammy-tiny:latest")
     }
     test {
         useJUnitPlatform()

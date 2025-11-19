@@ -1,0 +1,42 @@
+# Values for deploying arepos-server to Kubernetes
+
+replicaCount: 1
+
+image:
+  repository: arch/arepos-server
+  pullPolicy: IfNotPresent
+  tag: "0.0.1-SNAPSHOT"
+
+# Database configuration
+database:
+  host: postgres.default.svc.cluster.local
+  port: 5432
+  name: arepos
+  username: arepos
+  password: "arepos"
+  # For production, use existingSecret instead:
+  # existingSecret: postgresql-secret
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Enable ingress if needed
+ingress:
+  enabled: false
+
+# Additional environment variables for JVM memory tuning
+env:
+  - name: BPL_JVM_THREAD_COUNT
+    value: "50"
+  - name: BPL_JVM_HEAD_ROOM
+    value: "0"
+

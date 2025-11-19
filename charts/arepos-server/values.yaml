@@ -75,10 +75,10 @@ ingress:
 
 resources:
   limits:
-    cpu: 200m
-    memory: 128Mi
+    cpu: 500m
+    memory: 512Mi
   requests:
-    cpu: 100m
+    cpu: 200m
     memory: 256Mi
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
@@ -92,18 +92,28 @@ resources:
   #   memory: 128Mi
 
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+startupProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 30
+  timeoutSeconds: 5
 livenessProbe:
   httpGet:
     path: /actuator/health/liveness
     port: 8080
-    initialDelaySeconds: 15
-    periodSeconds: 10
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
 readinessProbe:
   httpGet:
     path: /actuator/health/readiness
     port: 8080
-    initialDelaySeconds: 5
-    periodSeconds: 5
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  timeoutSeconds: 3
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:
@@ -131,3 +141,55 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+# PostgreSQL configuration
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    database: arepos
+    username: arepos
+    password: arepos
+    postgresPassword: arepos
+  persistence:
+    enabled: true
+    size: 8Gi
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Database configuration
+database:
+  # Database host (service name or external host)
+  # When postgresql.enabled=true, this will be automatically set to postgresql service
+  host: ""
+  # Database port
+  port: 5432
+  # Database name (should match postgresql.auth.database)
+  name: arepos
+  # Database username (should match postgresql.auth.username)
+  username: arepos
+  # Database password (if not set, will use postgresql.auth.password)
+  # For production, use existingSecret instead
+  password: ""
+  # Use existing secret for database credentials
+  # If set, the secret must contain keys: DB_URL, DB_USERNAME, DB_PASSWORD
+  existingSecret: ""
+  # Secret key for DB_URL (if using existingSecret)
+  secretKeyUrl: "DB_URL"
+  # Secret key for DB_USERNAME (if using existingSecret)
+  secretKeyUsername: "DB_USERNAME"
+  # Secret key for DB_PASSWORD (if using existingSecret)
+  secretKeyPassword: "DB_PASSWORD"
+
+# Additional environment variables
+env: []
+# - name: SPRING_PROFILES_ACTIVE
+#   value: "production"
