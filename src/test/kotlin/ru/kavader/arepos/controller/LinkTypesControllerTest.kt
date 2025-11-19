@@ -1,25 +1,24 @@
 package ru.kavader.arepos.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.support.PostgresContainerTest
 import java.time.Instant
 import kotlin.test.assertEquals
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class LinkTypesControllerTest : PostgresContainerTest() {
+class LinkTypesControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var mockMvc: MockMvc
@@ -32,16 +31,6 @@ class LinkTypesControllerTest : PostgresContainerTest() {
 
     @Autowired
     lateinit var linkTypesRepository: LinkTypesRepository
-
-    @Autowired
-    lateinit var linksRepository: ru.kavader.arepos.repository.LinksRepository
-
-    @BeforeEach
-    fun cleanDatabase() {
-        linksRepository.deleteAll()
-        linkTypesRepository.deleteAll()
-        usersRepository.deleteAll()
-    }
 
     @Test
     fun `creates link type via REST`() {
@@ -64,7 +53,7 @@ class LinkTypesControllerTest : PostgresContainerTest() {
                 .content(objectMapper.writeValueAsString(payload))
         )
             .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.name").value("test-link-type"))
+            .andExpect(jsonPath("$.name").value(payload.name))
             .andExpect(jsonPath("$.ownerId").value(owner.id.toString()))
 
         assertEquals(1, linkTypesRepository.count())

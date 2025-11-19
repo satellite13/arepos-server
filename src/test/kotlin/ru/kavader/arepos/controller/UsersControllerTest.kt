@@ -1,7 +1,6 @@
 package ru.kavader.arepos.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -12,13 +11,12 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.support.PostgresContainerTest
 import java.time.Instant
 import kotlin.test.assertEquals
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class UsersControllerTest : PostgresContainerTest() {
+class UsersControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var mockMvc: MockMvc
@@ -28,19 +26,6 @@ class UsersControllerTest : PostgresContainerTest() {
 
     @Autowired
     lateinit var usersRepository: UsersRepository
-
-    @Autowired
-    lateinit var modelsRepository: ru.kavader.arepos.repository.ModelsRepository
-
-    @Autowired
-    lateinit var notationsRepository: ru.kavader.arepos.repository.NotationsRepository
-
-    @BeforeEach
-    fun cleanDatabase() {
-        modelsRepository.deleteAll()
-        notationsRepository.deleteAll()
-        usersRepository.deleteAll()
-    }
 
     @Test
     fun `creates user via REST`() {
