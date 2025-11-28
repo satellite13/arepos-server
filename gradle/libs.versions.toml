@@ -2,4 +2,4 @@
 mockito = "5.20.0"
 
 [libraries]
-mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
+mockitoCore = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
