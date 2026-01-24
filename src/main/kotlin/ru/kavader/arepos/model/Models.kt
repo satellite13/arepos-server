@@ -36,5 +36,8 @@ data class Models(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner", nullable = false)
-    val owner: Users
+    val owner: Users,
+
+    @Column(name = "deleted", nullable = false)
+    val deleted: Boolean = false
 )

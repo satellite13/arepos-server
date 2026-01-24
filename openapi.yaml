@@ -7,7 +7,7 @@ info:
     name: API Support
 
 servers:
-  - url: http://localhost:8080
+  - url: http://arepos-server.arch.svc.cluster.local:8080
     description: Локальный сервер разработки
   - url: https://api.example.com
     description: Продакшн сервер

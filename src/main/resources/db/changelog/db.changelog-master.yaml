@@ -9,4 +9,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 002-add-deleted-to-models
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/002-add-deleted-to-models.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

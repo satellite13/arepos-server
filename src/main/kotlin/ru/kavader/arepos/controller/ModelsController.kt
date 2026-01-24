@@ -3,6 +3,7 @@ package ru.kavader.arepos.controller
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Models
@@ -62,6 +63,12 @@ class ModelsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createModel(@RequestBody request: ModelRequest): ModelResponse {
+        if (modelsRepository.existsByNameAndVersion(request.name, request.version)) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Model with name '${request.name}' and version '${request.version}' already exists"
+            )
+        }
         val owner = usersRepository.findById(request.ownerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
@@ -72,7 +79,8 @@ class ModelsController(
                 createdAt = Instant.now(),
                 attrs = request.attrs,
                 version = request.version,
-                owner = owner
+                owner = owner,
+                deleted = false
             )
         )
         return saved.toResponse()
@@ -87,6 +95,14 @@ class ModelsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
             }
+        val newName = request.name ?: model.name
+        val newVersion = request.version ?: model.version
+        if (modelsRepository.existsByNameAndVersionAndIdNot(newName, newVersion, id)) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Model with name '$newName' and version '$newVersion' already exists"
+            )
+        }
         val owner = request.ownerId?.let {
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
@@ -95,9 +111,9 @@ class ModelsController(
 
         val updated = modelsRepository.save(
             model.copy(
-                name = request.name ?: model.name,
+                name = newName,
                 attrs = request.attrs ?: model.attrs,
-                version = request.version ?: model.version,
+                version = newVersion,
                 owner = owner
             )
         )
@@ -106,11 +122,15 @@ class ModelsController(
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
     fun deleteModel(@PathVariable id: UUID) {
         if (!modelsRepository.existsById(id)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
         }
-        modelsRepository.deleteById(id)
+        val deletedCount = modelsRepository.softDeleteById(id)
+        if (deletedCount == 0) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
+        }
     }
 
     private fun Models.toResponse() = ModelResponse(
