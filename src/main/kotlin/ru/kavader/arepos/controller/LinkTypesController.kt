@@ -66,10 +66,12 @@ class LinkTypesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
             }
+        val now = Instant.now()
         val saved = linkTypesRepository.save(
             LinkTypes(
                 name = request.name,
-                createdAt = Instant.now(),
+                createdAt = now,
+                updatedAt = now,
                 attrs = request.attrs,
                 owner = owner
             )
@@ -115,7 +117,9 @@ class LinkTypesController(
         id = requireNotNull(id),
         name = name,
         ownerId = owner.id!!,
-        attrs = attrs
+        attrs = attrs,
+        createdAt = createdAt,
+        updatedAt = updatedAt
     )
 }
 
@@ -135,6 +139,8 @@ data class LinkTypeResponse(
     val id: UUID,
     val name: String,
     val ownerId: UUID,
-    val attrs: String?
+    val attrs: String?,
+    val createdAt: Instant?,
+    val updatedAt: Instant?
 )
 

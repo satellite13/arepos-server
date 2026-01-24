@@ -88,9 +88,11 @@ class RelationRulesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "ToComponent ${request.toComponentId} not found")
             }
+        val now = Instant.now()
         val saved = relationRulesRepository.save(
             RelationRules(
-                createdAt = Instant.now(),
+                createdAt = now,
+                updatedAt = now,
                 owner = owner,
                 attrs = request.attrs,
                 relation = relation,
@@ -158,7 +160,9 @@ class RelationRulesController(
         fromComponentId = fromComponent.id!!,
         toComponentId = toComponent.id!!,
         ownerId = owner.id!!,
-        attrs = attrs
+        attrs = attrs,
+        createdAt = createdAt,
+        updatedAt = updatedAt
     )
 }
 
@@ -184,6 +188,8 @@ data class RelationRuleResponse(
     val fromComponentId: UUID,
     val toComponentId: UUID,
     val ownerId: UUID,
-    val attrs: String?
+    val attrs: String?,
+    val createdAt: Instant?,
+    val updatedAt: Instant?
 )
 

@@ -95,10 +95,12 @@ class ComponentsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${request.nodeTypeId} not found")
             }
+        val now = Instant.now()
         val saved = componentsRepository.save(
             Components(
                 name = request.name,
-                createdAt = Instant.now(),
+                createdAt = now,
+                updatedAt = now,
                 attrs = request.attrs,
                 version = request.version,
                 notation = notation,
@@ -163,7 +165,9 @@ class ComponentsController(
         notationId = notation.id!!,
         ownerId = owner.id!!,
         nodeTypeId = nodeType.id!!,
-        attrs = attrs
+        attrs = attrs,
+        createdAt = createdAt,
+        updatedAt = updatedAt
     )
 }
 
@@ -192,6 +196,8 @@ data class ComponentResponse(
     val notationId: UUID,
     val ownerId: UUID,
     val nodeTypeId: UUID,
-    val attrs: String?
+    val attrs: String?,
+    val createdAt: Instant?,
+    val updatedAt: Instant?
 )
 

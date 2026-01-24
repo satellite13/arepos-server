@@ -3,6 +3,7 @@ package ru.kavader.arepos.controller
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Notations
@@ -66,13 +67,16 @@ class NotationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
             }
+        val now = Instant.now()
         val saved = notationsRepository.save(
             Notations(
                 name = request.name,
                 version = request.version,
                 owner = owner,
                 attrs = request.attrs,
-                createdAt = Instant.now()
+                createdAt = now,
+                updatedAt = now,
+                deleted = false
             )
         )
         return saved.toResponse()
@@ -106,11 +110,15 @@ class NotationsController(
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
     fun deleteNotation(@PathVariable id: UUID) {
         if (!notationsRepository.existsById(id)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
         }
-        notationsRepository.deleteById(id)
+        val deletedCount = notationsRepository.softDeleteById(id)
+        if (deletedCount == 0) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
+        }
     }
 
     private fun Notations.toResponse() = NotationResponse(

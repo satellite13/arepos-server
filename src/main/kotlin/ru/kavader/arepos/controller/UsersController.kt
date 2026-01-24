@@ -43,11 +43,13 @@ class UsersController(
         if (usersRepository.existsByEmail(request.email)) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "User with email ${request.email} already exists")
         }
+        val now = Instant.now()
         val saved = usersRepository.save(
             Users(
                 email = request.email,
                 attrs = request.attrs,
-                createdAt = Instant.now()
+                createdAt = now,
+                updatedAt = now
             )
         )
         return saved.toResponse()

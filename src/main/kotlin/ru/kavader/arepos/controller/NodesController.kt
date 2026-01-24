@@ -83,6 +83,7 @@ class NodesController(
             nodesRepository.findById(it).orElse(null)
         }
 
+        val now = Instant.now()
         val saved = nodesRepository.save(
             Nodes(
                 name = request.name,
@@ -91,7 +92,8 @@ class NodesController(
                 nodeType = nodeType,
                 parentNode = parentNode,
                 attrs = request.attrs,
-                createdAt = Instant.now()
+                createdAt = now,
+                updatedAt = now
             )
         )
         return saved.toResponse()

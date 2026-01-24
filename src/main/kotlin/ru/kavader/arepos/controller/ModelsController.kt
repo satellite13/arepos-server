@@ -73,10 +73,12 @@ class ModelsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
             }
+        val now = Instant.now()
         val saved = modelsRepository.save(
             Models(
                 name = request.name,
-                createdAt = Instant.now(),
+                createdAt = now,
+                updatedAt = now,
                 attrs = request.attrs,
                 version = request.version,
                 owner = owner,
@@ -138,7 +140,9 @@ class ModelsController(
         name = name,
         version = version,
         ownerId = owner.id!!,
-        attrs = attrs
+        attrs = attrs,
+        createdAt = createdAt,
+        updatedAt = updatedAt
     )
 }
 
@@ -161,6 +165,8 @@ data class ModelResponse(
     val name: String,
     val version: String,
     val ownerId: UUID,
-    val attrs: String?
+    val attrs: String?,
+    val createdAt: Instant?,
+    val updatedAt: Instant?
 )
 

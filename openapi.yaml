@@ -222,6 +222,8 @@ paths:
                 $ref: '#/components/schemas/ModelResponse'
         '404':
           description: Владелец не найден
+        '409':
+          description: Модель с таким name и version уже существует
         '400':
           description: Неверный запрос
 
@@ -272,6 +274,8 @@ paths:
                 $ref: '#/components/schemas/ModelResponse'
         '404':
           description: Модель или владелец не найдены
+        '409':
+          description: Модель с таким name и version уже существует
     delete:
       tags:
         - models
@@ -1413,22 +1417,37 @@ components:
 
     PageInfo:
       type: object
+      description: Метаданные пагинации (Spring Data Page)
       properties:
         totalElements:
           type: integer
           format: int64
+          description: Общее количество элементов
         totalPages:
           type: integer
+          description: Общее количество страниц
         size:
           type: integer
+          description: Размер страницы
         number:
           type: integer
+          description: Номер текущей страницы (с 0)
         first:
           type: boolean
+          description: Первая страница
         last:
           type: boolean
+          description: Последняя страница
         numberOfElements:
           type: integer
+          description: Количество элементов на текущей странице
+        empty:
+          type: boolean
+          description: Пустая страница
+        sort:
+          type: object
+          nullable: true
+          description: Параметры сортировки
 
     # Пользователи
     UserRequest:
@@ -1472,10 +1491,12 @@ components:
           type: string
           format: date-time
           nullable: true
+          description: Дата и время создания
         updatedAt:
           type: string
           format: date-time
           nullable: true
+          description: Дата и время последнего обновления
 
     PageUserResponse:
       allOf:
@@ -1539,6 +1560,16 @@ components:
         attrs:
           type: string
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время создания
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время последнего обновления
 
     PageModelResponse:
       allOf:
@@ -1632,10 +1663,12 @@ components:
           type: string
           format: date-time
           nullable: true
+          description: Дата и время создания
         updatedAt:
           type: string
           format: date-time
           nullable: true
+          description: Дата и время последнего обновления
 
     PageNodeResponse:
       allOf:
@@ -1721,6 +1754,16 @@ components:
         attrs:
           type: string
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время создания
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время последнего обновления
 
     PageRelationResponse:
       allOf:
@@ -1806,6 +1849,16 @@ components:
         attrs:
           type: string
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время создания
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время последнего обновления
 
     PageComponentResponse:
       allOf:
@@ -1897,6 +1950,16 @@ components:
         attrs:
           type: string
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время создания
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время последнего обновления
 
     PageLinkResponse:
       allOf:
@@ -1964,10 +2027,12 @@ components:
           type: string
           format: date-time
           nullable: true
+          description: Дата и время создания
         updatedAt:
           type: string
           format: date-time
           nullable: true
+          description: Дата и время последнего обновления
 
     PageNotationResponse:
       allOf:
@@ -2023,6 +2088,16 @@ components:
         attrs:
           type: string
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время создания
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время последнего обновления
 
     PageNodeTypeResponse:
       allOf:
@@ -2078,6 +2153,16 @@ components:
         attrs:
           type: string
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время создания
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время последнего обновления
 
     PageLinkTypeResponse:
       allOf:
@@ -2158,6 +2243,16 @@ components:
         attrs:
           type: string
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время создания
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время последнего обновления
 
     PageRelationRuleResponse:
       allOf:

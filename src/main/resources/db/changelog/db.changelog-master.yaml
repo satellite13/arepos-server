@@ -18,4 +18,22 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 003-add-deleted-to-notations
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/003-add-deleted-to-notations.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+  - changeSet:
+      id: 004-set-updated-at-on-insert
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/004-set-updated-at-on-insert.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

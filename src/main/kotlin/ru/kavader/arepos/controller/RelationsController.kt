@@ -95,10 +95,12 @@ class RelationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${request.linkTypeId} not found")
             }
+        val now = Instant.now()
         val saved = relationsRepository.save(
             Relations(
                 name = request.name,
-                createdAt = Instant.now(),
+                createdAt = now,
+                updatedAt = now,
                 attrs = request.attrs,
                 version = request.version,
                 owner = owner,
@@ -163,7 +165,9 @@ class RelationsController(
         notationId = notation.id!!,
         ownerId = owner.id!!,
         linkTypeId = linkType.id!!,
-        attrs = attrs
+        attrs = attrs,
+        createdAt = createdAt,
+        updatedAt = updatedAt
     )
 }
 
@@ -192,6 +196,8 @@ data class RelationResponse(
     val notationId: UUID,
     val ownerId: UUID,
     val linkTypeId: UUID,
-    val attrs: String?
+    val attrs: String?,
+    val createdAt: Instant?,
+    val updatedAt: Instant?
 )
 

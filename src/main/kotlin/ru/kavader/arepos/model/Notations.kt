@@ -36,5 +36,8 @@ data class Notations(
     val name: String,
 
     @Column(name = "version", nullable = false, columnDefinition = "version_type")
-    val version: String
+    val version: String,
+
+    @Column(name = "deleted", nullable = false)
+    val deleted: Boolean = false
 )
