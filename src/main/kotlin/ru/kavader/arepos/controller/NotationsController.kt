@@ -6,8 +6,14 @@ import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.model.Notations
+import ru.kavader.arepos.model.RelationRules
+import ru.kavader.arepos.model.Relations
+import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.repository.RelationRulesRepository
+import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import java.util.UUID
@@ -16,7 +22,10 @@ import java.util.UUID
 @RequestMapping("/api/v1/notations")
 class NotationsController(
     private val notationsRepository: NotationsRepository,
-    private val usersRepository: UsersRepository
+    private val usersRepository: UsersRepository,
+    private val componentsRepository: ComponentsRepository,
+    private val relationsRepository: RelationsRepository,
+    private val relationRulesRepository: RelationRulesRepository
 ) {
 
     @GetMapping
@@ -106,6 +115,98 @@ class NotationsController(
             )
         )
         return updated.toResponse()
+    }
+
+    @PostMapping("/{sourceId}/copy")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Transactional
+    fun copyNotation(
+        @PathVariable sourceId: UUID,
+        @RequestBody request: NotationRequest
+    ): NotationResponse {
+        val source = notationsRepository.findById(sourceId)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Source notation $sourceId not found")
+            }
+        val owner = usersRepository.findById(request.ownerId)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
+            }
+
+        val now = Instant.now()
+        val newNotation = notationsRepository.save(
+            Notations(
+                name = request.name,
+                version = request.version,
+                owner = owner,
+                attrs = request.attrs ?: source.attrs,
+                createdAt = now,
+                updatedAt = now,
+                deleted = false
+            )
+        )
+
+        // Copy components and build oldId → newId map
+        val sourceComponents = componentsRepository.findByNotation(source, Pageable.unpaged())
+        val componentIdMap = mutableMapOf<UUID, UUID>()
+        for (srcComponent in sourceComponents) {
+            val saved = componentsRepository.save(
+                srcComponent.copy(
+                    id = null,
+                    notation = newNotation,
+                    owner = owner,
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
+            componentIdMap[srcComponent.id!!] = saved.id!!
+        }
+
+        // Copy relations and build oldId → newId map
+        val sourceRelations = relationsRepository.findByNotation(source, Pageable.unpaged())
+        val relationIdMap = mutableMapOf<UUID, UUID>()
+        for (srcRelation in sourceRelations) {
+            val saved = relationsRepository.save(
+                srcRelation.copy(
+                    id = null,
+                    notation = newNotation,
+                    owner = owner,
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
+            relationIdMap[srcRelation.id!!] = saved.id!!
+        }
+
+        // Copy relation rules, remapping relation/component IDs
+        for (srcRelation in sourceRelations) {
+            val sourceRules = relationRulesRepository.findByRelation(srcRelation, Pageable.unpaged())
+            val newRelation = relationsRepository.findById(relationIdMap[srcRelation.id!!]!!)
+                .orElseThrow { IllegalStateException("Copied relation not found") }
+
+            for (srcRule in sourceRules) {
+                val newFromId = componentIdMap[srcRule.fromComponent.id!!] ?: continue
+                val newToId = componentIdMap[srcRule.toComponent.id!!] ?: continue
+                val newFrom = componentsRepository.findById(newFromId)
+                    .orElseThrow { IllegalStateException("Copied component not found") }
+                val newTo = componentsRepository.findById(newToId)
+                    .orElseThrow { IllegalStateException("Copied component not found") }
+
+                relationRulesRepository.save(
+                    srcRule.copy(
+                        id = null,
+                        relation = newRelation,
+                        fromComponent = newFrom,
+                        toComponent = newTo,
+                        owner = owner,
+                        createdAt = now,
+                        updatedAt = now
+                    )
+                )
+            }
+        }
+
+        return newNotation.toResponse()
     }
 
     @DeleteMapping("/{id}")
