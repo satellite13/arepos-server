@@ -45,4 +45,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 006-diagrams-node-and-directory-seed
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/006-diagrams-node-and-directory-seed.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

@@ -51,5 +51,9 @@ data class Diagrams(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "notation_id", nullable = false)
-    val notation: Notations
+    val notation: Notations,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "node_id")
+    val node: Nodes? = null
 )

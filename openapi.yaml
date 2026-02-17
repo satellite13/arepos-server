@@ -327,6 +327,12 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: nodeId
+          in: query
+          description: Фильтр по узлу-контейнеру диаграммы
+          schema:
+            type: string
+            format: uuid
         - name: notationId
           in: query
           description: Фильтр по нотации
@@ -363,7 +369,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/DiagramResponse'
         '404':
-          description: Владелец, модель или нотация не найдены
+          description: Владелец, модель, узел или нотация не найдены
         '409':
           description: Диаграмма с таким modelId, name и version уже существует
         '400':
@@ -415,7 +421,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/DiagramResponse'
         '404':
-          description: Диаграмма, владелец, модель или нотация не найдены
+          description: Диаграмма, владелец, модель, узел или нотация не найдены
         '409':
           description: Диаграмма с таким modelId, name и version уже существует
     delete:
@@ -1743,6 +1749,10 @@ components:
         modelId:
           type: string
           format: uuid
+        nodeId:
+          type: string
+          format: uuid
+          nullable: true
         notationId:
           type: string
           format: uuid
@@ -1764,6 +1774,10 @@ components:
           format: uuid
           nullable: true
         modelId:
+          type: string
+          format: uuid
+          nullable: true
+        nodeId:
           type: string
           format: uuid
           nullable: true
@@ -1791,6 +1805,10 @@ components:
         modelId:
           type: string
           format: uuid
+        nodeId:
+          type: string
+          format: uuid
+          nullable: true
         notationId:
           type: string
           format: uuid

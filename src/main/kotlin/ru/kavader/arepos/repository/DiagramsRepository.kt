@@ -25,6 +25,7 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
         WHERE d.deleted = false
           AND (:ownerId IS NULL OR d.owner.id = :ownerId)
           AND (:modelId IS NULL OR d.model.id = :modelId)
+          AND (:nodeId IS NULL OR d.node.id = :nodeId)
           AND (:notationId IS NULL OR d.notation.id = :notationId)
           AND LOWER(d.name) LIKE LOWER(CONCAT('%', :name, '%'))
         """
@@ -32,6 +33,7 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
     fun findByFilters(
         ownerId: UUID?,
         modelId: UUID?,
+        nodeId: UUID?,
         notationId: UUID?,
         name: String,
         pageable: Pageable

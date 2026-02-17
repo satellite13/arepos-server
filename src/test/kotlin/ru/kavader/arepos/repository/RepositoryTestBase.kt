@@ -196,6 +196,7 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
         model: Models = persistModel(),
         notation: Notations = persistNotation(owner = model.owner),
         owner: Users = model.owner,
+        node: Nodes? = null,
         name: String = "diagram-${randomSuffix()}",
         version: String = "1.0.0",
         attrs: String? = """{"layout":"default"}"""
@@ -207,7 +208,8 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
             version = version,
             owner = owner,
             model = model,
-            notation = notation
+            notation = notation,
+            node = node
         )
     )
 

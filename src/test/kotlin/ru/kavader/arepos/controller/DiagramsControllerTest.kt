@@ -15,6 +15,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
+import ru.kavader.arepos.repository.NodeTypesRepository
+import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
@@ -39,6 +41,12 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var notationsRepository: NotationsRepository
+
+    @Autowired
+    lateinit var nodeTypesRepository: NodeTypesRepository
+
+    @Autowired
+    lateinit var nodesRepository: NodesRepository
 
     @Autowired
     lateinit var diagramsRepository: DiagramsRepository
@@ -67,12 +75,29 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
                 createdAt = Instant.now()
             )
         )
+        val nodeType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "diagram-node-type-${UUID.randomUUID()}",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val node = nodesRepository.save(
+            ru.kavader.arepos.model.Nodes(
+                name = "diagram-node",
+                model = model,
+                owner = owner,
+                nodeType = nodeType,
+                createdAt = Instant.now()
+            )
+        )
 
         val payload = DiagramRequest(
             name = "diagram-1",
             version = "1.0.0",
             ownerId = owner.id!!,
             modelId = model.id!!,
+            nodeId = node.id!!,
             notationId = notation.id!!,
             attrs = """{"layout":"auto"}"""
         )
@@ -85,6 +110,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.name").value("diagram-1"))
             .andExpect(jsonPath("$.modelId").value(model.id.toString()))
+            .andExpect(jsonPath("$.nodeId").value(node.id.toString()))
             .andExpect(jsonPath("$.notationId").value(notation.id.toString()))
 
         assertEquals(1, diagramsRepository.count())
@@ -345,6 +371,31 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
                 createdAt = Instant.now()
             )
         )
+        val nodeType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "list-node-type-${UUID.randomUUID()}",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val node1 = nodesRepository.save(
+            ru.kavader.arepos.model.Nodes(
+                name = "list-node-1",
+                model = model,
+                owner = owner,
+                nodeType = nodeType,
+                createdAt = Instant.now()
+            )
+        )
+        val node2 = nodesRepository.save(
+            ru.kavader.arepos.model.Nodes(
+                name = "list-node-2",
+                model = model,
+                owner = owner,
+                nodeType = nodeType,
+                createdAt = Instant.now()
+            )
+        )
 
         diagramsRepository.save(
             ru.kavader.arepos.model.Diagrams(
@@ -353,6 +404,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
                 owner = owner,
                 model = model,
                 notation = notation,
+                node = node1,
                 createdAt = Instant.now()
             )
         )
@@ -363,6 +415,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
                 owner = owner,
                 model = model,
                 notation = notation,
+                node = node2,
                 createdAt = Instant.now()
             )
         )
@@ -371,5 +424,10 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(2))
             .andExpect(jsonPath("$.totalElements").value(2))
+
+        mockMvc.perform(get("/api/v1/diagrams?nodeId=${node1.id}&page=0&size=10"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].nodeId").value(node1.id.toString()))
     }
 }

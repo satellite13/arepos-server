@@ -9,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
+import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
@@ -20,6 +21,7 @@ class DiagramsController(
     private val diagramsRepository: DiagramsRepository,
     private val usersRepository: UsersRepository,
     private val modelsRepository: ModelsRepository,
+    private val nodesRepository: NodesRepository,
     private val notationsRepository: NotationsRepository
 ) {
 
@@ -28,12 +30,14 @@ class DiagramsController(
         pageable: Pageable,
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) modelId: UUID?,
+        @RequestParam(required = false) nodeId: UUID?,
         @RequestParam(required = false) notationId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<DiagramResponse> = diagramsRepository
         .findByFilters(
             ownerId = ownerId,
             modelId = modelId,
+            nodeId = nodeId,
             notationId = notationId,
             name = name.orEmpty(),
             pageable = pageable
@@ -63,6 +67,11 @@ class DiagramsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${request.notationId} not found")
             }
+        val node = request.nodeId?.let {
+            nodesRepository.findById(it).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Node $it not found")
+            }
+        }
         if (diagramsRepository.existsByModelAndNameAndVersion(model, request.name, request.version)) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
@@ -81,7 +90,8 @@ class DiagramsController(
                 owner = owner,
                 deleted = false,
                 model = model,
-                notation = notation
+                notation = notation,
+                node = node
             )
         )
         return saved.toResponse()
@@ -112,6 +122,11 @@ class DiagramsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")
             }
         } ?: diagram.notation
+        val node = request.nodeId?.let {
+            nodesRepository.findById(it).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Node $it not found")
+            }
+        } ?: diagram.node
         val newName = request.name ?: diagram.name
         val newVersion = request.version ?: diagram.version
 
@@ -129,7 +144,8 @@ class DiagramsController(
                 version = newVersion,
                 owner = owner,
                 model = model,
-                notation = notation
+                notation = notation,
+                node = node
             )
         )
         return updated.toResponse()
@@ -154,6 +170,7 @@ class DiagramsController(
         version = version,
         ownerId = owner.id!!,
         modelId = model.id!!,
+        nodeId = node?.id,
         notationId = notation.id!!,
         attrs = attrs,
         createdAt = createdAt,
@@ -166,6 +183,7 @@ data class DiagramRequest(
     val version: String,
     val ownerId: UUID,
     val modelId: UUID,
+    val nodeId: UUID? = null,
     val notationId: UUID,
     val attrs: String? = null
 )
@@ -175,6 +193,7 @@ data class DiagramUpdateRequest(
     val version: String? = null,
     val ownerId: UUID? = null,
     val modelId: UUID? = null,
+    val nodeId: UUID? = null,
     val notationId: UUID? = null,
     val attrs: String? = null
 )
@@ -185,6 +204,7 @@ data class DiagramResponse(
     val version: String,
     val ownerId: UUID,
     val modelId: UUID,
+    val nodeId: UUID?,
     val notationId: UUID,
     val attrs: String?,
     val createdAt: Instant?,
