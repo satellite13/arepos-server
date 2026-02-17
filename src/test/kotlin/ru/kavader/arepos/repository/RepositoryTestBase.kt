@@ -30,6 +30,8 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
     protected lateinit var relationsRepository: RelationsRepository
     @Autowired
     protected lateinit var relationRulesRepository: RelationRulesRepository
+    @Autowired
+    protected lateinit var diagramsRepository: DiagramsRepository
 
     protected fun persistUser(
         email: String = "user-${randomSuffix()}@example.com",
@@ -187,6 +189,25 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
             owner = owner,
             linkType = linkType,
             model = model
+        )
+    )
+
+    protected fun persistDiagram(
+        model: Models = persistModel(),
+        notation: Notations = persistNotation(owner = model.owner),
+        owner: Users = model.owner,
+        name: String = "diagram-${randomSuffix()}",
+        version: String = "1.0.0",
+        attrs: String? = """{"layout":"default"}"""
+    ): Diagrams = diagramsRepository.save(
+        Diagrams(
+            name = name,
+            createdAt = Instant.now(),
+            attrs = attrs,
+            version = version,
+            owner = owner,
+            model = model,
+            notation = notation
         )
     )
 

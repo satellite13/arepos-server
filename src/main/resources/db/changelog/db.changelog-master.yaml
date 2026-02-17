@@ -36,4 +36,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 005-add-diagrams
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/005-add-diagrams.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

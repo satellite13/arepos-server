@@ -17,6 +17,8 @@ tags:
     description: Управление пользователями
   - name: models
     description: Управление моделями
+  - name: diagrams
+    description: Управление диаграммами
   - name: nodes
     description: Управление узлами
   - name: relations
@@ -292,6 +294,146 @@ paths:
           description: Модель удалена
         '404':
           description: Модель не найдена
+
+  /api/v1/diagrams:
+    get:
+      tags:
+        - diagrams
+      summary: Список диаграмм
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: sort
+          in: query
+          schema:
+            type: string
+        - name: ownerId
+          in: query
+          description: Фильтр по владельцу
+          schema:
+            type: string
+            format: uuid
+        - name: modelId
+          in: query
+          description: Фильтр по модели
+          schema:
+            type: string
+            format: uuid
+        - name: notationId
+          in: query
+          description: Фильтр по нотации
+          schema:
+            type: string
+            format: uuid
+        - name: name
+          in: query
+          description: Фильтр по имени (поиск по подстроке)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageDiagramResponse'
+    post:
+      tags:
+        - diagrams
+      summary: Создать диаграмму
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiagramRequest'
+      responses:
+        '201':
+          description: Диаграмма создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiagramResponse'
+        '404':
+          description: Владелец, модель или нотация не найдены
+        '409':
+          description: Диаграмма с таким modelId, name и version уже существует
+        '400':
+          description: Неверный запрос
+
+  /api/v1/diagrams/{id}:
+    get:
+      tags:
+        - diagrams
+      summary: Получить диаграмму по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiagramResponse'
+        '404':
+          description: Диаграмма не найдена
+    put:
+      tags:
+        - diagrams
+      summary: Обновить диаграмму
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiagramUpdateRequest'
+      responses:
+        '200':
+          description: Диаграмма обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiagramResponse'
+        '404':
+          description: Диаграмма, владелец, модель или нотация не найдены
+        '409':
+          description: Диаграмма с таким modelId, name и version уже существует
+    delete:
+      tags:
+        - diagrams
+      summary: Удалить диаграмму
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Диаграмма удалена
+        '404':
+          description: Диаграмма не найдена
 
   /api/v1/nodes:
     get:
@@ -1580,6 +1722,101 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/ModelResponse'
+
+    # Диаграммы
+    DiagramRequest:
+      type: object
+      required:
+        - name
+        - version
+        - ownerId
+        - modelId
+        - notationId
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+        modelId:
+          type: string
+          format: uuid
+        notationId:
+          type: string
+          format: uuid
+        attrs:
+          type: string
+          nullable: true
+
+    DiagramUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        version:
+          type: string
+          nullable: true
+        ownerId:
+          type: string
+          format: uuid
+          nullable: true
+        modelId:
+          type: string
+          format: uuid
+          nullable: true
+        notationId:
+          type: string
+          format: uuid
+          nullable: true
+        attrs:
+          type: string
+          nullable: true
+
+    DiagramResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        version:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+        modelId:
+          type: string
+          format: uuid
+        notationId:
+          type: string
+          format: uuid
+        attrs:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время создания
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Дата и время последнего обновления
+
+    PageDiagramResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageInfo'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/DiagramResponse'
 
     # Узлы
     NodeRequest:
