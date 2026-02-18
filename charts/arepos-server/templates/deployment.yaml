@@ -26,11 +26,11 @@ spec:
       {{- if .Values.postgresql.enabled }}
       initContainers:
         - name: wait-for-postgresql
-          image: postgres:16-alpine
+          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
           command: ['sh', '-c']
           args:
             - |
-              until pg_isready -h {{ .Release.Name }}-postgresql.{{ .Release.Namespace }}.svc.cluster.local -p 5432 -U {{ .Values.postgresql.auth.username }}; do
+              until pg_isready -h {{ include "arepos-server.postgresql.fullname" . }} -p 5432 -U {{ .Values.postgresql.auth.username }}; do
                 echo "Waiting for PostgreSQL to be ready..."
                 sleep 2
               done
@@ -88,12 +88,12 @@ spec:
                   key: {{ .Values.database.secretKeyPassword }}
             {{- else }}
             - name: DB_URL
-              value: "jdbc:postgresql://{{ if .Values.postgresql.enabled }}{{ .Release.Name }}-postgresql{{ else }}{{ .Values.database.host }}{{ end }}:{{ .Values.database.port }}/{{ .Values.database.name }}"
+              value: "jdbc:postgresql://{{ if .Values.postgresql.enabled }}{{ include "arepos-server.postgresql.fullname" . }}{{ else }}{{ .Values.database.host }}{{ end }}:{{ .Values.database.port }}/{{ .Values.database.name }}"
             - name: DB_USERNAME
               {{- if and .Values.postgresql.enabled (not .Values.database.existingSecret) }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-postgresql
+                  name: {{ include "arepos-server.postgresql.fullname" . }}
                   key: username
               {{- else }}
               value: {{ .Values.database.username | quote }}
@@ -102,7 +102,7 @@ spec:
               {{- if and .Values.postgresql.enabled (not .Values.database.existingSecret) }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-postgresql
+                  name: {{ include "arepos-server.postgresql.fullname" . }}
                   key: password
               {{- else if .Values.database.password }}
               value: {{ .Values.database.password | quote }}

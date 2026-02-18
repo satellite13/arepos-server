@@ -14,6 +14,7 @@ Helm chart для развертывания Arepos Server в Kubernetes.
 
 ```bash
 helm install arepos-server ./charts/arepos-server \
+  --set postgresql.enabled=false \
   --set database.host=postgresql \
   --set database.password=your-password
 ```
@@ -22,6 +23,7 @@ helm install arepos-server ./charts/arepos-server \
 
 ```bash
 helm install arepos-server ./charts/arepos-server \
+  --set postgresql.enabled=false \
   --set database.existingSecret=postgresql-secret
 ```
 

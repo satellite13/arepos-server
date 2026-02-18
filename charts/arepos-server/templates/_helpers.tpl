@@ -60,3 +60,10 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+PostgreSQL resource names (respect fullnameOverride/nameOverride).
+*/}}
+{{- define "arepos-server.postgresql.fullname" -}}
+{{- printf "%s-postgresql" (include "arepos-server.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}

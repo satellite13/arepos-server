@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ .Release.Name }}-postgresql
+  name: {{ include "arepos-server.postgresql.fullname" . }}
   labels:
     {{- include "arepos-server.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
@@ -15,7 +15,7 @@ data:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Release.Name }}-postgresql-data
+  name: {{ include "arepos-server.postgresql.fullname" . }}-data
   labels:
     {{- include "arepos-server.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
@@ -31,7 +31,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-postgresql
+  name: {{ include "arepos-server.postgresql.fullname" . }}
   labels:
     {{- include "arepos-server.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
@@ -63,12 +63,12 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-postgresql
+                  name: {{ include "arepos-server.postgresql.fullname" . }}
                   key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-postgresql
+                  name: {{ include "arepos-server.postgresql.fullname" . }}
                   key: password
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
@@ -98,14 +98,14 @@ spec:
       volumes:
         - name: postgresql-data
           persistentVolumeClaim:
-            claimName: {{ .Release.Name }}-postgresql-data
+            claimName: {{ include "arepos-server.postgresql.fullname" . }}-data
 {{- end }}
 ---
 {{- if .Values.postgresql.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-postgresql
+  name: {{ include "arepos-server.postgresql.fullname" . }}
   labels:
     {{- include "arepos-server.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
