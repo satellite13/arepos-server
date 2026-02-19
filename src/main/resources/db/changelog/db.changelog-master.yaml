@@ -54,4 +54,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 007-allow-self-links
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/007-allow-self-links.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 
