@@ -15,6 +15,7 @@ VALUES_FILE="${VALUES_FILE:-deploy-values.yaml}"
 POSTGRESQL_ENABLED="${POSTGRESQL_ENABLED:-true}"
 BUILD_IMAGE="${BUILD_IMAGE:-true}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-300}"
+KEEP_POSTGRES_VOLUME="${KEEP_POSTGRES_VOLUME:-false}"
 
 # Функции
 log_info() {
@@ -71,13 +72,17 @@ fi
 
 # Удаление предыдущего развертывания, если существует
 if helm list -n "$NAMESPACE" | grep -q "$RELEASE_NAME"; then
-    log_warn "Найдено существующее развертывание '$RELEASE_NAME'. Удаление..."
-    helm uninstall "$RELEASE_NAME" -n "$NAMESPACE" || true
-    sleep 5
+    if [ "$KEEP_POSTGRES_VOLUME" = "true" ]; then
+        log_warn "Найдено существующее развертывание '$RELEASE_NAME'. Используем upgrade без удаления PVC (KEEP_POSTGRES_VOLUME=true)"
+    else
+        log_warn "Найдено существующее развертывание '$RELEASE_NAME'. Удаление..."
+        helm uninstall "$RELEASE_NAME" -n "$NAMESPACE" || true
+        sleep 5
+    fi
 fi
 
 # Удаление PVC, если существует
-if kubectl get pvc -n "$NAMESPACE" | grep -q "postgresql-data"; then
+if [ "$KEEP_POSTGRES_VOLUME" != "true" ] && kubectl get pvc -n "$NAMESPACE" | grep -q "postgresql-data"; then
     log_warn "Удаление существующего PVC..."
     kubectl delete pvc -n "$NAMESPACE" arepos-server-postgresql-data || true
     sleep 3
@@ -85,7 +90,11 @@ fi
 
 # Развертывание через Helm
 log_info "Развертывание приложения через Helm..."
-HELM_CMD="helm install $RELEASE_NAME charts/arepos-server -n $NAMESPACE"
+HELM_ACTION="install"
+if [ "$KEEP_POSTGRES_VOLUME" = "true" ]; then
+    HELM_ACTION="upgrade --install"
+fi
+HELM_CMD="helm $HELM_ACTION $RELEASE_NAME charts/arepos-server -n $NAMESPACE"
 
 if [ -f "$VALUES_FILE" ]; then
     HELM_CMD="$HELM_CMD -f $VALUES_FILE"

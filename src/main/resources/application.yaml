@@ -24,3 +24,8 @@ management:
   endpoint:
     prometheus:
       access: read_only
+
+arepos:
+  audit:
+    retention: ${AUDIT_RETENTION:PT24H}
+    cleanup-cron: ${AUDIT_CLEANUP_CRON:0 0 * * * *}
