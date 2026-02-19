@@ -63,4 +63,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 008-fix-self-link-trigger-validation
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/008-fix-self-link-trigger-validation.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 
