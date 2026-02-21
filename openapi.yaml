@@ -13,8 +13,10 @@ servers:
     description: Продакшн сервер
 
 tags:
+  - name: auth
+    description: Аутентификация и авторизация
   - name: users
-    description: Управление пользователями
+    description: Управление пользователями (только ADMIN)
   - name: models
     description: Управление моделями
   - name: diagrams
@@ -30,21 +32,134 @@ tags:
   - name: notations
     description: Управление нотациями
   - name: node-types
-    description: Управление типами узлов
+    description: Управление типами узлов (создание/изменение/удаление — EDITOR и ADMIN)
   - name: link-types
-    description: Управление типами связей
+    description: Управление типами связей (создание/изменение/удаление — EDITOR и ADMIN)
   - name: relation-rules
     description: Управление правилами связей
   - name: audit-log
     description: Просмотр журнала аудита
 
+security:
+  - bearerAuth: []
+
 paths:
+  /api/v1/auth/register:
+    post:
+      tags:
+        - auth
+      summary: Регистрация нового пользователя
+      description: Создает пользователя с ролью USER и возвращает JWT токены
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Пользователь зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Пользователь с таким email уже существует
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - auth
+      summary: Вход в систему
+      description: Аутентификация по email и паролю, возвращает JWT токены
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Неверные учетные данные
+
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - auth
+      summary: Обновить токены
+      description: Обновляет access и refresh токены по действующему refresh токену
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Токены обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Невалидный refresh токен
+
+  /api/v1/auth/register-admin:
+    post:
+      tags:
+        - auth
+      summary: Регистрация администратора
+      description: Создает пользователя с ролью ADMIN. Требует секретный ключ (ADMIN_SECRET)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRegisterRequest'
+      responses:
+        '201':
+          description: Администратор зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '403':
+          description: Неверный admin secret
+        '409':
+          description: Пользователь с таким email уже существует
+
+  /api/v1/auth/me:
+    get:
+      tags:
+        - auth
+      summary: Текущий пользователь
+      description: Возвращает информацию о текущем аутентифицированном пользователе
+      responses:
+        '200':
+          description: Информация о пользователе
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfoResponse'
+        '401':
+          description: Не аутентифицирован
+
   /api/v1/users:
     get:
       tags:
         - users
       summary: Список пользователей
-      description: Возвращает список пользователей с поддержкой пагинации и фильтрации
+      description: Возвращает список пользователей с поддержкой пагинации и фильтрации. Только для ADMIN
       parameters:
         - name: page
           in: query
@@ -75,6 +190,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PageUserResponse'
+        '401':
+          description: Не аутентифицирован
+        '403':
+          description: Недостаточно прав (требуется роль ADMIN)
     post:
       tags:
         - users
@@ -1546,7 +1665,87 @@ paths:
           description: Запись журнала аудита не найдена
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access токен. Получите через /api/v1/auth/login или /api/v1/auth/register
+
   schemas:
+    # Аутентификация
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    RefreshRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+
+    AdminRegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - adminSecret
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        adminSecret:
+          type: string
+          description: Секретный ключ для создания администратора (ADMIN_SECRET)
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserInfoResponse'
+
+    UserInfoResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [USER, EDITOR, ADMIN]
     # Общие схемы для пагинации
     Pageable:
       type: object
@@ -1619,6 +1818,13 @@ components:
           type: string
           format: email
           nullable: true
+        role:
+          type: string
+          enum: [USER, EDITOR, ADMIN]
+          nullable: true
+        isActive:
+          type: boolean
+          nullable: true
         attrs:
           type: string
           nullable: true
@@ -1632,6 +1838,11 @@ components:
         email:
           type: string
           format: email
+        role:
+          type: string
+          enum: [USER, EDITOR, ADMIN]
+        isActive:
+          type: boolean
         attrs:
           type: string
           nullable: true
@@ -1662,7 +1873,6 @@ components:
       required:
         - name
         - version
-        - ownerId
       properties:
         name:
           type: string
@@ -1671,6 +1881,7 @@ components:
         ownerId:
           type: string
           format: uuid
+          description: Если не указан, берется из JWT токена
         attrs:
           type: string
           nullable: true
@@ -1735,7 +1946,6 @@ components:
       required:
         - name
         - version
-        - ownerId
         - modelId
         - notationId
       properties:
@@ -1746,6 +1956,7 @@ components:
         ownerId:
           type: string
           format: uuid
+          description: Если не указан, берется из JWT токена
         modelId:
           type: string
           format: uuid
@@ -1842,7 +2053,6 @@ components:
       required:
         - name
         - modelId
-        - ownerId
         - nodeTypeId
       properties:
         name:
@@ -1853,6 +2063,7 @@ components:
         ownerId:
           type: string
           format: uuid
+          description: Если не указан, берется из JWT токена
         nodeTypeId:
           type: string
           format: uuid
@@ -1942,7 +2153,6 @@ components:
         - name
         - version
         - notationId
-        - ownerId
         - linkTypeId
       properties:
         name:
@@ -1955,6 +2165,7 @@ components:
         ownerId:
           type: string
           format: uuid
+          description: Если не указан, берется из JWT токена
         linkTypeId:
           type: string
           format: uuid
@@ -2037,7 +2248,6 @@ components:
         - name
         - version
         - notationId
-        - ownerId
         - nodeTypeId
       properties:
         name:
@@ -2050,6 +2260,7 @@ components:
         ownerId:
           type: string
           format: uuid
+          description: Если не указан, берется из JWT токена
         nodeTypeId:
           type: string
           format: uuid
@@ -2132,7 +2343,6 @@ components:
         - sourceId
         - targetId
         - modelId
-        - ownerId
         - linkTypeId
       properties:
         sourceId:
@@ -2147,6 +2357,7 @@ components:
         ownerId:
           type: string
           format: uuid
+          description: Если не указан, берется из JWT токена
         linkTypeId:
           type: string
           format: uuid
@@ -2232,7 +2443,6 @@ components:
       required:
         - name
         - version
-        - ownerId
       properties:
         name:
           type: string
@@ -2241,6 +2451,7 @@ components:
         ownerId:
           type: string
           format: uuid
+          description: Если не указан, берется из JWT токена
         attrs:
           type: string
           nullable: true
@@ -2304,13 +2515,13 @@ components:
       type: object
       required:
         - name
-        - ownerId
       properties:
         name:
           type: string
         ownerId:
           type: string
           format: uuid
+          description: Если не указан, берется из JWT токена
         attrs:
           type: string
           nullable: true
@@ -2369,13 +2580,13 @@ components:
       type: object
       required:
         - name
-        - ownerId
       properties:
         name:
           type: string
         ownerId:
           type: string
           format: uuid
+          description: Если не указан, берется из JWT токена
         attrs:
           type: string
           nullable: true
@@ -2436,7 +2647,6 @@ components:
         - relationId
         - fromComponentId
         - toComponentId
-        - ownerId
       properties:
         relationId:
           type: string
@@ -2450,6 +2660,7 @@ components:
         ownerId:
           type: string
           format: uuid
+          description: Если не указан, берется из JWT токена
         attrs:
           type: string
           nullable: true

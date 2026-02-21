@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NotationsRepository
@@ -51,6 +52,7 @@ class ComponentsControllerTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "component-owner-${UUID.randomUUID()}@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -84,6 +86,7 @@ class ComponentsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/components")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -117,10 +120,11 @@ class ComponentsControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        mockMvc.perform(get("/api/v1/components?page=0&size=10"))
+        mockMvc.perform(
+            get("/api/v1/components?page=0&size=10")
+                .withAuth(owner.id!!)
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.totalElements").value(2))
     }
 }
-
-

@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
@@ -37,6 +38,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -50,6 +52,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/notations")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -65,6 +68,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -86,10 +90,12 @@ class NotationsControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        mockMvc.perform(get("/api/v1/notations?ownerId=${owner.id}&page=0&size=10"))
+        mockMvc.perform(
+            get("/api/v1/notations?ownerId=${owner.id}&page=0&size=10")
+                .withAuth(owner.id!!)
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(2))
             .andExpect(jsonPath("$.totalElements").value(2))
     }
 }
-

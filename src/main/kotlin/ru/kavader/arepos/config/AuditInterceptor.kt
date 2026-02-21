@@ -2,6 +2,7 @@ package ru.kavader.arepos.config
 
 import org.hibernate.event.spi.*
 import org.hibernate.engine.spi.SessionImplementor
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
@@ -56,6 +57,10 @@ class AuditInterceptor : PreInsertEventListener, PreUpdateEventListener, PreDele
             return threadLocalUserId.get() ?: try {
                 val requestAttributes = RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes
                 requestAttributes?.request?.getHeader(USER_ID_HEADER)?.let { UUID.fromString(it) }
+            } catch (_: Exception) {
+                null
+            } ?: try {
+                SecurityContextHolder.getContext().authentication?.principal as? UUID
             } catch (_: Exception) {
                 null
             }

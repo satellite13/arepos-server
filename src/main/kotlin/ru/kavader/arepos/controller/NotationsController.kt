@@ -15,6 +15,7 @@ import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.RelationRulesRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
 import java.time.Instant
 import java.util.UUID
 
@@ -72,9 +73,11 @@ class NotationsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createNotation(@RequestBody request: NotationRequest): NotationResponse {
-        val owner = usersRepository.findById(request.ownerId)
+        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
         val now = Instant.now()
         val saved = notationsRepository.save(
@@ -100,6 +103,8 @@ class NotationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
             }
+        checkOwnerOrRole(notation.owner.id!!)
+
         val owner = request.ownerId?.let {
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
@@ -128,9 +133,11 @@ class NotationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Source notation $sourceId not found")
             }
-        val owner = usersRepository.findById(request.ownerId)
+        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
 
         val now = Instant.now()
@@ -213,12 +220,21 @@ class NotationsController(
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
     fun deleteNotation(@PathVariable id: UUID) {
-        if (!notationsRepository.existsById(id)) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
-        }
+        val notation = notationsRepository.findById(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
+            }
+        checkOwnerOrRole(notation.owner.id!!)
         val deletedCount = notationsRepository.softDeleteById(id)
         if (deletedCount == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
+        }
+    }
+
+    private fun checkOwnerOrRole(ownerId: UUID) {
+        val currentUserId = CurrentUser.getId() ?: return
+        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
     }
 
@@ -236,7 +252,7 @@ class NotationsController(
 data class NotationRequest(
     val name: String,
     val version: String,
-    val ownerId: UUID,
+    val ownerId: UUID? = null,
     val attrs: String? = null
 )
 
@@ -256,4 +272,3 @@ data class NotationResponse(
     val createdAt: Instant?,
     val updatedAt: Instant?
 )
-

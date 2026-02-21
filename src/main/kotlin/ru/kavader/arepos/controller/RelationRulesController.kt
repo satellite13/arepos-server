@@ -10,6 +10,7 @@ import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.RelationRulesRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
 import java.time.Instant
 import java.util.UUID
 
@@ -72,9 +73,11 @@ class RelationRulesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createRelationRule(@RequestBody request: RelationRuleRequest): RelationRuleResponse {
-        val owner = usersRepository.findById(request.ownerId)
+        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
         val relation = relationsRepository.findById(request.relationId)
             .orElseThrow {
@@ -112,6 +115,8 @@ class RelationRulesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "RelationRule $id not found")
             }
+        checkOwnerOrRole(relationRule.owner.id!!)
+
         val owner = request.ownerId?.let {
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
@@ -148,10 +153,19 @@ class RelationRulesController(
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteRelationRule(@PathVariable id: UUID) {
-        if (!relationRulesRepository.existsById(id)) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "RelationRule $id not found")
-        }
+        val relationRule = relationRulesRepository.findById(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "RelationRule $id not found")
+            }
+        checkOwnerOrRole(relationRule.owner.id!!)
         relationRulesRepository.deleteById(id)
+    }
+
+    private fun checkOwnerOrRole(ownerId: UUID) {
+        val currentUserId = CurrentUser.getId() ?: return
+        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
     }
 
     private fun RelationRules.toResponse() = RelationRuleResponse(
@@ -170,7 +184,7 @@ data class RelationRuleRequest(
     val relationId: UUID,
     val fromComponentId: UUID,
     val toComponentId: UUID,
-    val ownerId: UUID,
+    val ownerId: UUID? = null,
     val attrs: String? = null
 )
 
@@ -192,4 +206,3 @@ data class RelationRuleResponse(
     val createdAt: Instant?,
     val updatedAt: Instant?
 )
-

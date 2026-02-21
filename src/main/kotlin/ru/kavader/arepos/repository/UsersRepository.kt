@@ -10,7 +10,6 @@ import java.util.UUID
 @Repository
 interface UsersRepository : JpaRepository<Users, UUID> {
     fun existsByEmail(email: String): Boolean
+    fun findByEmail(email: String): Users?
     fun findByEmailContainingIgnoreCase(email: String, pageable: Pageable): Page<Users>
 }
-
-

@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.*
 import java.time.Instant
 import java.util.*
@@ -41,6 +42,7 @@ class LinksControllerTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "link-owner-${UUID.randomUUID()}@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -99,6 +101,7 @@ class LinksControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/links")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -109,5 +112,3 @@ class LinksControllerTest : ControllerIntegrationTest() {
         assertEquals(1, linksRepository.count())
     }
 }
-
-

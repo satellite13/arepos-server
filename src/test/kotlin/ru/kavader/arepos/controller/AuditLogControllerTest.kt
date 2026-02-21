@@ -12,7 +12,9 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.UsersRepository
+import java.time.Instant
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -29,16 +31,25 @@ class AuditLogControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `lists audit log entries`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+
         mockMvc.perform(
-            post("/api/v1/users")
+            post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(UserRequest("audit@test.com", """{"role":"auditor"}""")))
+                .content(objectMapper.writeValueAsString(RegisterRequest("audit@test.com", "password123")))
         ).andExpect(status().isCreated)
 
-        mockMvc.perform(get("/api/v1/audit-log?page=0&size=5"))
+        mockMvc.perform(
+            get("/api/v1/audit-log?page=0&size=5")
+                .withAuth(admin.id!!)
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.totalElements").value(greaterThan(0)))
     }
 }
-
-

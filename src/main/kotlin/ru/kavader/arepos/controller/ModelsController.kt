@@ -9,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
 import java.time.Instant
 import java.util.UUID
 
@@ -69,9 +70,11 @@ class ModelsController(
                 "Model with name '${request.name}' and version '${request.version}' already exists"
             )
         }
-        val owner = usersRepository.findById(request.ownerId)
+        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
         val now = Instant.now()
         val saved = modelsRepository.save(
@@ -97,6 +100,8 @@ class ModelsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
             }
+        checkOwnerOrRole(model.owner.id!!)
+
         val newName = request.name ?: model.name
         val newVersion = request.version ?: model.version
         if (modelsRepository.existsByNameAndVersionAndIdNot(newName, newVersion, id)) {
@@ -126,12 +131,21 @@ class ModelsController(
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
     fun deleteModel(@PathVariable id: UUID) {
-        if (!modelsRepository.existsById(id)) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
-        }
+        val model = modelsRepository.findById(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
+            }
+        checkOwnerOrRole(model.owner.id!!)
         val deletedCount = modelsRepository.softDeleteById(id)
         if (deletedCount == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
+        }
+    }
+
+    private fun checkOwnerOrRole(ownerId: UUID) {
+        val currentUserId = CurrentUser.getId() ?: return
+        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
     }
 
@@ -149,7 +163,7 @@ class ModelsController(
 data class ModelRequest(
     val name: String,
     val version: String,
-    val ownerId: UUID,
+    val ownerId: UUID? = null,
     val attrs: String? = null
 )
 
@@ -169,4 +183,3 @@ data class ModelResponse(
     val createdAt: Instant?,
     val updatedAt: Instant?
 )
-

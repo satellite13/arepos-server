@@ -11,6 +11,7 @@ import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
 import java.time.Instant
 import java.util.UUID
 
@@ -101,9 +102,11 @@ class LinksController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createLink(@RequestBody request: LinkRequest): LinkResponse {
-        val owner = usersRepository.findById(request.ownerId)
+        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
         val model = modelsRepository.findById(request.modelId)
             .orElseThrow {
@@ -146,6 +149,8 @@ class LinksController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found")
             }
+        checkOwnerOrRole(link.owner.id!!)
+
         val owner = request.ownerId?.let {
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
@@ -188,10 +193,19 @@ class LinksController(
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteLink(@PathVariable id: UUID) {
-        if (!linksRepository.existsById(id)) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found")
-        }
+        val link = linksRepository.findById(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found")
+            }
+        checkOwnerOrRole(link.owner.id!!)
         linksRepository.deleteById(id)
+    }
+
+    private fun checkOwnerOrRole(ownerId: UUID) {
+        val currentUserId = CurrentUser.getId() ?: return
+        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
     }
 
     private fun Links.toResponse() = LinkResponse(
@@ -211,7 +225,7 @@ data class LinkRequest(
     val sourceId: UUID,
     val targetId: UUID,
     val modelId: UUID,
-    val ownerId: UUID,
+    val ownerId: UUID? = null,
     val linkTypeId: UUID,
     val attrs: String? = null
 )
@@ -236,4 +250,3 @@ data class LinkResponse(
     val createdAt: Instant?,
     val updatedAt: Instant?
 )
-

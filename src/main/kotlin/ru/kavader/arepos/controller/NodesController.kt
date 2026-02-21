@@ -10,6 +10,7 @@ import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
 import java.time.Instant
 import java.util.UUID
 
@@ -71,9 +72,11 @@ class NodesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
             }
-        val owner = usersRepository.findById(request.ownerId)
+        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
         val nodeType = nodeTypesRepository.findById(request.nodeTypeId)
             .orElseThrow {
@@ -108,25 +111,26 @@ class NodesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found")
             }
-        
+        checkOwnerOrRole(node.owner.id!!)
+
         val model = request.modelId?.let {
             modelsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
             }
         } ?: node.model
-        
+
         val owner = request.ownerId?.let {
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
             }
         } ?: node.owner
-        
+
         val nodeType = request.nodeTypeId?.let {
             nodeTypesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $it not found")
             }
         } ?: node.nodeType
-        
+
         val parentNode = request.parentNodeId?.let {
             if (it == id) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Node cannot be its own parent")
@@ -150,10 +154,19 @@ class NodesController(
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteNode(@PathVariable id: UUID) {
-        if (!nodesRepository.existsById(id)) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found")
-        }
+        val node = nodesRepository.findById(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found")
+            }
+        checkOwnerOrRole(node.owner.id!!)
         nodesRepository.deleteById(id)
+    }
+
+    private fun checkOwnerOrRole(ownerId: UUID) {
+        val currentUserId = CurrentUser.getId() ?: return
+        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
     }
 
     private fun Nodes.toResponse() = NodeResponse(
@@ -172,7 +185,7 @@ class NodesController(
 data class NodeRequest(
     val name: String,
     val modelId: UUID,
-    val ownerId: UUID,
+    val ownerId: UUID? = null,
     val nodeTypeId: UUID,
     val parentNodeId: UUID? = null,
     val attrs: String? = null
@@ -198,4 +211,3 @@ data class NodeResponse(
     val createdAt: Instant?,
     val updatedAt: Instant?
 )
-

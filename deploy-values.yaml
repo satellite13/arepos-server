@@ -33,10 +33,21 @@ resources:
 ingress:
   enabled: false
 
-# Additional environment variables for JVM memory tuning
+# Additional environment variables
 env:
   - name: BPL_JVM_THREAD_COUNT
     value: "50"
   - name: BPL_JVM_HEAD_ROOM
     value: "0"
+  # JWT configuration
+  - name: JWT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: arepos-server-auth-secret
+        key: jwt-secret
+  - name: ADMIN_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: arepos-server-auth-secret
+        key: admin-secret
 

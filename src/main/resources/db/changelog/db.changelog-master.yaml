@@ -72,4 +72,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 009-add-auth-fields
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/009-add-auth-fields.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

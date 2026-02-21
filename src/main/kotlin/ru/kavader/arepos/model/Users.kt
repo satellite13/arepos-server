@@ -1,11 +1,16 @@
 package ru.kavader.arepos.model
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
 import org.hibernate.annotations.JdbcTypeCode
 import java.time.Instant
 import java.util.*
 import org.hibernate.type.SqlTypes
+
+enum class Role {
+    USER, EDITOR, ADMIN
+}
 
 @Entity
 @Table(
@@ -22,6 +27,17 @@ data class Users(
 
     @Column(name = "email", nullable = false, unique = true, columnDefinition = "email_type")
     val email: String,
+
+    @JsonIgnore
+    @Column(name = "password_hash")
+    val passwordHash: String? = null,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false)
+    val role: Role = Role.USER,
+
+    @Column(name = "is_active", nullable = false)
+    val isActive: Boolean = true,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")

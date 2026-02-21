@@ -8,6 +8,7 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
 import java.time.Instant
 import java.util.UUID
 
@@ -62,9 +63,12 @@ class NodeTypesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createNodeType(@RequestBody request: NodeTypeRequest): NodeTypeResponse {
-        val owner = usersRepository.findById(request.ownerId)
+        checkEditorOrAdmin()
+        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
         val now = Instant.now()
         val saved = nodeTypesRepository.save(
@@ -84,6 +88,7 @@ class NodeTypesController(
         @PathVariable id: UUID,
         @RequestBody request: NodeTypeUpdateRequest
     ): NodeTypeResponse {
+        checkEditorOrAdmin()
         val nodeType = nodeTypesRepository.findById(id)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
@@ -107,10 +112,17 @@ class NodeTypesController(
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteNodeType(@PathVariable id: UUID) {
+        checkEditorOrAdmin()
         if (!nodeTypesRepository.existsById(id)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
         }
         nodeTypesRepository.deleteById(id)
+    }
+
+    private fun checkEditorOrAdmin() {
+        if (CurrentUser.getId() != null && !CurrentUser.isEditorOrAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only EDITOR or ADMIN can manage node types")
+        }
     }
 
     private fun NodeTypes.toResponse() = NodeTypeResponse(
@@ -125,7 +137,7 @@ class NodeTypesController(
 
 data class NodeTypeRequest(
     val name: String,
-    val ownerId: UUID,
+    val ownerId: UUID? = null,
     val attrs: String? = null
 )
 
@@ -143,4 +155,3 @@ data class NodeTypeResponse(
     val createdAt: Instant?,
     val updatedAt: Instant?
 )
-

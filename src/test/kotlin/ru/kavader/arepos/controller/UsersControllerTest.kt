@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import kotlin.test.assertEquals
@@ -29,6 +30,14 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `creates user via REST`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+
         val payload = UserRequest(
             email = "test@example.com",
             attrs = """{"role":"admin"}"""
@@ -36,6 +45,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/users")
+                .withAuth(admin.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -43,46 +53,66 @@ class UsersControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.email").value("test@example.com"))
             .andExpect(jsonPath("$.attrs").value("""{"role":"admin"}"""))
 
-        assertEquals(1, usersRepository.count())
+        assertEquals(2, usersRepository.count())
     }
 
     @Test
     fun `lists users with pagination`() {
-        usersRepository.saveAll(
-            listOf(
-                ru.kavader.arepos.model.Users(
-                    email = "user1@test.com",
-                    createdAt = Instant.now()
-                ),
-                ru.kavader.arepos.model.Users(
-                    email = "user2@test.com",
-                    createdAt = Instant.now()
-                )
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "user1@test.com",
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "user2@test.com",
+                createdAt = Instant.now()
             )
         )
 
-        mockMvc.perform(get("/api/v1/users?page=0&size=10"))
+        mockMvc.perform(
+            get("/api/v1/users?page=0&size=10")
+                .withAuth(admin.id!!)
+        )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.content.length()").value(2))
-            .andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.content.length()").value(3))
+            .andExpect(jsonPath("$.totalElements").value(3))
     }
 
     @Test
     fun `filters users by email`() {
-        usersRepository.saveAll(
-            listOf(
-                ru.kavader.arepos.model.Users(
-                    email = "john@test.com",
-                    createdAt = Instant.now()
-                ),
-                ru.kavader.arepos.model.Users(
-                    email = "jane@test.com",
-                    createdAt = Instant.now()
-                )
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "john@test.com",
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "jane@test.com",
+                createdAt = Instant.now()
             )
         )
 
-        mockMvc.perform(get("/api/v1/users?email=john&page=0&size=10"))
+        mockMvc.perform(
+            get("/api/v1/users?email=john&page=0&size=10")
+                .withAuth(admin.id!!)
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(1))
             .andExpect(jsonPath("$.content[0].email").value("john@test.com"))
@@ -90,6 +120,13 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `updates user`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
         val user = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "old@test.com",
@@ -104,6 +141,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/users/${user.id}")
+                .withAuth(admin.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -114,6 +152,13 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `deletes user`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
         val user = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "delete@test.com",
@@ -121,10 +166,29 @@ class UsersControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        mockMvc.perform(delete("/api/v1/users/${user.id}"))
+        mockMvc.perform(
+            delete("/api/v1/users/${user.id}")
+                .withAuth(admin.id!!)
+        )
             .andExpect(status().isNoContent)
 
-        assertEquals(0, usersRepository.count())
+        assertEquals(1, usersRepository.count())
+    }
+
+    @Test
+    fun `returns 403 for non-admin user`() {
+        val user = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "user@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/users?page=0&size=10")
+                .withAuth(user.id!!, Role.USER)
+        )
+            .andExpect(status().isForbidden)
     }
 }
-

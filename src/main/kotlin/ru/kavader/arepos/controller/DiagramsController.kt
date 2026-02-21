@@ -12,6 +12,7 @@ import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
 import java.time.Instant
 import java.util.UUID
 
@@ -55,9 +56,11 @@ class DiagramsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createDiagram(@RequestBody request: DiagramRequest): DiagramResponse {
-        val owner = usersRepository.findById(request.ownerId)
+        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
         val model = modelsRepository.findById(request.modelId)
             .orElseThrow {
@@ -106,6 +109,7 @@ class DiagramsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
             }
+        checkOwnerOrRole(diagram.owner.id!!)
 
         val owner = request.ownerId?.let {
             usersRepository.findById(it).orElseThrow {
@@ -155,12 +159,21 @@ class DiagramsController(
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
     fun deleteDiagram(@PathVariable id: UUID) {
-        if (!diagramsRepository.existsById(id)) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
-        }
+        val diagram = diagramsRepository.findById(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
+            }
+        checkOwnerOrRole(diagram.owner.id!!)
         val deletedCount = diagramsRepository.softDeleteById(id)
         if (deletedCount == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
+        }
+    }
+
+    private fun checkOwnerOrRole(ownerId: UUID) {
+        val currentUserId = CurrentUser.getId() ?: return
+        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
     }
 
@@ -181,7 +194,7 @@ class DiagramsController(
 data class DiagramRequest(
     val name: String,
     val version: String,
-    val ownerId: UUID,
+    val ownerId: UUID? = null,
     val modelId: UUID,
     val nodeId: UUID? = null,
     val notationId: UUID,

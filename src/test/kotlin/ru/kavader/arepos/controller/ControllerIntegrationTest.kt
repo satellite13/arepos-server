@@ -3,18 +3,26 @@ package ru.kavader.arepos.controller
 import org.junit.jupiter.api.BeforeEach
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+import ru.kavader.arepos.model.Role
+import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.security.JwtTokenProvider
 import ru.kavader.arepos.support.PostgresContainerTest
+import java.util.*
 
 abstract class ControllerIntegrationTest : PostgresContainerTest() {
 
     @Autowired
     lateinit var jdbcTemplate: JdbcTemplate
 
+    @Autowired
+    lateinit var jwtTokenProvider: JwtTokenProvider
+
     @BeforeEach
     fun truncateTables() {
         jdbcTemplate.execute(
             """
-            TRUNCATE TABLE 
+            TRUNCATE TABLE
                 public.audit_log,
                 public.relation_rules,
                 public.relations,
@@ -31,6 +39,12 @@ abstract class ControllerIntegrationTest : PostgresContainerTest() {
             """.trimIndent()
         )
     }
+
+    fun bearerToken(userId: UUID, role: Role = Role.ADMIN): String {
+        return "Bearer ${jwtTokenProvider.generateAccessToken(userId, role.name)}"
+    }
+
+    fun MockHttpServletRequestBuilder.withAuth(userId: UUID, role: Role = Role.ADMIN): MockHttpServletRequestBuilder {
+        return this.header("Authorization", bearerToken(userId, role))
+    }
 }
-
-

@@ -8,6 +8,7 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
 import java.time.Instant
 import java.util.UUID
 
@@ -62,9 +63,12 @@ class LinkTypesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createLinkType(@RequestBody request: LinkTypeRequest): LinkTypeResponse {
-        val owner = usersRepository.findById(request.ownerId)
+        checkEditorOrAdmin()
+        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
         val now = Instant.now()
         val saved = linkTypesRepository.save(
@@ -84,6 +88,7 @@ class LinkTypesController(
         @PathVariable id: UUID,
         @RequestBody request: LinkTypeUpdateRequest
     ): LinkTypeResponse {
+        checkEditorOrAdmin()
         val linkType = linkTypesRepository.findById(id)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
@@ -107,10 +112,17 @@ class LinkTypesController(
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteLinkType(@PathVariable id: UUID) {
+        checkEditorOrAdmin()
         if (!linkTypesRepository.existsById(id)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
         }
         linkTypesRepository.deleteById(id)
+    }
+
+    private fun checkEditorOrAdmin() {
+        if (CurrentUser.getId() != null && !CurrentUser.isEditorOrAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only EDITOR or ADMIN can manage link types")
+        }
     }
 
     private fun LinkTypes.toResponse() = LinkTypeResponse(
@@ -125,7 +137,7 @@ class LinkTypesController(
 
 data class LinkTypeRequest(
     val name: String,
-    val ownerId: UUID,
+    val ownerId: UUID? = null,
     val attrs: String? = null
 )
 
@@ -143,4 +155,3 @@ data class LinkTypeResponse(
     val createdAt: Instant?,
     val updatedAt: Instant?
 )
-

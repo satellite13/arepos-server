@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.*
 import java.time.Instant
 import java.util.*
@@ -42,6 +43,7 @@ class RelationRulesControllerTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "rule-owner-${UUID.randomUUID()}@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -111,6 +113,7 @@ class RelationRulesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/relation-rules")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -121,5 +124,3 @@ class RelationRulesControllerTest : ControllerIntegrationTest() {
         assertEquals(1, relationRulesRepository.count())
     }
 }
-
-

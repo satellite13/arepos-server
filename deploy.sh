@@ -16,6 +16,7 @@ POSTGRESQL_ENABLED="${POSTGRESQL_ENABLED:-true}"
 BUILD_IMAGE="${BUILD_IMAGE:-true}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-300}"
 KEEP_POSTGRES_VOLUME="${KEEP_POSTGRES_VOLUME:-false}"
+AUTH_SECRET_NAME="${AUTH_SECRET_NAME:-arepos-server-auth-secret}"
 
 # Функции
 log_info() {
@@ -57,6 +58,34 @@ if ! kubectl get namespace "$NAMESPACE" &> /dev/null; then
     kubectl create namespace "$NAMESPACE"
 fi
 
+# Создание секрета для JWT и Admin Secret
+log_info "Проверка секрета аутентификации '$AUTH_SECRET_NAME'..."
+if ! kubectl get secret "$AUTH_SECRET_NAME" -n "$NAMESPACE" &> /dev/null; then
+    if [ -z "$JWT_SECRET" ]; then
+        JWT_SECRET=$(openssl rand -base64 48)
+        log_warn "JWT_SECRET не задан, сгенерирован случайный ключ"
+    fi
+    if [ -z "$ADMIN_SECRET" ]; then
+        ADMIN_SECRET=$(openssl rand -base64 32)
+        log_warn "ADMIN_SECRET не задан, сгенерирован случайный ключ"
+        log_warn "Сохраните ADMIN_SECRET для создания администраторов: $ADMIN_SECRET"
+    fi
+    log_info "Создание секрета '$AUTH_SECRET_NAME'..."
+    kubectl create secret generic "$AUTH_SECRET_NAME" \
+        -n "$NAMESPACE" \
+        --from-literal=jwt-secret="$JWT_SECRET" \
+        --from-literal=admin-secret="$ADMIN_SECRET"
+else
+    log_info "Секрет '$AUTH_SECRET_NAME' уже существует"
+fi
+
+# Определение тега образа
+GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
+APP_VERSION=$(grep '^version' build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "0.0.1-SNAPSHOT")
+IMAGE_TAG="${APP_VERSION}-${GIT_HASH}"
+IMAGE_NAME="arch/arepos-server"
+log_info "Тег образа: ${IMAGE_TAG}"
+
 # Сборка Docker образа
 if [ "$BUILD_IMAGE" = "true" ]; then
     log_info "Сборка Docker образа..."
@@ -65,7 +94,9 @@ if [ "$BUILD_IMAGE" = "true" ]; then
         log_error "Ошибка при сборке Docker образа"
         exit 1
     fi
-    log_info "Docker образ успешно собран"
+    # Дополнительный тег с git hash
+    docker tag "${IMAGE_NAME}:${APP_VERSION}" "${IMAGE_NAME}:${IMAGE_TAG}"
+    log_info "Docker образ собран и помечен как ${IMAGE_NAME}:${IMAGE_TAG}"
 else
     log_warn "Пропуск сборки Docker образа (BUILD_IMAGE=false)"
 fi
@@ -105,6 +136,9 @@ if [ "$POSTGRESQL_ENABLED" = "true" ]; then
     HELM_CMD="$HELM_CMD --set postgresql.enabled=true"
     log_info "PostgreSQL будет развернут вместе с приложением"
 fi
+
+# Передаем уникальный тег образа
+HELM_CMD="$HELM_CMD --set image.tag=$IMAGE_TAG"
 
 eval $HELM_CMD
 

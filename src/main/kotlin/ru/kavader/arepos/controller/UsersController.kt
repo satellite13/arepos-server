@@ -3,8 +3,10 @@ package ru.kavader.arepos.controller
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
@@ -12,6 +14,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/users")
+@PreAuthorize("hasRole('ADMIN')")
 class UsersController(
     private val usersRepository: UsersRepository
 ) {
@@ -48,6 +51,7 @@ class UsersController(
             Users(
                 email = request.email,
                 attrs = request.attrs,
+                role = request.role ?: Role.USER,
                 createdAt = now,
                 updatedAt = now
             )
@@ -64,7 +68,7 @@ class UsersController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
             }
-        
+
         request.email?.let { newEmail ->
             if (newEmail != user.email && usersRepository.existsByEmail(newEmail)) {
                 throw ResponseStatusException(HttpStatus.CONFLICT, "User with email $newEmail already exists")
@@ -74,7 +78,9 @@ class UsersController(
         val updated = usersRepository.save(
             user.copy(
                 email = request.email ?: user.email,
-                attrs = request.attrs ?: user.attrs
+                attrs = request.attrs ?: user.attrs,
+                role = request.role ?: user.role,
+                isActive = request.isActive ?: user.isActive
             )
         )
         return updated.toResponse()
@@ -92,6 +98,8 @@ class UsersController(
     private fun Users.toResponse() = UserResponse(
         id = requireNotNull(id),
         email = email,
+        role = role.name,
+        isActive = isActive,
         attrs = attrs,
         createdAt = createdAt,
         updatedAt = updatedAt
@@ -100,19 +108,23 @@ class UsersController(
 
 data class UserRequest(
     val email: String,
-    val attrs: String? = null
+    val attrs: String? = null,
+    val role: Role? = null
 )
 
 data class UserUpdateRequest(
     val email: String? = null,
-    val attrs: String? = null
+    val attrs: String? = null,
+    val role: Role? = null,
+    val isActive: Boolean? = null
 )
 
 data class UserResponse(
     val id: UUID,
     val email: String,
+    val role: String,
+    val isActive: Boolean,
     val attrs: String?,
     val createdAt: Instant?,
     val updatedAt: Instant?
 )
-

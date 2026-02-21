@@ -10,6 +10,7 @@ import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
 import java.time.Instant
 import java.util.UUID
 
@@ -83,9 +84,11 @@ class ComponentsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createComponent(@RequestBody request: ComponentRequest): ComponentResponse {
-        val owner = usersRepository.findById(request.ownerId)
+        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner ${request.ownerId} not found")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
         val notation = notationsRepository.findById(request.notationId)
             .orElseThrow {
@@ -120,6 +123,8 @@ class ComponentsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Component $id not found")
             }
+        checkOwnerOrRole(component.owner.id!!)
+
         val owner = request.ownerId?.let {
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
@@ -152,10 +157,19 @@ class ComponentsController(
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteComponent(@PathVariable id: UUID) {
-        if (!componentsRepository.existsById(id)) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Component $id not found")
-        }
+        val component = componentsRepository.findById(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Component $id not found")
+            }
+        checkOwnerOrRole(component.owner.id!!)
         componentsRepository.deleteById(id)
+    }
+
+    private fun checkOwnerOrRole(ownerId: UUID) {
+        val currentUserId = CurrentUser.getId() ?: return
+        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
     }
 
     private fun Components.toResponse() = ComponentResponse(
@@ -175,7 +189,7 @@ data class ComponentRequest(
     val name: String,
     val version: String,
     val notationId: UUID,
-    val ownerId: UUID,
+    val ownerId: UUID? = null,
     val nodeTypeId: UUID,
     val attrs: String? = null
 )
@@ -200,4 +214,3 @@ data class ComponentResponse(
     val createdAt: Instant?,
     val updatedAt: Instant?
 )
-

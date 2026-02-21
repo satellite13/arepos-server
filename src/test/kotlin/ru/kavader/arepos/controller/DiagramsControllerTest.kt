@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
@@ -56,6 +57,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-diagram@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -104,6 +106,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/diagrams")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -121,6 +124,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-crud-diagram@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -152,6 +156,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
 
         val createdJson = mockMvc.perform(
             post("/api/v1/diagrams")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(createPayload))
         )
@@ -164,7 +169,10 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val created = objectMapper.readValue(createdJson, DiagramResponse::class.java)
         val diagramId = created.id
 
-        mockMvc.perform(get("/api/v1/diagrams/$diagramId"))
+        mockMvc.perform(
+            get("/api/v1/diagrams/$diagramId")
+                .withAuth(owner.id!!)
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.id").value(diagramId.toString()))
             .andExpect(jsonPath("$.name").value("diagram-crud"))
@@ -176,6 +184,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         )
         mockMvc.perform(
             put("/api/v1/diagrams/$diagramId")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(updatePayload))
         )
@@ -183,10 +192,16 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.name").value("diagram-crud-updated"))
             .andExpect(jsonPath("$.version").value("1.1.0"))
 
-        mockMvc.perform(delete("/api/v1/diagrams/$diagramId"))
+        mockMvc.perform(
+            delete("/api/v1/diagrams/$diagramId")
+                .withAuth(owner.id!!)
+        )
             .andExpect(status().isNoContent)
 
-        mockMvc.perform(get("/api/v1/diagrams/$diagramId"))
+        mockMvc.perform(
+            get("/api/v1/diagrams/$diagramId")
+                .withAuth(owner.id!!)
+        )
             .andExpect(status().isNotFound)
     }
 
@@ -195,6 +210,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-existing@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -226,6 +242,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/diagrams")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -237,6 +254,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-model-missing@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -260,6 +278,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/diagrams")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -271,6 +290,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-notation-missing@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -294,6 +314,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/diagrams")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -305,6 +326,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-dup@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -336,12 +358,14 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/diagrams")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         ).andExpect(status().isCreated)
 
         mockMvc.perform(
             post("/api/v1/diagrams")
+                .withAuth(owner.id!!)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         ).andExpect(status().isConflict)
@@ -352,6 +376,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-list-diagram@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -420,12 +445,18 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        mockMvc.perform(get("/api/v1/diagrams?modelId=${model.id}&page=0&size=10"))
+        mockMvc.perform(
+            get("/api/v1/diagrams?modelId=${model.id}&page=0&size=10")
+                .withAuth(owner.id!!)
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(2))
             .andExpect(jsonPath("$.totalElements").value(2))
 
-        mockMvc.perform(get("/api/v1/diagrams?nodeId=${node1.id}&page=0&size=10"))
+        mockMvc.perform(
+            get("/api/v1/diagrams?nodeId=${node1.id}&page=0&size=10")
+                .withAuth(owner.id!!)
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(1))
             .andExpect(jsonPath("$.content[0].nodeId").value(node1.id.toString()))

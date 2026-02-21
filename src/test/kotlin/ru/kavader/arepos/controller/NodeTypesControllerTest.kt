@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
@@ -37,6 +38,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-node-type@test.com",
+                role = Role.EDITOR,
                 createdAt = Instant.now()
             )
         )
@@ -49,6 +51,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/node-types")
+                .withAuth(owner.id!!, Role.EDITOR)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -65,6 +68,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-list-node-type-$timestamp@test.com",
+                role = Role.ADMIN,
                 createdAt = Instant.now()
             )
         )
@@ -83,10 +87,12 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        mockMvc.perform(get("/api/v1/node-types?page=0&size=10"))
+        mockMvc.perform(
+            get("/api/v1/node-types?page=0&size=10")
+                .withAuth(owner.id!!)
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(2))
             .andExpect(jsonPath("$.totalElements").value(2))
     }
 }
-
