@@ -22,34 +22,70 @@ import java.util.UUID
 class ResourceAccessService(
     private val resourceSharesRepository: ResourceSharesRepository
 ) {
+    private val viewPermissions = setOf(SharePermission.VIEW, SharePermission.EDIT)
+
     fun currentUserId(): UUID = CurrentUser.getId()
         ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
     fun canEditModel(model: Models): Boolean = canEditTopLevel(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
 
+    fun canViewModel(model: Models): Boolean = canViewTopLevel(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
+
     fun canEditNotation(notation: Notations): Boolean =
         canEditTopLevel(notation.owner.id!!, ShareResourceType.NOTATION, notation.id!!)
+
+    fun canViewNotation(notation: Notations): Boolean =
+        canViewTopLevel(notation.owner.id!!, ShareResourceType.NOTATION, notation.id!!)
 
     fun canEditNodeType(nodeType: NodeTypes): Boolean =
         canEditTopLevel(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, nodeType.id!!)
 
+    fun canViewNodeType(nodeType: NodeTypes): Boolean =
+        canViewTopLevel(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, nodeType.id!!)
+
     fun canEditLinkType(linkType: LinkTypes): Boolean =
         canEditTopLevel(linkType.owner.id!!, ShareResourceType.LINK_TYPE, linkType.id!!)
 
+    fun canViewLinkType(linkType: LinkTypes): Boolean =
+        canViewTopLevel(linkType.owner.id!!, ShareResourceType.LINK_TYPE, linkType.id!!)
+
+    fun canUseNodeType(nodeType: NodeTypes): Boolean = canViewNodeType(nodeType) || isCommonType(nodeType.owner)
+
+    fun canUseLinkType(linkType: LinkTypes): Boolean = canViewLinkType(linkType) || isCommonType(linkType.owner)
+
     fun canEditNode(node: Nodes): Boolean = canEditModel(node.model)
+
+    fun canViewNode(node: Nodes): Boolean = canViewModel(node.model)
 
     fun canEditLink(link: Links): Boolean = canEditModel(link.model)
 
+    fun canViewLink(link: Links): Boolean = canViewModel(link.model)
+
     fun canEditComponent(component: Components): Boolean = canEditNotation(component.notation)
+
+    fun canViewComponent(component: Components): Boolean = canViewNotation(component.notation)
 
     fun canEditRelation(relation: Relations): Boolean = canEditNotation(relation.notation)
 
+    fun canViewRelation(relation: Relations): Boolean = canViewNotation(relation.notation)
+
     fun canEditRelationRule(relationRule: RelationRules): Boolean = canEditRelation(relationRule.relation)
 
-    fun canEditDiagram(diagram: Diagrams): Boolean = canEditModel(diagram.model) && canEditNotation(diagram.notation)
+    fun canViewRelationRule(relationRule: RelationRules): Boolean = canViewRelation(relationRule.relation)
+
+    fun canEditDiagram(diagram: Diagrams): Boolean = canEditModel(diagram.model)
+
+    fun canViewDiagram(diagram: Diagrams): Boolean =
+        canViewModel(diagram.model) && (canViewNotation(diagram.notation) || canEditModel(diagram.model))
 
     fun requireCanEditModel(model: Models) {
         if (!canEditModel(model)) {
+            deny()
+        }
+    }
+
+    fun requireCanViewModel(model: Models) {
+        if (!canViewModel(model)) {
             deny()
         }
     }
@@ -60,8 +96,20 @@ class ResourceAccessService(
         }
     }
 
+    fun requireCanViewNotation(notation: Notations) {
+        if (!canViewNotation(notation)) {
+            deny()
+        }
+    }
+
     fun requireCanEditNodeType(nodeType: NodeTypes) {
         if (!canEditNodeType(nodeType)) {
+            deny()
+        }
+    }
+
+    fun requireCanViewNodeType(nodeType: NodeTypes) {
+        if (!canViewNodeType(nodeType)) {
             deny()
         }
     }
@@ -72,8 +120,32 @@ class ResourceAccessService(
         }
     }
 
+    fun requireCanViewLinkType(linkType: LinkTypes) {
+        if (!canViewLinkType(linkType)) {
+            deny()
+        }
+    }
+
+    fun requireCanUseNodeType(nodeType: NodeTypes) {
+        if (!canUseNodeType(nodeType)) {
+            deny()
+        }
+    }
+
+    fun requireCanUseLinkType(linkType: LinkTypes) {
+        if (!canUseLinkType(linkType)) {
+            deny()
+        }
+    }
+
     fun requireCanEditNode(node: Nodes) {
         if (!canEditNode(node)) {
+            deny()
+        }
+    }
+
+    fun requireCanViewNode(node: Nodes) {
+        if (!canViewNode(node)) {
             deny()
         }
     }
@@ -84,8 +156,20 @@ class ResourceAccessService(
         }
     }
 
+    fun requireCanViewLink(link: Links) {
+        if (!canViewLink(link)) {
+            deny()
+        }
+    }
+
     fun requireCanEditComponent(component: Components) {
         if (!canEditComponent(component)) {
+            deny()
+        }
+    }
+
+    fun requireCanViewComponent(component: Components) {
+        if (!canViewComponent(component)) {
             deny()
         }
     }
@@ -96,8 +180,20 @@ class ResourceAccessService(
         }
     }
 
+    fun requireCanViewRelation(relation: Relations) {
+        if (!canViewRelation(relation)) {
+            deny()
+        }
+    }
+
     fun requireCanEditRelationRule(relationRule: RelationRules) {
         if (!canEditRelationRule(relationRule)) {
+            deny()
+        }
+    }
+
+    fun requireCanViewRelationRule(relationRule: RelationRules) {
+        if (!canViewRelationRule(relationRule)) {
             deny()
         }
     }
@@ -108,9 +204,15 @@ class ResourceAccessService(
         }
     }
 
+    fun requireCanViewDiagram(diagram: Diagrams) {
+        if (!canViewDiagram(diagram)) {
+            deny()
+        }
+    }
+
     fun sharedResourceIds(resourceType: ShareResourceType): Set<UUID> {
         val userId = currentUserId()
-        return resourceSharesRepository.findByGranteeUserIdAndPermission(userId, SharePermission.EDIT)
+        return resourceSharesRepository.findByGranteeUserIdAndPermissionIn(userId, viewPermissions)
             .asSequence()
             .filter { it.resourceType == resourceType }
             .map { it.resourceId }
@@ -119,11 +221,11 @@ class ResourceAccessService(
 
     fun hasDirectShare(resourceType: ShareResourceType, resourceId: UUID): Boolean {
         val userId = currentUserId()
-        return resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermission(
+        return resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermissionIn(
             resourceType = resourceType,
             resourceId = resourceId,
             granteeUserId = userId,
-            permission = SharePermission.EDIT
+            permissions = viewPermissions
         )
     }
 
@@ -131,6 +233,18 @@ class ResourceAccessService(
         val userId = CurrentUser.getId()
         return CurrentUser.isAdmin() || userId == ownerId
     }
+
+    fun modelAccessPermission(model: Models): String? =
+        topLevelAccessPermission(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
+
+    fun notationAccessPermission(notation: Notations): String? =
+        topLevelAccessPermission(notation.owner.id!!, ShareResourceType.NOTATION, notation.id!!)
+
+    fun nodeTypeAccessPermission(nodeType: NodeTypes): String? =
+        topLevelAccessPermission(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, nodeType.id!!)
+
+    fun linkTypeAccessPermission(linkType: LinkTypes): String? =
+        topLevelAccessPermission(linkType.owner.id!!, ShareResourceType.LINK_TYPE, linkType.id!!)
 
     private fun canEditTopLevel(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): Boolean {
         if (CurrentUser.isAdmin()) {
@@ -146,6 +260,57 @@ class ResourceAccessService(
             granteeUserId = userId,
             permission = SharePermission.EDIT
         )
+    }
+
+    private fun canViewTopLevel(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): Boolean {
+        if (CurrentUser.isAdmin()) {
+            return true
+        }
+        val userId = CurrentUser.getId() ?: return false
+        if (ownerId == userId) {
+            return true
+        }
+        return resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermissionIn(
+            resourceType = resourceType,
+            resourceId = resourceId,
+            granteeUserId = userId,
+            permissions = viewPermissions
+        )
+    }
+
+    private fun topLevelAccessPermission(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): String? {
+        if (CurrentUser.isAdmin()) {
+            return "ADMIN"
+        }
+        val userId = CurrentUser.getId() ?: return null
+        if (ownerId == userId) {
+            return "OWNER"
+        }
+        if (
+            resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermission(
+                resourceType = resourceType,
+                resourceId = resourceId,
+                granteeUserId = userId,
+                permission = SharePermission.EDIT
+            )
+        ) {
+            return "EDIT"
+        }
+        if (
+            resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermissionIn(
+                resourceType = resourceType,
+                resourceId = resourceId,
+                granteeUserId = userId,
+                permissions = viewPermissions
+            )
+        ) {
+            return "VIEW"
+        }
+        return null
+    }
+
+    private fun isCommonType(owner: ru.kavader.arepos.model.Users): Boolean {
+        return owner.email.equals("system@arepos.local", ignoreCase = true) || !owner.isActive
     }
 
     private fun deny(): Nothing = throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")

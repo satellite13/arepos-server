@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Nodes
+import ru.kavader.arepos.repository.ComponentsRepository
+import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
@@ -22,6 +24,8 @@ class NodesController(
     private val nodesRepository: NodesRepository,
     private val modelsRepository: ModelsRepository,
     private val nodeTypesRepository: NodeTypesRepository,
+    private val diagramsRepository: DiagramsRepository,
+    private val componentsRepository: ComponentsRepository,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService
 ) {
@@ -36,7 +40,7 @@ class NodesController(
         if (!CurrentUser.isAdmin()) {
             val filtered = nodesRepository.findAll(Pageable.unpaged()).content
                 .asSequence()
-                .filter { accessService.canEditNode(it) }
+                .filter { accessService.canViewNode(it) }
                 .filter { modelId == null || it.model.id == modelId }
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { name == null || it.name.contains(name, ignoreCase = true) }
@@ -75,7 +79,7 @@ class NodesController(
     fun getNode(@PathVariable id: UUID): NodeResponse =
         nodesRepository.findById(id)
             .map {
-                accessService.requireCanEditNode(it)
+                accessService.requireCanViewNode(it)
                 it.toResponse()
             }
             .orElseThrow {
@@ -90,11 +94,11 @@ class NodesController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
             }
         accessService.requireCanEditModel(model)
-        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
         val currentUserId = accessService.currentUserId()
-        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+            request.ownerId ?: currentUserId
+        } else {
+            currentUserId
         }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
@@ -104,7 +108,7 @@ class NodesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${request.nodeTypeId} not found")
             }
-        accessService.requireCanEditNodeType(nodeType)
+        requireCanUseNodeTypeForModel(nodeType, model)
         val parentNode = request.parentNodeId?.let {
             nodesRepository.findById(it).orElse(null)?.also { parent ->
                 accessService.requireCanEditNode(parent)
@@ -146,22 +150,22 @@ class NodesController(
             accessService.requireCanEditModel(newModel)
         } ?: node.model
 
-        val owner = request.ownerId?.let {
-            val currentUserId = accessService.currentUserId()
-            if (!CurrentUser.isAdmin() && currentUserId != node.owner.id) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-            }
-            usersRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-            }
-        } ?: node.owner
+        val owner = if (CurrentUser.isAdmin()) {
+            request.ownerId?.let {
+                usersRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
+                }
+            } ?: node.owner
+        } else {
+            node.owner
+        }
 
         val nodeType = request.nodeTypeId?.let {
             nodeTypesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $it not found")
             }
         }?.also { newNodeType ->
-            accessService.requireCanEditNodeType(newNodeType)
+            requireCanUseNodeTypeForModel(newNodeType, model)
         } ?: node.nodeType
 
         val parentNode = request.parentNodeId?.let {
@@ -221,6 +225,42 @@ class NodesController(
         createdAt = createdAt,
         updatedAt = updatedAt
     )
+
+    private fun requireCanUseNodeTypeForModel(
+        nodeType: ru.kavader.arepos.model.NodeTypes,
+        model: ru.kavader.arepos.model.Models
+    ) {
+        if (accessService.canUseNodeType(nodeType)) return
+        if (CurrentUser.isAdmin()) return
+        if (accessService.canEditModel(model) && nodeType.owner.id == model.owner.id) return
+        if (
+            accessService.canEditModel(model) &&
+                isNodeTypeUsedInModelDiagramNotations(requireNotNull(nodeType.id), model)
+        ) {
+            return
+        }
+        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+    }
+
+    private fun isNodeTypeUsedInModelDiagramNotations(
+        nodeTypeId: UUID,
+        model: ru.kavader.arepos.model.Models
+    ): Boolean {
+        val notationIds = diagramsRepository.findByFilters(
+            ownerId = null,
+            modelId = model.id,
+            nodeId = null,
+            notationId = null,
+            name = "",
+            pageable = Pageable.unpaged()
+        ).content.asSequence().mapNotNull { it.notation.id }.toSet()
+        if (notationIds.isEmpty()) return false
+
+        return componentsRepository.findAll(Pageable.unpaged()).content.any { component ->
+            component.nodeType.id == nodeTypeId && notationIds.contains(component.notation.id)
+        }
+    }
+
 }
 
 data class NodeRequest(

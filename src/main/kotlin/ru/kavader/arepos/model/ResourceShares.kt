@@ -24,6 +24,7 @@ enum class ShareResourceType {
 }
 
 enum class SharePermission {
+    VIEW,
     EDIT
 }
 

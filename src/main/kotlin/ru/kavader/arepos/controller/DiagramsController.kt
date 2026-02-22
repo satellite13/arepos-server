@@ -40,7 +40,7 @@ class DiagramsController(
         if (!CurrentUser.isAdmin()) {
             val filtered = diagramsRepository.findAll(Pageable.unpaged()).content
                 .asSequence()
-                .filter { accessService.canEditDiagram(it) }
+                .filter { accessService.canViewDiagram(it) }
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { modelId == null || it.model.id == modelId }
                 .filter { nodeId == null || it.node?.id == nodeId }
@@ -64,7 +64,7 @@ class DiagramsController(
     fun getDiagram(@PathVariable id: UUID): DiagramResponse =
         diagramsRepository.findById(id)
             .map {
-                accessService.requireCanEditDiagram(it)
+                accessService.requireCanViewDiagram(it)
                 it.toResponse()
             }
             .orElseThrow {
@@ -74,11 +74,11 @@ class DiagramsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createDiagram(@RequestBody request: DiagramRequest): DiagramResponse {
-        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
         val currentUserId = accessService.currentUserId()
-        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+            request.ownerId ?: currentUserId
+        } else {
+            currentUserId
         }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
@@ -137,15 +137,15 @@ class DiagramsController(
             }
         accessService.requireCanEditDiagram(diagram)
 
-        val owner = request.ownerId?.let {
-            val currentUserId = accessService.currentUserId()
-            if (!CurrentUser.isAdmin() && currentUserId != diagram.owner.id) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-            }
-            usersRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-            }
-        } ?: diagram.owner
+        val owner = if (CurrentUser.isAdmin()) {
+            request.ownerId?.let {
+                usersRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
+                }
+            } ?: diagram.owner
+        } else {
+            diagram.owner
+        }
         val model = request.modelId?.let {
             modelsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
@@ -153,13 +153,22 @@ class DiagramsController(
         }?.also { newModel ->
             accessService.requireCanEditModel(newModel)
         } ?: diagram.model
-        val notation = request.notationId?.let {
-            notationsRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")
+        val notation = if (CurrentUser.isAdmin()) {
+            request.notationId?.let {
+                notationsRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")
+                }
+            }?.also { newNotation ->
+                accessService.requireCanEditNotation(newNotation)
+            } ?: diagram.notation
+        } else {
+            request.notationId?.let {
+                if (it != diagram.notation.id) {
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                }
             }
-        }?.also { newNotation ->
-            accessService.requireCanEditNotation(newNotation)
-        } ?: diagram.notation
+            diagram.notation
+        }
         val node = request.nodeId?.let {
             nodesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $it not found")

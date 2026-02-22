@@ -7,10 +7,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Links
+import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.LinksRepository
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
+import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
@@ -25,6 +27,8 @@ class LinksController(
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
     private val linkTypesRepository: LinkTypesRepository,
+    private val diagramsRepository: DiagramsRepository,
+    private val relationsRepository: RelationsRepository,
     private val accessService: ResourceAccessService
 ) {
 
@@ -40,7 +44,7 @@ class LinksController(
         if (!CurrentUser.isAdmin()) {
             val filtered = linksRepository.findAll(Pageable.unpaged()).content
                 .asSequence()
-                .filter { accessService.canEditLink(it) }
+                .filter { accessService.canViewLink(it) }
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { modelId == null || it.model.id == modelId }
                 .filter { sourceId == null || it.source.id == sourceId }
@@ -111,7 +115,7 @@ class LinksController(
     fun getLink(@PathVariable id: UUID): LinkResponse =
         linksRepository.findById(id)
             .map {
-                accessService.requireCanEditLink(it)
+                accessService.requireCanViewLink(it)
                 it.toResponse()
             }
             .orElseThrow {
@@ -121,11 +125,11 @@ class LinksController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createLink(@RequestBody request: LinkRequest): LinkResponse {
-        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
         val currentUserId = accessService.currentUserId()
-        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+            request.ownerId ?: currentUserId
+        } else {
+            currentUserId
         }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
@@ -150,7 +154,7 @@ class LinksController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${request.linkTypeId} not found")
             }
-        accessService.requireCanEditLinkType(linkType)
+        requireCanUseLinkTypeForModel(linkType, model)
         val now = Instant.now()
         val saved = linksRepository.save(
             Links(
@@ -178,15 +182,15 @@ class LinksController(
             }
         accessService.requireCanEditLink(link)
 
-        val owner = request.ownerId?.let {
-            val currentUserId = accessService.currentUserId()
-            if (!CurrentUser.isAdmin() && currentUserId != link.owner.id) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-            }
-            usersRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-            }
-        } ?: link.owner
+        val owner = if (CurrentUser.isAdmin()) {
+            request.ownerId?.let {
+                usersRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
+                }
+            } ?: link.owner
+        } else {
+            link.owner
+        }
         val model = request.modelId?.let {
             modelsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
@@ -213,7 +217,7 @@ class LinksController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $it not found")
             }
         }?.also { newLinkType ->
-            accessService.requireCanEditLinkType(newLinkType)
+            requireCanUseLinkTypeForModel(newLinkType, model)
         } ?: link.linkType
 
         val updated = linksRepository.save(
@@ -264,6 +268,41 @@ class LinksController(
         createdAt = createdAt,
         updatedAt = updatedAt
     )
+
+    private fun requireCanUseLinkTypeForModel(
+        linkType: ru.kavader.arepos.model.LinkTypes,
+        model: ru.kavader.arepos.model.Models
+    ) {
+        if (accessService.canUseLinkType(linkType)) return
+        if (CurrentUser.isAdmin()) return
+        if (accessService.canEditModel(model) && linkType.owner.id == model.owner.id) return
+        if (
+            accessService.canEditModel(model) &&
+                isLinkTypeUsedInModelDiagramNotations(requireNotNull(linkType.id), model)
+        ) {
+            return
+        }
+        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+    }
+
+    private fun isLinkTypeUsedInModelDiagramNotations(
+        linkTypeId: UUID,
+        model: ru.kavader.arepos.model.Models
+    ): Boolean {
+        val notationIds = diagramsRepository.findByFilters(
+            ownerId = null,
+            modelId = model.id,
+            nodeId = null,
+            notationId = null,
+            name = "",
+            pageable = Pageable.unpaged()
+        ).content.asSequence().mapNotNull { it.notation.id }.toSet()
+        if (notationIds.isEmpty()) return false
+
+        return relationsRepository.findAll(Pageable.unpaged()).content.any { relation ->
+            relation.linkType.id == linkTypeId && notationIds.contains(relation.notation.id)
+        }
+    }
 }
 
 data class LinkRequest(

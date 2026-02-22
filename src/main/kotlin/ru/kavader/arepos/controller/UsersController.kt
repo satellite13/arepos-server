@@ -53,6 +53,34 @@ class UsersController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
             }
 
+    @GetMapping("/public/by-email")
+    @PreAuthorize("isAuthenticated()")
+    fun getUserPublicByEmail(@RequestParam email: String): UserPublicResponse {
+        val normalizedEmail = email.trim()
+        if (normalizedEmail.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required")
+        }
+
+        return usersRepository.findByEmailIgnoreCase(normalizedEmail)
+            ?.toPublicResponse()
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User with email $normalizedEmail not found")
+    }
+
+    @GetMapping("/public/search")
+    @PreAuthorize("isAuthenticated()")
+    fun searchUsersPublic(
+        pageable: Pageable,
+        @RequestParam email: String
+    ): Page<UserPublicResponse> {
+        val normalizedEmail = email.trim()
+        if (normalizedEmail.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required")
+        }
+
+        return usersRepository.findByEmailContainingIgnoreCaseAndRoleNot(normalizedEmail, Role.ADMIN, pageable)
+            .map { it.toPublicResponse() }
+    }
+
     @GetMapping("/me/profile")
     @PreAuthorize("isAuthenticated()")
     fun getCurrentUserProfile(): UserPublicResponse {

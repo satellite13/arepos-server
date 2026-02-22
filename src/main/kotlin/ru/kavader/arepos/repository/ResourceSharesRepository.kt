@@ -22,9 +22,16 @@ interface ResourceSharesRepository : JpaRepository<ResourceShares, UUID> {
         permission: SharePermission
     ): List<ResourceShares>
 
+    fun findByResourceTypeAndResourceId(resourceType: ShareResourceType, resourceId: UUID): List<ResourceShares>
+
     fun findByGranteeUserIdAndPermission(
         granteeUserId: UUID,
         permission: SharePermission
+    ): List<ResourceShares>
+
+    fun findByGranteeUserIdAndPermissionIn(
+        granteeUserId: UUID,
+        permissions: Collection<SharePermission>
     ): List<ResourceShares>
 
     fun findByResourceTypeAndResourceIdAndGranteeUserIdAndPermission(
@@ -33,4 +40,17 @@ interface ResourceSharesRepository : JpaRepository<ResourceShares, UUID> {
         granteeUserId: UUID,
         permission: SharePermission
     ): ResourceShares?
+
+    fun findByResourceTypeAndResourceIdAndGranteeUserId(
+        resourceType: ShareResourceType,
+        resourceId: UUID,
+        granteeUserId: UUID
+    ): List<ResourceShares>
+
+    fun existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermissionIn(
+        resourceType: ShareResourceType,
+        resourceId: UUID,
+        granteeUserId: UUID,
+        permissions: Collection<SharePermission>
+    ): Boolean
 }

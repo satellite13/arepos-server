@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.repository.LinkTypesRepository
+import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
@@ -19,6 +21,8 @@ import java.util.UUID
 class LinkTypesController(
     private val linkTypesRepository: LinkTypesRepository,
     private val usersRepository: UsersRepository,
+    private val notationsRepository: NotationsRepository,
+    private val relationsRepository: RelationsRepository,
     private val accessService: ResourceAccessService
 ) {
     companion object {
@@ -29,12 +33,31 @@ class LinkTypesController(
     fun listLinkTypes(
         pageable: Pageable,
         @RequestParam(required = false) ownerId: UUID?,
+        @RequestParam(required = false) notationId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<LinkTypeResponse> {
         if (!CurrentUser.isAdmin()) {
+            val notationContext = notationId?.let { requestedNotationId ->
+                val notation = notationsRepository.findById(requestedNotationId).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $requestedNotationId not found")
+                }
+                accessService.requireCanViewNotation(notation)
+                val notationTypeIds = relationsRepository.findByNotation(notation, Pageable.unpaged()).content
+                    .asSequence()
+                    .mapNotNull { it.linkType.id }
+                    .toSet()
+                notation.owner.id to notationTypeIds
+            }
+            val notationOwnerId = notationContext?.first
+            val notationLinkTypeIds = notationContext?.second ?: emptySet()
             val filtered = linkTypesRepository.findAll(Pageable.unpaged()).content
                 .asSequence()
-                .filter { accessService.canEditLinkType(it) }
+                .filter {
+                    accessService.canViewLinkType(it) ||
+                        accessService.canUseLinkType(it) ||
+                        (notationOwnerId != null && it.owner.id == notationOwnerId) ||
+                        notationLinkTypeIds.contains(it.id)
+                }
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { name == null || it.name.contains(name, ignoreCase = true) }
                 .toList()
@@ -59,7 +82,9 @@ class LinkTypesController(
     fun getLinkType(@PathVariable id: UUID): LinkTypeResponse =
         linkTypesRepository.findById(id)
             .map {
-                accessService.requireCanEditLinkType(it)
+                if (!accessService.canViewLinkType(it) && !accessService.canUseLinkType(it)) {
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                }
                 it.toResponse()
             }
             .orElseThrow {
@@ -69,8 +94,12 @@ class LinkTypesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createLinkType(@RequestBody request: LinkTypeRequest): LinkTypeResponse {
-        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
+        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+            request.ownerId ?: currentUserId
+        } else {
+            currentUserId
+        }
         log.info(
             "createLinkType request: currentUserId={}, role={}, requestOwnerId={}, resolvedOwnerId={}",
             CurrentUser.getId(),
@@ -78,10 +107,6 @@ class LinkTypesController(
             request.ownerId,
             resolvedOwnerId
         )
-        val currentUserId = accessService.currentUserId()
-        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-        }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
@@ -109,15 +134,15 @@ class LinkTypesController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
             }
         accessService.requireCanEditLinkType(linkType)
-        val owner = request.ownerId?.let {
-            val currentUserId = accessService.currentUserId()
-            if (!CurrentUser.isAdmin() && currentUserId != linkType.owner.id) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-            }
-            usersRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-            }
-        } ?: linkType.owner
+        val owner = if (CurrentUser.isAdmin()) {
+            request.ownerId?.let {
+                usersRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
+                }
+            } ?: linkType.owner
+        } else {
+            linkType.owner
+        }
 
         val updated = linkTypesRepository.save(
             linkType.copy(
@@ -166,7 +191,7 @@ class LinkTypesController(
 
         if (ownerId != null && ownerId != currentUserId) {
             val hasSharedFromOwner = linkTypesRepository.findAll(Pageable.unpaged()).content.any {
-                it.owner.id == ownerId && accessService.canEditLinkType(it)
+                it.owner.id == ownerId && accessService.canViewLinkType(it)
             }
             if (!hasSharedFromOwner) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
@@ -183,6 +208,7 @@ class LinkTypesController(
         id = requireNotNull(id),
         name = name,
         ownerId = owner.id!!,
+        accessPermission = accessService.linkTypeAccessPermission(this),
         attrs = attrs,
         createdAt = createdAt,
         updatedAt = updatedAt
@@ -205,6 +231,7 @@ data class LinkTypeResponse(
     val id: UUID,
     val name: String,
     val ownerId: UUID,
+    val accessPermission: String? = null,
     val attrs: String?,
     val createdAt: Instant?,
     val updatedAt: Instant?

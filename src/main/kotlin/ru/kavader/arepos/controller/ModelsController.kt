@@ -32,7 +32,7 @@ class ModelsController(
         if (!CurrentUser.isAdmin()) {
             val filtered = modelsRepository.findAll(Pageable.unpaged()).content
                 .asSequence()
-                .filter { accessService.canEditModel(it) }
+                .filter { accessService.canViewModel(it) }
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { name == null || it.name.contains(name, ignoreCase = true) }
                 .toList()
@@ -57,7 +57,7 @@ class ModelsController(
     fun getModel(@PathVariable id: UUID): ModelResponse =
         modelsRepository.findById(id)
             .map {
-                accessService.requireCanEditModel(it)
+                accessService.requireCanViewModel(it)
                 it.toResponse()
             }
             .orElseThrow {
@@ -73,11 +73,11 @@ class ModelsController(
                 "Model with name '${request.name}' and version '${request.version}' already exists"
             )
         }
-        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
         val currentUserId = accessService.currentUserId()
-        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+            request.ownerId ?: currentUserId
+        } else {
+            currentUserId
         }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
@@ -117,15 +117,15 @@ class ModelsController(
                 "Model with name '$newName' and version '$newVersion' already exists"
             )
         }
-        val owner = request.ownerId?.let {
-            val currentUserId = accessService.currentUserId()
-            if (!CurrentUser.isAdmin() && currentUserId != model.owner.id) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-            }
-            usersRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-            }
-        } ?: model.owner
+        val owner = if (CurrentUser.isAdmin()) {
+            request.ownerId?.let {
+                usersRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
+                }
+            } ?: model.owner
+        } else {
+            model.owner
+        }
 
         val updated = modelsRepository.save(
             model.copy(
@@ -175,7 +175,7 @@ class ModelsController(
         if (ownerId != null && ownerId != currentUserId) {
             // Non-admin users can filter by owner only if they have shared access from that owner.
             val hasSharedFromOwner = modelsRepository.findAll(Pageable.unpaged()).content.any {
-                it.owner.id == ownerId && accessService.canEditModel(it)
+                it.owner.id == ownerId && accessService.canViewModel(it)
             }
             if (!hasSharedFromOwner) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
@@ -193,6 +193,7 @@ class ModelsController(
         name = name,
         version = version,
         ownerId = owner.id!!,
+        accessPermission = accessService.modelAccessPermission(this),
         attrs = attrs,
         createdAt = createdAt,
         updatedAt = updatedAt
@@ -218,6 +219,7 @@ data class ModelResponse(
     val name: String,
     val version: String,
     val ownerId: UUID,
+    val accessPermission: String? = null,
     val attrs: String?,
     val createdAt: Instant?,
     val updatedAt: Instant?

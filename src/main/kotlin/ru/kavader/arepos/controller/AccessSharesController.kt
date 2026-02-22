@@ -51,14 +51,24 @@ class AccessSharesController(
         val grantedBy = usersRepository.findById(currentUser).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "User $currentUser not found")
         }
-        val existing = resourceSharesRepository.findByResourceTypeAndResourceIdAndGranteeUserIdAndPermission(
+        val requestedPermission = request.permission ?: SharePermission.VIEW
+        val existing = resourceSharesRepository.findByResourceTypeAndResourceIdAndGranteeUserId(
             resourceType = request.resourceType,
             resourceId = request.resourceId,
-            granteeUserId = request.granteeUserId,
-            permission = SharePermission.EDIT
+            granteeUserId = request.granteeUserId
         )
-        if (existing != null) {
-            return existing.toResponse()
+        if (existing.isNotEmpty()) {
+            val current = existing.first()
+            if (current.permission == requestedPermission) {
+                return current.toResponse()
+            }
+
+            // Enforce one effective permission per user/resource by replacing stale rows.
+            existing.drop(1).forEach { stale -> resourceSharesRepository.deleteById(requireNotNull(stale.id)) }
+            val updated = resourceSharesRepository.save(
+                current.copy(permission = requestedPermission)
+            )
+            return updated.toResponse()
         }
         val now = Instant.now()
         val saved = resourceSharesRepository.save(
@@ -67,7 +77,7 @@ class AccessSharesController(
                 resourceId = request.resourceId,
                 granteeUser = grantee,
                 grantedByUser = grantedBy,
-                permission = SharePermission.EDIT,
+                permission = requestedPermission,
                 createdAt = now,
                 updatedAt = now
             )
@@ -84,10 +94,9 @@ class AccessSharesController(
         if (!accessService.canManageShares(ownerId)) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
-        return resourceSharesRepository.findByResourceTypeAndResourceIdAndPermission(
+        return resourceSharesRepository.findByResourceTypeAndResourceId(
             resourceType = resourceType,
-            resourceId = resourceId,
-            permission = SharePermission.EDIT
+            resourceId = resourceId
         ).map { it.toResponse() }
     }
 
@@ -139,7 +148,8 @@ class AccessSharesController(
 data class AccessShareRequest(
     val resourceType: ShareResourceType,
     val resourceId: UUID,
-    val granteeUserId: UUID
+    val granteeUserId: UUID,
+    val permission: SharePermission? = null
 )
 
 data class AccessShareResponse(

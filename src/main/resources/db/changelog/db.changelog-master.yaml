@@ -99,4 +99,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 012-add-view-share-permission
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/012-add-view-share-permission.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

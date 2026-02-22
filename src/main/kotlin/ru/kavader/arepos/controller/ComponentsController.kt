@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.repository.ComponentsRepository
+import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
@@ -23,6 +24,7 @@ class ComponentsController(
     private val usersRepository: UsersRepository,
     private val notationsRepository: NotationsRepository,
     private val nodeTypesRepository: NodeTypesRepository,
+    private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService
 ) {
 
@@ -34,9 +36,16 @@ class ComponentsController(
         @RequestParam(required = false) name: String?
     ): Page<ComponentResponse> {
         if (!CurrentUser.isAdmin()) {
+            val accessibleNotationIds = diagramsRepository.findAll(Pageable.unpaged()).content
+                .asSequence()
+                .filter { accessService.canViewDiagram(it) }
+                .mapNotNull { it.notation.id }
+                .toSet()
             val filtered = componentsRepository.findAll(Pageable.unpaged()).content
                 .asSequence()
-                .filter { accessService.canEditComponent(it) }
+                .filter {
+                    accessService.canViewComponent(it) || accessibleNotationIds.contains(it.notation.id)
+                }
                 .filter { notationId == null || it.notation.id == notationId }
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { name == null || it.name.contains(name, ignoreCase = true) }
@@ -91,7 +100,7 @@ class ComponentsController(
     fun getComponent(@PathVariable id: UUID): ComponentResponse =
         componentsRepository.findById(id)
             .map {
-                accessService.requireCanEditComponent(it)
+                accessService.requireCanViewComponent(it)
                 it.toResponse()
             }
             .orElseThrow {
@@ -101,11 +110,11 @@ class ComponentsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createComponent(@RequestBody request: ComponentRequest): ComponentResponse {
-        val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
         val currentUserId = accessService.currentUserId()
-        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+            request.ownerId ?: currentUserId
+        } else {
+            currentUserId
         }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
@@ -120,7 +129,7 @@ class ComponentsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${request.nodeTypeId} not found")
             }
-        accessService.requireCanEditNodeType(nodeType)
+        requireCanUseNodeTypeForNotation(nodeType, notation)
         val now = Instant.now()
         val saved = componentsRepository.save(
             Components(
@@ -148,15 +157,15 @@ class ComponentsController(
             }
         accessService.requireCanEditComponent(component)
 
-        val owner = request.ownerId?.let {
-            val currentUserId = accessService.currentUserId()
-            if (!CurrentUser.isAdmin() && currentUserId != component.owner.id) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-            }
-            usersRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-            }
-        } ?: component.owner
+        val owner = if (CurrentUser.isAdmin()) {
+            request.ownerId?.let {
+                usersRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
+                }
+            } ?: component.owner
+        } else {
+            component.owner
+        }
         val notation = request.notationId?.let {
             notationsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")
@@ -169,7 +178,7 @@ class ComponentsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $it not found")
             }
         }?.also { newNodeType ->
-            accessService.requireCanEditNodeType(newNodeType)
+            requireCanUseNodeTypeForNotation(newNodeType, notation)
         } ?: component.nodeType
 
         val updated = componentsRepository.save(
@@ -220,6 +229,16 @@ class ComponentsController(
         createdAt = createdAt,
         updatedAt = updatedAt
     )
+
+    private fun requireCanUseNodeTypeForNotation(
+        nodeType: ru.kavader.arepos.model.NodeTypes,
+        notation: ru.kavader.arepos.model.Notations
+    ) {
+        if (accessService.canUseNodeType(nodeType)) return
+        if (CurrentUser.isAdmin()) return
+        if (accessService.canEditNotation(notation) && nodeType.owner.id == notation.owner.id) return
+        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+    }
 }
 
 data class ComponentRequest(
