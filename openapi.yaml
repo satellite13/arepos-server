@@ -1280,6 +1280,31 @@ paths:
         '404':
           description: Нотация не найдена
 
+  /api/v1/notations/{id}/meta:
+    get:
+      tags:
+        - notations
+      summary: Получить метаданные нотации по ID
+      description: Возвращает имя, версию и владельца нотации для отображения связанной информации в диаграммах.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotationMetaResponse'
+        '403':
+          description: Недостаточно прав
+        '404':
+          description: Нотация не найдена
+
   /api/v1/node-types:
     get:
       tags:
@@ -1729,8 +1754,8 @@ paths:
     post:
       tags:
         - access-shares
-      summary: Выдать доступ на редактирование
-      description: Выдает shared edit доступ на top-level ресурс (MODEL, NOTATION, NODE_TYPE, LINK_TYPE)
+      summary: Выдать доступ к ресурсу
+      description: Выдает shared VIEW/EDIT доступ на top-level ресурс (MODEL, NOTATION, NODE_TYPE, LINK_TYPE)
       requestBody:
         required: true
         content:
@@ -1828,6 +1853,10 @@ components:
         granteeUserId:
           type: string
           format: uuid
+        permission:
+          type: string
+          enum: [VIEW, EDIT]
+          nullable: true
 
     AccessShareResponse:
       type: object
@@ -1849,7 +1878,7 @@ components:
           format: uuid
         permission:
           type: string
-          enum: [EDIT]
+          enum: [VIEW, EDIT]
         createdAt:
           type: string
           format: date-time
@@ -1858,6 +1887,23 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    NotationMetaResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        version:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+        ownerEmail:
+          type: string
+          format: email
 
     # Аутентификация
     RegisterRequest:
@@ -2216,6 +2262,10 @@ components:
         ownerId:
           type: string
           format: uuid
+        accessPermission:
+          type: string
+          enum: [ADMIN, OWNER, EDIT, VIEW]
+          nullable: true
         attrs:
           type: string
           nullable: true
@@ -2786,6 +2836,10 @@ components:
         ownerId:
           type: string
           format: uuid
+        accessPermission:
+          type: string
+          enum: [ADMIN, OWNER, EDIT, VIEW]
+          nullable: true
         attrs:
           type: string
           nullable: true
@@ -2851,6 +2905,10 @@ components:
         ownerId:
           type: string
           format: uuid
+        accessPermission:
+          type: string
+          enum: [ADMIN, OWNER, EDIT, VIEW]
+          nullable: true
         attrs:
           type: string
           nullable: true
@@ -2916,6 +2974,10 @@ components:
         ownerId:
           type: string
           format: uuid
+        accessPermission:
+          type: string
+          enum: [ADMIN, OWNER, EDIT, VIEW]
+          nullable: true
         attrs:
           type: string
           nullable: true
