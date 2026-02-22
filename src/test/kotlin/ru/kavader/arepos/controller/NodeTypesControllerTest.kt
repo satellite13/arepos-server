@@ -95,4 +95,101 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.content.length()").value(2))
             .andExpect(jsonPath("$.totalElements").value(2))
     }
+
+    @Test
+    fun `user sees only own node types`() {
+        val userA = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-type-a@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val userB = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-type-b@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val ownType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "own-node-type",
+                createdAt = Instant.now(),
+                owner = userA
+            )
+        )
+        nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "foreign-node-type",
+                createdAt = Instant.now(),
+                owner = userB
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/node-types?page=0&size=10")
+                .withAuth(userA.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(ownType.id.toString()))
+    }
+
+    @Test
+    fun `user can create own node type`() {
+        val owner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "user-create-node-type@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val payload = NodeTypeRequest(
+            name = "user-node-type-${System.currentTimeMillis()}",
+            ownerId = owner.id!!,
+            attrs = """{"scope":"own"}"""
+        )
+
+        mockMvc.perform(
+            post("/api/v1/node-types")
+                .withAuth(owner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.ownerId").value(owner.id.toString()))
+            .andExpect(jsonPath("$.name").value(payload.name))
+    }
+
+    @Test
+    fun `user cannot create node type for foreign owner`() {
+        val userA = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "user-a-node-type-create@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val userB = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "user-b-node-type-create@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val payload = NodeTypeRequest(
+            name = "forbidden-node-type-${System.currentTimeMillis()}",
+            ownerId = userB.id!!,
+            attrs = null
+        )
+
+        mockMvc.perform(
+            post("/api/v1/node-types")
+                .withAuth(userA.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isForbidden)
+    }
 }

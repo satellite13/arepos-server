@@ -97,4 +97,78 @@ class ModelsControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.content.length()").value(2))
             .andExpect(jsonPath("$.totalElements").value(2))
     }
+
+    @Test
+    fun `user sees only own models`() {
+        val userA = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "user-a@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val userB = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "user-b@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val ownModel = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "own-model",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = userA
+            )
+        )
+        modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "foreign-model",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = userB
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/models?page=0&size=10")
+                .withAuth(userA.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(ownModel.id.toString()))
+    }
+
+    @Test
+    fun `user cannot read foreign model by id`() {
+        val userA = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "reader-a@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val userB = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "reader-b@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val foreignModel = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "foreign-model",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = userB
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/models/${foreignModel.id}")
+                .withAuth(userA.id!!, Role.USER)
+        )
+            .andExpect(status().isForbidden)
+    }
 }

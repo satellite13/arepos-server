@@ -95,4 +95,101 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.content.length()").value(2))
             .andExpect(jsonPath("$.totalElements").value(2))
     }
+
+    @Test
+    fun `user sees only own link types`() {
+        val userA = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "link-type-a@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val userB = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "link-type-b@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val ownType = linkTypesRepository.save(
+            ru.kavader.arepos.model.LinkTypes(
+                name = "own-link-type",
+                createdAt = Instant.now(),
+                owner = userA
+            )
+        )
+        linkTypesRepository.save(
+            ru.kavader.arepos.model.LinkTypes(
+                name = "foreign-link-type",
+                createdAt = Instant.now(),
+                owner = userB
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/link-types?page=0&size=10")
+                .withAuth(userA.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(ownType.id.toString()))
+    }
+
+    @Test
+    fun `user can create own link type`() {
+        val owner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "user-create-link-type@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val payload = LinkTypeRequest(
+            name = "user-link-type-${System.currentTimeMillis()}",
+            ownerId = owner.id!!,
+            attrs = """{"scope":"own"}"""
+        )
+
+        mockMvc.perform(
+            post("/api/v1/link-types")
+                .withAuth(owner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.ownerId").value(owner.id.toString()))
+            .andExpect(jsonPath("$.name").value(payload.name))
+    }
+
+    @Test
+    fun `user cannot create link type for foreign owner`() {
+        val userA = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "user-a-link-type-create@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val userB = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "user-b-link-type-create@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val payload = LinkTypeRequest(
+            name = "forbidden-link-type-${System.currentTimeMillis()}",
+            ownerId = userB.id!!,
+            attrs = null
+        )
+
+        mockMvc.perform(
+            post("/api/v1/link-types")
+                .withAuth(userA.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isForbidden)
+    }
 }

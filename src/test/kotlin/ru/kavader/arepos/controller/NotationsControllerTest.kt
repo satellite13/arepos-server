@@ -98,4 +98,78 @@ class NotationsControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.content.length()").value(2))
             .andExpect(jsonPath("$.totalElements").value(2))
     }
+
+    @Test
+    fun `user sees only own notations`() {
+        val userA = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "notation-a@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val userB = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "notation-b@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val ownNotation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "own-notation",
+                version = "1.0.0",
+                owner = userA,
+                createdAt = Instant.now()
+            )
+        )
+        notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "foreign-notation",
+                version = "1.0.0",
+                owner = userB,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/notations?page=0&size=10")
+                .withAuth(userA.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(ownNotation.id.toString()))
+    }
+
+    @Test
+    fun `user cannot read foreign notation by id`() {
+        val userA = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "reader-a@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val userB = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "reader-b@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val foreignNotation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "foreign-notation",
+                version = "1.0.0",
+                owner = userB,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/notations/${foreignNotation.id}")
+                .withAuth(userA.id!!, Role.USER)
+        )
+            .andExpect(status().isForbidden)
+    }
 }

@@ -1,6 +1,7 @@
 package ru.kavader.arepos.controller
 
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -8,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.AuditLog
 import ru.kavader.arepos.repository.AuditLogRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
 import java.util.UUID
 
 @RestController
@@ -25,6 +27,36 @@ class AuditLogController(
         @RequestParam(required = false) changedById: UUID?,
         @RequestParam(required = false) rowId: UUID?
     ): Page<AuditLogResponse> {
+        if (!CurrentUser.isEditorOrAdmin()) {
+            val currentUserId = CurrentUser.getId()
+                ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+            if (changedById != null && changedById != currentUserId) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
+            val currentUser = usersRepository.findById(currentUserId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $currentUserId not found")
+            }
+            val auditLogs = when {
+                tableName != null && rowId != null -> {
+                    auditLogRepository.findByTableNameAndRowId(tableName, rowId, pageable)
+                }
+                tableName != null -> {
+                    auditLogRepository.findByTableName(tableName, pageable)
+                }
+                operation != null -> {
+                    auditLogRepository.findByOperation(operation, pageable)
+                }
+                rowId != null -> {
+                    auditLogRepository.findByRowId(rowId, pageable)
+                }
+                else -> {
+                    auditLogRepository.findByChangedBy(currentUser, pageable)
+                }
+            }
+            val filtered = auditLogs.content.filter { it.changedBy?.id == currentUserId }
+            return PageImpl(filtered, pageable, filtered.size.toLong()).map { it.toResponse() }
+        }
+
         val auditLogs = when {
             tableName != null && rowId != null -> {
                 auditLogRepository.findByTableNameAndRowId(tableName, rowId, pageable)
@@ -56,10 +88,22 @@ class AuditLogController(
     @GetMapping("/{id}")
     fun getAuditLog(@PathVariable id: UUID): AuditLogResponse =
         auditLogRepository.findById(id)
-            .map { it.toResponse() }
+            .map {
+                checkAuditLogReadable(it)
+                it.toResponse()
+            }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "AuditLog $id not found")
             }
+
+    private fun checkAuditLogReadable(auditLog: AuditLog) {
+        if (CurrentUser.isEditorOrAdmin()) return
+        val currentUserId = CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        if (auditLog.changedBy?.id != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
+    }
 
     private fun AuditLog.toResponse() = AuditLogResponse(
         id = requireNotNull(id),
