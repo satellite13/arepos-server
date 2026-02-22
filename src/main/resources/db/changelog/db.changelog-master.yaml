@@ -90,4 +90,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 011-deactivate-system-user
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/011-deactivate-system-user.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

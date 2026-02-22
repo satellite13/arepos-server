@@ -15,8 +15,9 @@ VALUES_FILE="${VALUES_FILE:-deploy-values.yaml}"
 POSTGRESQL_ENABLED="${POSTGRESQL_ENABLED:-true}"
 BUILD_IMAGE="${BUILD_IMAGE:-true}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-300}"
-KEEP_POSTGRES_VOLUME="${KEEP_POSTGRES_VOLUME:-true}"
+KEEP_POSTGRES_VOLUME="${KEEP_POSTGRES_VOLUME:-false}"
 AUTH_SECRET_NAME="${AUTH_SECRET_NAME:-arepos-server-auth-secret}"
+DEPLOY_IMAGE_PULL_POLICY="${DEPLOY_IMAGE_PULL_POLICY:-IfNotPresent}"
 
 # Функции
 log_info() {
@@ -90,6 +91,7 @@ EXPECTED_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
 DEPLOY_BUILD_ID="${IMAGE_TAG}-$(date +%s)"
 log_info "Тег образа: ${IMAGE_TAG}"
 log_info "Build ID деплоя: ${DEPLOY_BUILD_ID}"
+log_info "Image pull policy: ${DEPLOY_IMAGE_PULL_POLICY}"
 
 # Сборка Docker образа
 if [ "$BUILD_IMAGE" = "true" ]; then
@@ -148,7 +150,7 @@ fi
 
 # Передаем уникальный тег образа
 HELM_CMD="$HELM_CMD --set-string image.tag=$IMAGE_TAG"
-HELM_CMD="$HELM_CMD --set image.pullPolicy=Always"
+HELM_CMD="$HELM_CMD --set image.pullPolicy=$DEPLOY_IMAGE_PULL_POLICY"
 HELM_CMD="$HELM_CMD --set-string deployMetadata.buildId=$DEPLOY_BUILD_ID"
 
 eval $HELM_CMD
@@ -158,52 +160,40 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-log_info "Ожидание запуска подов..."
-sleep 10
-
-# Ожидание готовности подов
-log_info "Ожидание готовности приложения (таймаут: ${WAIT_TIMEOUT}с)..."
-TIMEOUT=$WAIT_TIMEOUT
-ELAPSED=0
-INTERVAL=5
-
-while [ $ELAPSED -lt $TIMEOUT ]; do
-    READY=$(kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=arepos-server -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null || echo "false")
-    
-    if [ "$READY" = "true" ]; then
-        log_info "Приложение готово!"
-        break
-    fi
-    
-    ELAPSED=$((ELAPSED + INTERVAL))
-    REMAINING=$((TIMEOUT - ELAPSED))
-    if [ $REMAINING -gt 0 ]; then
-        echo -n "."
-        sleep $INTERVAL
-    fi
-done
-
-echo ""
-
-if [ "$READY" != "true" ]; then
-    log_error "Таймаут ожидания готовности приложения"
+log_info "Ожидание rollout deployment/${RELEASE_NAME} (таймаут: ${WAIT_TIMEOUT}с)..."
+if ! kubectl rollout status "deployment/${RELEASE_NAME}" -n "$NAMESPACE" --timeout="${WAIT_TIMEOUT}s"; then
+    log_error "Таймаут/ошибка rollout deployment/${RELEASE_NAME}"
     log_info "Текущий статус подов:"
     kubectl get pods -n "$NAMESPACE"
     exit 1
 fi
+log_info "Rollout завершен"
 
 # Проверка статуса подов
 log_info "Статус подов:"
 kubectl get pods -n "$NAMESPACE"
 
-# Проверка фактически запущенного образа
-POD_NAME=$(kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=arepos-server -o jsonpath="{.items[0].metadata.name}")
-RUNNING_IMAGE=$(kubectl get pod "$POD_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.containers[0].image}")
-if [ "$RUNNING_IMAGE" != "$EXPECTED_IMAGE" ]; then
-    log_error "Запущен неожиданный образ: $RUNNING_IMAGE (ожидался $EXPECTED_IMAGE)"
+# Проверка образа deployment (источник истины для rollout)
+DEPLOY_IMAGE=$(kubectl get deployment "$RELEASE_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.template.spec.containers[0].image}")
+if [ "$DEPLOY_IMAGE" != "$EXPECTED_IMAGE" ]; then
+    log_error "В deployment указан неожиданный образ: $DEPLOY_IMAGE (ожидался $EXPECTED_IMAGE)"
     exit 1
 fi
-log_info "Запущен ожидаемый образ: $RUNNING_IMAGE"
+
+# Проверка, что хотя бы один Running+Ready pod уже поднят с ожидаемым образом
+READY_EXPECTED_COUNT=$(kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=arepos-server -o json | jq -r --arg image "$EXPECTED_IMAGE" '
+    [ .items[]
+      | select(.status.phase == "Running")
+      | select(.spec.containers[0].image == $image)
+      | select(any(.status.containerStatuses[]?; .ready == true))
+    ] | length
+')
+if [ "${READY_EXPECTED_COUNT}" -lt 1 ]; then
+    log_error "Нет Running+Ready pod с ожидаемым образом: $EXPECTED_IMAGE"
+    kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=arepos-server -o wide
+    exit 1
+fi
+log_info "Запущен ожидаемый образ: $EXPECTED_IMAGE (ready pods: $READY_EXPECTED_COUNT)"
 
 # Проверка Health Check
 log_info "Проверка Health Check..."

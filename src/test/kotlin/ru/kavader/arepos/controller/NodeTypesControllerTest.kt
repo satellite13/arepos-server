@@ -192,4 +192,38 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isForbidden)
     }
+
+    @Test
+    fun `directory node type is readable for any user`() {
+        val systemUser = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "system-public@test.com",
+                role = Role.USER,
+                isActive = false,
+                createdAt = Instant.now()
+            )
+        )
+        val directoryType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "Directory",
+                attrs = """{"system":true,"kind":"directory"}""",
+                createdAt = Instant.now(),
+                owner = systemUser
+            )
+        )
+        val regularUser = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "regular-reader@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/node-types/${directoryType.id}")
+                .withAuth(regularUser.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.name").value("Directory"))
+    }
 }

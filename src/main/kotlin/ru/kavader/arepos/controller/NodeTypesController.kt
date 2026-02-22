@@ -34,7 +34,7 @@ class NodeTypesController(
         if (!CurrentUser.isAdmin()) {
             val filtered = nodeTypesRepository.findAll(Pageable.unpaged()).content
                 .asSequence()
-                .filter { accessService.canEditNodeType(it) }
+                .filter { accessService.canEditNodeType(it) || isPublicDirectoryType(it) }
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { name == null || it.name.contains(name, ignoreCase = true) }
                 .toList()
@@ -59,7 +59,9 @@ class NodeTypesController(
     fun getNodeType(@PathVariable id: UUID): NodeTypeResponse =
         nodeTypesRepository.findById(id)
             .map {
-                accessService.requireCanEditNodeType(it)
+                if (!accessService.canEditNodeType(it) && !isPublicDirectoryType(it)) {
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                }
                 it.toResponse()
             }
             .orElseThrow {
@@ -187,6 +189,10 @@ class NodeTypesController(
         createdAt = createdAt,
         updatedAt = updatedAt
     )
+
+    private fun isPublicDirectoryType(nodeType: NodeTypes): Boolean {
+        return nodeType.name.equals("Directory", ignoreCase = true)
+    }
 }
 
 data class NodeTypeRequest(
