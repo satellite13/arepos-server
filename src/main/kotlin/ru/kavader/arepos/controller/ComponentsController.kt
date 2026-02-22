@@ -1,6 +1,7 @@
 package ru.kavader.arepos.controller
 
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -11,6 +12,7 @@ import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 
@@ -20,7 +22,8 @@ class ComponentsController(
     private val componentsRepository: ComponentsRepository,
     private val usersRepository: UsersRepository,
     private val notationsRepository: NotationsRepository,
-    private val nodeTypesRepository: NodeTypesRepository
+    private val nodeTypesRepository: NodeTypesRepository,
+    private val accessService: ResourceAccessService
 ) {
 
     @GetMapping
@@ -30,6 +33,17 @@ class ComponentsController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<ComponentResponse> {
+        if (!CurrentUser.isAdmin()) {
+            val filtered = componentsRepository.findAll(Pageable.unpaged()).content
+                .asSequence()
+                .filter { accessService.canEditComponent(it) }
+                .filter { notationId == null || it.notation.id == notationId }
+                .filter { ownerId == null || it.owner.id == ownerId }
+                .filter { name == null || it.name.contains(name, ignoreCase = true) }
+                .toList()
+            return filtered.toPage(pageable).map { it.toResponse() }
+        }
+
         val components = when {
             notationId != null && name != null -> {
                 val notation = notationsRepository.findById(notationId).orElse(null)
@@ -76,7 +90,10 @@ class ComponentsController(
     @GetMapping("/{id}")
     fun getComponent(@PathVariable id: UUID): ComponentResponse =
         componentsRepository.findById(id)
-            .map { it.toResponse() }
+            .map {
+                accessService.requireCanEditComponent(it)
+                it.toResponse()
+            }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Component $id not found")
             }
@@ -86,6 +103,10 @@ class ComponentsController(
     fun createComponent(@RequestBody request: ComponentRequest): ComponentResponse {
         val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
+        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
@@ -94,10 +115,12 @@ class ComponentsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${request.notationId} not found")
             }
+        accessService.requireCanEditNotation(notation)
         val nodeType = nodeTypesRepository.findById(request.nodeTypeId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${request.nodeTypeId} not found")
             }
+        accessService.requireCanEditNodeType(nodeType)
         val now = Instant.now()
         val saved = componentsRepository.save(
             Components(
@@ -123,9 +146,13 @@ class ComponentsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Component $id not found")
             }
-        checkOwnerOrRole(component.owner.id!!)
+        accessService.requireCanEditComponent(component)
 
         val owner = request.ownerId?.let {
+            val currentUserId = accessService.currentUserId()
+            if (!CurrentUser.isAdmin() && currentUserId != component.owner.id) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
             }
@@ -134,11 +161,15 @@ class ComponentsController(
             notationsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")
             }
+        }?.also { newNotation ->
+            accessService.requireCanEditNotation(newNotation)
         } ?: component.notation
         val nodeType = request.nodeTypeId?.let {
             nodeTypesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $it not found")
             }
+        }?.also { newNodeType ->
+            accessService.requireCanEditNodeType(newNodeType)
         } ?: component.nodeType
 
         val updated = componentsRepository.save(
@@ -161,7 +192,7 @@ class ComponentsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Component $id not found")
             }
-        checkOwnerOrRole(component.owner.id!!)
+        accessService.requireCanEditComponent(component)
         componentsRepository.deleteById(id)
     }
 
@@ -171,6 +202,12 @@ class ComponentsController(
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
     }
+
+    private fun getCurrentUser() = CurrentUser.getId()?.let {
+        usersRepository.findById(it).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $it not found")
+        }
+    } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
     private fun Components.toResponse() = ComponentResponse(
         id = requireNotNull(id),

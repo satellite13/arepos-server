@@ -81,4 +81,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 010-add-resource-shares
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/010-add-resource-shares.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

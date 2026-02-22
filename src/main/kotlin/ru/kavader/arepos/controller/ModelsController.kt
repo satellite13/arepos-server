@@ -7,9 +7,11 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Models
+import ru.kavader.arepos.model.ShareResourceType
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 
@@ -17,7 +19,8 @@ import java.util.UUID
 @RequestMapping("/api/v1/models")
 class ModelsController(
     private val modelsRepository: ModelsRepository,
-    private val usersRepository: UsersRepository
+    private val usersRepository: UsersRepository,
+    private val accessService: ResourceAccessService
 ) {
 
     @GetMapping
@@ -26,29 +29,26 @@ class ModelsController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<ModelResponse> {
+        if (!CurrentUser.isAdmin()) {
+            val filtered = modelsRepository.findAll(Pageable.unpaged()).content
+                .asSequence()
+                .filter { accessService.canEditModel(it) }
+                .filter { ownerId == null || it.owner.id == ownerId }
+                .filter { name == null || it.name.contains(name, ignoreCase = true) }
+                .toList()
+            return filtered.toPage(pageable).map { it.toResponse() }
+        }
+
+        val effectiveOwner = resolveReadableOwner(ownerId)
         val models = when {
-            ownerId != null && name != null -> {
-                val owner = usersRepository.findById(ownerId).orElse(null)
-                if (owner != null) {
-                    modelsRepository.findByOwnerAndNameContainingIgnoreCase(owner, name, pageable)
-                } else {
-                    modelsRepository.findAll(pageable)
-                }
-            }
-            ownerId != null -> {
-                val owner = usersRepository.findById(ownerId).orElse(null)
-                if (owner != null) {
-                    modelsRepository.findByOwner(owner, pageable)
-                } else {
-                    modelsRepository.findAll(pageable)
-                }
-            }
-            name != null -> {
+            effectiveOwner != null && name != null ->
+                modelsRepository.findByOwnerAndNameContainingIgnoreCase(effectiveOwner, name, pageable)
+            effectiveOwner != null ->
+                modelsRepository.findByOwner(effectiveOwner, pageable)
+            name != null ->
                 modelsRepository.findByNameContainingIgnoreCase(name, pageable)
-            }
-            else -> {
+            else ->
                 modelsRepository.findAll(pageable)
-            }
         }
         return models.map { it.toResponse() }
     }
@@ -56,7 +56,10 @@ class ModelsController(
     @GetMapping("/{id}")
     fun getModel(@PathVariable id: UUID): ModelResponse =
         modelsRepository.findById(id)
-            .map { it.toResponse() }
+            .map {
+                accessService.requireCanEditModel(it)
+                it.toResponse()
+            }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
             }
@@ -72,6 +75,10 @@ class ModelsController(
         }
         val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
+        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
@@ -100,7 +107,7 @@ class ModelsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
             }
-        checkOwnerOrRole(model.owner.id!!)
+        accessService.requireCanEditModel(model)
 
         val newName = request.name ?: model.name
         val newVersion = request.version ?: model.version
@@ -111,6 +118,10 @@ class ModelsController(
             )
         }
         val owner = request.ownerId?.let {
+            val currentUserId = accessService.currentUserId()
+            if (!CurrentUser.isAdmin() && currentUserId != model.owner.id) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
             }
@@ -135,7 +146,7 @@ class ModelsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
             }
-        checkOwnerOrRole(model.owner.id!!)
+        accessService.requireCanEditModel(model)
         val deletedCount = modelsRepository.softDeleteById(id)
         if (deletedCount == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
@@ -144,8 +155,36 @@ class ModelsController(
 
     private fun checkOwnerOrRole(ownerId: UUID) {
         val currentUserId = CurrentUser.getId() ?: return
-        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
+        if (currentUserId != ownerId && !CurrentUser.isAdmin()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
+    }
+
+    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? {
+        val currentUserId = CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+
+        if (CurrentUser.isAdmin()) {
+            return ownerId?.let {
+                usersRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
+                }
+            }
+        }
+
+        if (ownerId != null && ownerId != currentUserId) {
+            // Non-admin users can filter by owner only if they have shared access from that owner.
+            val hasSharedFromOwner = modelsRepository.findAll(Pageable.unpaged()).content.any {
+                it.owner.id == ownerId && accessService.canEditModel(it)
+            }
+            if (!hasSharedFromOwner) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
+            return null
+        }
+
+        return usersRepository.findById(currentUserId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $currentUserId not found")
         }
     }
 

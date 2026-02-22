@@ -1,6 +1,7 @@
 package ru.kavader.arepos.controller
 
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -12,6 +13,7 @@ import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 
@@ -22,7 +24,8 @@ class LinksController(
     private val usersRepository: UsersRepository,
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
-    private val linkTypesRepository: LinkTypesRepository
+    private val linkTypesRepository: LinkTypesRepository,
+    private val accessService: ResourceAccessService
 ) {
 
     @GetMapping
@@ -34,6 +37,19 @@ class LinksController(
         @RequestParam(required = false) targetId: UUID?,
         @RequestParam(required = false) linkTypeId: UUID?
     ): Page<LinkResponse> {
+        if (!CurrentUser.isAdmin()) {
+            val filtered = linksRepository.findAll(Pageable.unpaged()).content
+                .asSequence()
+                .filter { accessService.canEditLink(it) }
+                .filter { ownerId == null || it.owner.id == ownerId }
+                .filter { modelId == null || it.model.id == modelId }
+                .filter { sourceId == null || it.source.id == sourceId }
+                .filter { targetId == null || it.target.id == targetId }
+                .filter { linkTypeId == null || it.linkType.id == linkTypeId }
+                .toList()
+            return filtered.toPage(pageable).map { it.toResponse() }
+        }
+
         val links = when {
             modelId != null && ownerId != null -> {
                 val model = modelsRepository.findById(modelId).orElse(null)
@@ -94,7 +110,10 @@ class LinksController(
     @GetMapping("/{id}")
     fun getLink(@PathVariable id: UUID): LinkResponse =
         linksRepository.findById(id)
-            .map { it.toResponse() }
+            .map {
+                accessService.requireCanEditLink(it)
+                it.toResponse()
+            }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found")
             }
@@ -104,6 +123,10 @@ class LinksController(
     fun createLink(@RequestBody request: LinkRequest): LinkResponse {
         val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
+        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
@@ -112,18 +135,22 @@ class LinksController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
             }
+        accessService.requireCanEditModel(model)
         val source = nodesRepository.findById(request.sourceId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Source node ${request.sourceId} not found")
             }
+        accessService.requireCanEditNode(source)
         val target = nodesRepository.findById(request.targetId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Target node ${request.targetId} not found")
             }
+        accessService.requireCanEditNode(target)
         val linkType = linkTypesRepository.findById(request.linkTypeId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${request.linkTypeId} not found")
             }
+        accessService.requireCanEditLinkType(linkType)
         val now = Instant.now()
         val saved = linksRepository.save(
             Links(
@@ -149,9 +176,13 @@ class LinksController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found")
             }
-        checkOwnerOrRole(link.owner.id!!)
+        accessService.requireCanEditLink(link)
 
         val owner = request.ownerId?.let {
+            val currentUserId = accessService.currentUserId()
+            if (!CurrentUser.isAdmin() && currentUserId != link.owner.id) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
             }
@@ -160,21 +191,29 @@ class LinksController(
             modelsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
             }
+        }?.also { newModel ->
+            accessService.requireCanEditModel(newModel)
         } ?: link.model
         val source = request.sourceId?.let {
             nodesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Source node $it not found")
             }
+        }?.also { newSource ->
+            accessService.requireCanEditNode(newSource)
         } ?: link.source
         val target = request.targetId?.let {
             nodesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Target node $it not found")
             }
+        }?.also { newTarget ->
+            accessService.requireCanEditNode(newTarget)
         } ?: link.target
         val linkType = request.linkTypeId?.let {
             linkTypesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $it not found")
             }
+        }?.also { newLinkType ->
+            accessService.requireCanEditLinkType(newLinkType)
         } ?: link.linkType
 
         val updated = linksRepository.save(
@@ -197,7 +236,7 @@ class LinksController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found")
             }
-        checkOwnerOrRole(link.owner.id!!)
+        accessService.requireCanEditLink(link)
         linksRepository.deleteById(id)
     }
 
@@ -207,6 +246,12 @@ class LinksController(
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
     }
+
+    private fun getCurrentUser() = CurrentUser.getId()?.let {
+        usersRepository.findById(it).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $it not found")
+        }
+    } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
     private fun Links.toResponse() = LinkResponse(
         id = requireNotNull(id),

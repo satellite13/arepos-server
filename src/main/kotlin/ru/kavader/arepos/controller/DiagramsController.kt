@@ -13,6 +13,7 @@ import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 
@@ -23,7 +24,8 @@ class DiagramsController(
     private val usersRepository: UsersRepository,
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
-    private val notationsRepository: NotationsRepository
+    private val notationsRepository: NotationsRepository,
+    private val accessService: ResourceAccessService
 ) {
 
     @GetMapping
@@ -34,21 +36,37 @@ class DiagramsController(
         @RequestParam(required = false) nodeId: UUID?,
         @RequestParam(required = false) notationId: UUID?,
         @RequestParam(required = false) name: String?
-    ): Page<DiagramResponse> = diagramsRepository
-        .findByFilters(
+    ): Page<DiagramResponse> {
+        if (!CurrentUser.isAdmin()) {
+            val filtered = diagramsRepository.findAll(Pageable.unpaged()).content
+                .asSequence()
+                .filter { accessService.canEditDiagram(it) }
+                .filter { ownerId == null || it.owner.id == ownerId }
+                .filter { modelId == null || it.model.id == modelId }
+                .filter { nodeId == null || it.node?.id == nodeId }
+                .filter { notationId == null || it.notation.id == notationId }
+                .filter { name == null || it.name.contains(name, ignoreCase = true) }
+                .toList()
+            return filtered.toPage(pageable).map { it.toResponse() }
+        }
+
+        return diagramsRepository.findByFilters(
             ownerId = ownerId,
             modelId = modelId,
             nodeId = nodeId,
             notationId = notationId,
             name = name.orEmpty(),
             pageable = pageable
-        )
-        .map { it.toResponse() }
+        ).map { it.toResponse() }
+    }
 
     @GetMapping("/{id}")
     fun getDiagram(@PathVariable id: UUID): DiagramResponse =
         diagramsRepository.findById(id)
-            .map { it.toResponse() }
+            .map {
+                accessService.requireCanEditDiagram(it)
+                it.toResponse()
+            }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
             }
@@ -58,6 +76,10 @@ class DiagramsController(
     fun createDiagram(@RequestBody request: DiagramRequest): DiagramResponse {
         val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
+        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
@@ -66,14 +88,18 @@ class DiagramsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
             }
+        accessService.requireCanEditModel(model)
         val notation = notationsRepository.findById(request.notationId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${request.notationId} not found")
             }
+        accessService.requireCanEditNotation(notation)
         val node = request.nodeId?.let {
             nodesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $it not found")
             }
+        }?.also { newNode ->
+            accessService.requireCanEditNode(newNode)
         }
         if (diagramsRepository.existsByModelAndNameAndVersion(model, request.name, request.version)) {
             throw ResponseStatusException(
@@ -109,9 +135,13 @@ class DiagramsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
             }
-        checkOwnerOrRole(diagram.owner.id!!)
+        accessService.requireCanEditDiagram(diagram)
 
         val owner = request.ownerId?.let {
+            val currentUserId = accessService.currentUserId()
+            if (!CurrentUser.isAdmin() && currentUserId != diagram.owner.id) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
             }
@@ -120,16 +150,22 @@ class DiagramsController(
             modelsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
             }
+        }?.also { newModel ->
+            accessService.requireCanEditModel(newModel)
         } ?: diagram.model
         val notation = request.notationId?.let {
             notationsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")
             }
+        }?.also { newNotation ->
+            accessService.requireCanEditNotation(newNotation)
         } ?: diagram.notation
         val node = request.nodeId?.let {
             nodesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $it not found")
             }
+        }?.also { newNode ->
+            accessService.requireCanEditNode(newNode)
         } ?: diagram.node
         val newName = request.name ?: diagram.name
         val newVersion = request.version ?: diagram.version
@@ -163,7 +199,7 @@ class DiagramsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
             }
-        checkOwnerOrRole(diagram.owner.id!!)
+        accessService.requireCanEditDiagram(diagram)
         val deletedCount = diagramsRepository.softDeleteById(id)
         if (deletedCount == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")

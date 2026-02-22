@@ -3,12 +3,14 @@ package ru.kavader.arepos.controller
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
+import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 
@@ -16,8 +18,12 @@ import java.util.UUID
 @RequestMapping("/api/v1/link-types")
 class LinkTypesController(
     private val linkTypesRepository: LinkTypesRepository,
-    private val usersRepository: UsersRepository
+    private val usersRepository: UsersRepository,
+    private val accessService: ResourceAccessService
 ) {
+    companion object {
+        private val log = LoggerFactory.getLogger(LinkTypesController::class.java)
+    }
 
     @GetMapping
     fun listLinkTypes(
@@ -25,29 +31,26 @@ class LinkTypesController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<LinkTypeResponse> {
+        if (!CurrentUser.isAdmin()) {
+            val filtered = linkTypesRepository.findAll(Pageable.unpaged()).content
+                .asSequence()
+                .filter { accessService.canEditLinkType(it) }
+                .filter { ownerId == null || it.owner.id == ownerId }
+                .filter { name == null || it.name.contains(name, ignoreCase = true) }
+                .toList()
+            return filtered.toPage(pageable).map { it.toResponse() }
+        }
+
+        val effectiveOwner = resolveReadableOwner(ownerId)
         val linkTypes = when {
-            ownerId != null && name != null -> {
-                val owner = usersRepository.findById(ownerId).orElse(null)
-                if (owner != null) {
-                    linkTypesRepository.findByOwnerAndNameContainingIgnoreCase(owner, name, pageable)
-                } else {
-                    linkTypesRepository.findAll(pageable)
-                }
-            }
-            ownerId != null -> {
-                val owner = usersRepository.findById(ownerId).orElse(null)
-                if (owner != null) {
-                    linkTypesRepository.findByOwner(owner, pageable)
-                } else {
-                    linkTypesRepository.findAll(pageable)
-                }
-            }
-            name != null -> {
+            effectiveOwner != null && name != null ->
+                linkTypesRepository.findByOwnerAndNameContainingIgnoreCase(effectiveOwner, name, pageable)
+            effectiveOwner != null ->
+                linkTypesRepository.findByOwner(effectiveOwner, pageable)
+            name != null ->
                 linkTypesRepository.findByNameContainingIgnoreCase(name, pageable)
-            }
-            else -> {
+            else ->
                 linkTypesRepository.findAll(pageable)
-            }
         }
         return linkTypes.map { it.toResponse() }
     }
@@ -55,7 +58,10 @@ class LinkTypesController(
     @GetMapping("/{id}")
     fun getLinkType(@PathVariable id: UUID): LinkTypeResponse =
         linkTypesRepository.findById(id)
-            .map { it.toResponse() }
+            .map {
+                accessService.requireCanEditLinkType(it)
+                it.toResponse()
+            }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
             }
@@ -63,9 +69,19 @@ class LinkTypesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createLinkType(@RequestBody request: LinkTypeRequest): LinkTypeResponse {
-        checkEditorOrAdmin()
         val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        log.info(
+            "createLinkType request: currentUserId={}, role={}, requestOwnerId={}, resolvedOwnerId={}",
+            CurrentUser.getId(),
+            CurrentUser.getRole(),
+            request.ownerId,
+            resolvedOwnerId
+        )
+        val currentUserId = accessService.currentUserId()
+        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
@@ -88,12 +104,16 @@ class LinkTypesController(
         @PathVariable id: UUID,
         @RequestBody request: LinkTypeUpdateRequest
     ): LinkTypeResponse {
-        checkEditorOrAdmin()
         val linkType = linkTypesRepository.findById(id)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
             }
+        accessService.requireCanEditLinkType(linkType)
         val owner = request.ownerId?.let {
+            val currentUserId = accessService.currentUserId()
+            if (!CurrentUser.isAdmin() && currentUserId != linkType.owner.id) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
             }
@@ -112,16 +132,50 @@ class LinkTypesController(
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteLinkType(@PathVariable id: UUID) {
-        checkEditorOrAdmin()
-        if (!linkTypesRepository.existsById(id)) {
+        val linkType = linkTypesRepository.findById(id).orElseThrow {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
         }
+        accessService.requireCanEditLinkType(linkType)
         linkTypesRepository.deleteById(id)
     }
 
-    private fun checkEditorOrAdmin() {
-        if (CurrentUser.getId() != null && !CurrentUser.isEditorOrAdmin()) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only EDITOR or ADMIN can manage link types")
+    private fun checkOwnerOrRole(ownerId: UUID) {
+        val currentUserId = CurrentUser.getId() ?: return
+        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
+            log.warn(
+                "LinkTypes access denied: currentUserId={}, role={}, ownerId={}",
+                currentUserId,
+                CurrentUser.getRole(),
+                ownerId
+            )
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
+    }
+
+    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? {
+        val currentUserId = CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+
+        if (CurrentUser.isAdmin()) {
+            return ownerId?.let {
+                usersRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
+                }
+            }
+        }
+
+        if (ownerId != null && ownerId != currentUserId) {
+            val hasSharedFromOwner = linkTypesRepository.findAll(Pageable.unpaged()).content.any {
+                it.owner.id == ownerId && accessService.canEditLinkType(it)
+            }
+            if (!hasSharedFromOwner) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
+            return null
+        }
+
+        return usersRepository.findById(currentUserId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $currentUserId not found")
         }
     }
 

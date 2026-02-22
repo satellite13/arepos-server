@@ -1,6 +1,7 @@
 package ru.kavader.arepos.controller
 
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -11,6 +12,7 @@ import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 
@@ -20,7 +22,8 @@ class RelationsController(
     private val relationsRepository: RelationsRepository,
     private val usersRepository: UsersRepository,
     private val notationsRepository: NotationsRepository,
-    private val linkTypesRepository: LinkTypesRepository
+    private val linkTypesRepository: LinkTypesRepository,
+    private val accessService: ResourceAccessService
 ) {
 
     @GetMapping
@@ -30,6 +33,17 @@ class RelationsController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<RelationResponse> {
+        if (!CurrentUser.isAdmin()) {
+            val filtered = relationsRepository.findAll(Pageable.unpaged()).content
+                .asSequence()
+                .filter { accessService.canEditRelation(it) }
+                .filter { notationId == null || it.notation.id == notationId }
+                .filter { ownerId == null || it.owner.id == ownerId }
+                .filter { name == null || it.name.contains(name, ignoreCase = true) }
+                .toList()
+            return filtered.toPage(pageable).map { it.toResponse() }
+        }
+
         val relations = when {
             notationId != null && name != null -> {
                 val notation = notationsRepository.findById(notationId).orElse(null)
@@ -76,7 +90,10 @@ class RelationsController(
     @GetMapping("/{id}")
     fun getRelation(@PathVariable id: UUID): RelationResponse =
         relationsRepository.findById(id)
-            .map { it.toResponse() }
+            .map {
+                accessService.requireCanEditRelation(it)
+                it.toResponse()
+            }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $id not found")
             }
@@ -86,6 +103,10 @@ class RelationsController(
     fun createRelation(@RequestBody request: RelationRequest): RelationResponse {
         val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
+        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
@@ -94,10 +115,12 @@ class RelationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${request.notationId} not found")
             }
+        accessService.requireCanEditNotation(notation)
         val linkType = linkTypesRepository.findById(request.linkTypeId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${request.linkTypeId} not found")
             }
+        accessService.requireCanEditLinkType(linkType)
         val now = Instant.now()
         val saved = relationsRepository.save(
             Relations(
@@ -123,9 +146,13 @@ class RelationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $id not found")
             }
-        checkOwnerOrRole(relation.owner.id!!)
+        accessService.requireCanEditRelation(relation)
 
         val owner = request.ownerId?.let {
+            val currentUserId = accessService.currentUserId()
+            if (!CurrentUser.isAdmin() && currentUserId != relation.owner.id) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
             }
@@ -134,11 +161,15 @@ class RelationsController(
             notationsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")
             }
+        }?.also { newNotation ->
+            accessService.requireCanEditNotation(newNotation)
         } ?: relation.notation
         val linkType = request.linkTypeId?.let {
             linkTypesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $it not found")
             }
+        }?.also { newLinkType ->
+            accessService.requireCanEditLinkType(newLinkType)
         } ?: relation.linkType
 
         val updated = relationsRepository.save(
@@ -161,7 +192,7 @@ class RelationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $id not found")
             }
-        checkOwnerOrRole(relation.owner.id!!)
+        accessService.requireCanEditRelation(relation)
         relationsRepository.deleteById(id)
     }
 
@@ -171,6 +202,12 @@ class RelationsController(
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
     }
+
+    private fun getCurrentUser() = CurrentUser.getId()?.let {
+        usersRepository.findById(it).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $it not found")
+        }
+    } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
     private fun Relations.toResponse() = RelationResponse(
         id = requireNotNull(id),

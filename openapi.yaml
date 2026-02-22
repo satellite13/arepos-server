@@ -32,13 +32,15 @@ tags:
   - name: notations
     description: Управление нотациями
   - name: node-types
-    description: Управление типами узлов (создание/изменение/удаление — EDITOR и ADMIN)
+    description: Управление типами узлов (создание/изменение/удаление — owner, shared edit, ADMIN)
   - name: link-types
-    description: Управление типами связей (создание/изменение/удаление — EDITOR и ADMIN)
+    description: Управление типами связей (создание/изменение/удаление — owner, shared edit, ADMIN)
   - name: relation-rules
     description: Управление правилами связей
   - name: audit-log
     description: Просмотр журнала аудита
+  - name: access-shares
+    description: Делегирование прав редактирования на ресурсы
 
 security:
   - bearerAuth: []
@@ -1723,6 +1725,84 @@ paths:
         '404':
           description: Запись журнала аудита не найдена
 
+  /api/v1/access/shares:
+    post:
+      tags:
+        - access-shares
+      summary: Выдать доступ на редактирование
+      description: Выдает shared edit доступ на top-level ресурс (MODEL, NOTATION, NODE_TYPE, LINK_TYPE)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessShareRequest'
+      responses:
+        '201':
+          description: Доступ выдан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessShareResponse'
+        '400':
+          description: Некорректный запрос
+        '403':
+          description: Недостаточно прав
+        '404':
+          description: Пользователь или ресурс не найден
+
+  /api/v1/access/shares/{resourceType}/{resourceId}:
+    get:
+      tags:
+        - access-shares
+      summary: Список выданных доступов к ресурсу
+      parameters:
+        - name: resourceType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [MODEL, NOTATION, NODE_TYPE, LINK_TYPE]
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccessShareResponse'
+        '403':
+          description: Недостаточно прав
+        '404':
+          description: Ресурс не найден
+
+  /api/v1/access/shares/{shareId}:
+    delete:
+      tags:
+        - access-shares
+      summary: Отозвать доступ
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Доступ отозван
+        '403':
+          description: Недостаточно прав
+        '404':
+          description: Запись доступа не найдена
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1732,6 +1812,53 @@ components:
       description: JWT access токен. Получите через /api/v1/auth/login или /api/v1/auth/register
 
   schemas:
+    AccessShareRequest:
+      type: object
+      required:
+        - resourceType
+        - resourceId
+        - granteeUserId
+      properties:
+        resourceType:
+          type: string
+          enum: [MODEL, NOTATION, NODE_TYPE, LINK_TYPE]
+        resourceId:
+          type: string
+          format: uuid
+        granteeUserId:
+          type: string
+          format: uuid
+
+    AccessShareResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        resourceType:
+          type: string
+          enum: [MODEL, NOTATION, NODE_TYPE, LINK_TYPE]
+        resourceId:
+          type: string
+          format: uuid
+        granteeUserId:
+          type: string
+          format: uuid
+        grantedByUserId:
+          type: string
+          format: uuid
+        permission:
+          type: string
+          enum: [EDIT]
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
     # Аутентификация
     RegisterRequest:
       type: object

@@ -1,6 +1,7 @@
 package ru.kavader.arepos.controller
 
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -11,6 +12,7 @@ import ru.kavader.arepos.repository.RelationRulesRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 
@@ -20,7 +22,8 @@ class RelationRulesController(
     private val relationRulesRepository: RelationRulesRepository,
     private val usersRepository: UsersRepository,
     private val relationsRepository: RelationsRepository,
-    private val componentsRepository: ComponentsRepository
+    private val componentsRepository: ComponentsRepository,
+    private val accessService: ResourceAccessService
 ) {
 
     @GetMapping
@@ -29,6 +32,16 @@ class RelationRulesController(
         @RequestParam(required = false) relationId: UUID?,
         @RequestParam(required = false) ownerId: UUID?
     ): Page<RelationRuleResponse> {
+        if (!CurrentUser.isAdmin()) {
+            val filtered = relationRulesRepository.findAll(Pageable.unpaged()).content
+                .asSequence()
+                .filter { accessService.canEditRelationRule(it) }
+                .filter { relationId == null || it.relation.id == relationId }
+                .filter { ownerId == null || it.owner.id == ownerId }
+                .toList()
+            return filtered.toPage(pageable).map { it.toResponse() }
+        }
+
         val relationRules = when {
             relationId != null && ownerId != null -> {
                 val relation = relationsRepository.findById(relationId).orElse(null)
@@ -65,7 +78,10 @@ class RelationRulesController(
     @GetMapping("/{id}")
     fun getRelationRule(@PathVariable id: UUID): RelationRuleResponse =
         relationRulesRepository.findById(id)
-            .map { it.toResponse() }
+            .map {
+                accessService.requireCanEditRelationRule(it)
+                it.toResponse()
+            }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "RelationRule $id not found")
             }
@@ -75,6 +91,10 @@ class RelationRulesController(
     fun createRelationRule(@RequestBody request: RelationRuleRequest): RelationRuleResponse {
         val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
+        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
@@ -83,14 +103,17 @@ class RelationRulesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Relation ${request.relationId} not found")
             }
+        accessService.requireCanEditRelation(relation)
         val fromComponent = componentsRepository.findById(request.fromComponentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "FromComponent ${request.fromComponentId} not found")
             }
+        accessService.requireCanEditComponent(fromComponent)
         val toComponent = componentsRepository.findById(request.toComponentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "ToComponent ${request.toComponentId} not found")
             }
+        accessService.requireCanEditComponent(toComponent)
         val now = Instant.now()
         val saved = relationRulesRepository.save(
             RelationRules(
@@ -115,9 +138,13 @@ class RelationRulesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "RelationRule $id not found")
             }
-        checkOwnerOrRole(relationRule.owner.id!!)
+        accessService.requireCanEditRelationRule(relationRule)
 
         val owner = request.ownerId?.let {
+            val currentUserId = accessService.currentUserId()
+            if (!CurrentUser.isAdmin() && currentUserId != relationRule.owner.id) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
             }
@@ -126,16 +153,22 @@ class RelationRulesController(
             relationsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $it not found")
             }
+        }?.also { newRelation ->
+            accessService.requireCanEditRelation(newRelation)
         } ?: relationRule.relation
         val fromComponent = request.fromComponentId?.let {
             componentsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "FromComponent $it not found")
             }
+        }?.also { newFrom ->
+            accessService.requireCanEditComponent(newFrom)
         } ?: relationRule.fromComponent
         val toComponent = request.toComponentId?.let {
             componentsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "ToComponent $it not found")
             }
+        }?.also { newTo ->
+            accessService.requireCanEditComponent(newTo)
         } ?: relationRule.toComponent
 
         val updated = relationRulesRepository.save(
@@ -157,7 +190,7 @@ class RelationRulesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "RelationRule $id not found")
             }
-        checkOwnerOrRole(relationRule.owner.id!!)
+        accessService.requireCanEditRelationRule(relationRule)
         relationRulesRepository.deleteById(id)
     }
 
@@ -167,6 +200,12 @@ class RelationRulesController(
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
     }
+
+    private fun getCurrentUser() = CurrentUser.getId()?.let {
+        usersRepository.findById(it).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $it not found")
+        }
+    } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
     private fun RelationRules.toResponse() = RelationRuleResponse(
         id = requireNotNull(id),

@@ -1,6 +1,7 @@
 package ru.kavader.arepos.controller
 
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -11,6 +12,7 @@ import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 
@@ -20,7 +22,8 @@ class NodesController(
     private val nodesRepository: NodesRepository,
     private val modelsRepository: ModelsRepository,
     private val nodeTypesRepository: NodeTypesRepository,
-    private val usersRepository: UsersRepository
+    private val usersRepository: UsersRepository,
+    private val accessService: ResourceAccessService
 ) {
 
     @GetMapping
@@ -30,6 +33,17 @@ class NodesController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<NodeResponse> {
+        if (!CurrentUser.isAdmin()) {
+            val filtered = nodesRepository.findAll(Pageable.unpaged()).content
+                .asSequence()
+                .filter { accessService.canEditNode(it) }
+                .filter { modelId == null || it.model.id == modelId }
+                .filter { ownerId == null || it.owner.id == ownerId }
+                .filter { name == null || it.name.contains(name, ignoreCase = true) }
+                .toList()
+            return filtered.toPage(pageable).map { it.toResponse() }
+        }
+
         val nodes = when {
             modelId != null -> {
                 val model = modelsRepository.findById(modelId).orElse(null)
@@ -60,7 +74,10 @@ class NodesController(
     @GetMapping("/{id}")
     fun getNode(@PathVariable id: UUID): NodeResponse =
         nodesRepository.findById(id)
-            .map { it.toResponse() }
+            .map {
+                accessService.requireCanEditNode(it)
+                it.toResponse()
+            }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found")
             }
@@ -72,8 +89,13 @@ class NodesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
             }
+        accessService.requireCanEditModel(model)
         val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
+        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
@@ -82,8 +104,11 @@ class NodesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${request.nodeTypeId} not found")
             }
+        accessService.requireCanEditNodeType(nodeType)
         val parentNode = request.parentNodeId?.let {
-            nodesRepository.findById(it).orElse(null)
+            nodesRepository.findById(it).orElse(null)?.also { parent ->
+                accessService.requireCanEditNode(parent)
+            }
         }
 
         val now = Instant.now()
@@ -111,15 +136,21 @@ class NodesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found")
             }
-        checkOwnerOrRole(node.owner.id!!)
+        accessService.requireCanEditNode(node)
 
         val model = request.modelId?.let {
             modelsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
             }
+        }?.also { newModel ->
+            accessService.requireCanEditModel(newModel)
         } ?: node.model
 
         val owner = request.ownerId?.let {
+            val currentUserId = accessService.currentUserId()
+            if (!CurrentUser.isAdmin() && currentUserId != node.owner.id) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
             }
@@ -129,13 +160,17 @@ class NodesController(
             nodeTypesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $it not found")
             }
+        }?.also { newNodeType ->
+            accessService.requireCanEditNodeType(newNodeType)
         } ?: node.nodeType
 
         val parentNode = request.parentNodeId?.let {
             if (it == id) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Node cannot be its own parent")
             }
-            nodesRepository.findById(it).orElse(null)
+            nodesRepository.findById(it).orElse(null)?.also { parent ->
+                accessService.requireCanEditNode(parent)
+            }
         } ?: node.parentNode
 
         val updated = nodesRepository.save(
@@ -158,7 +193,7 @@ class NodesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found")
             }
-        checkOwnerOrRole(node.owner.id!!)
+        accessService.requireCanEditNode(node)
         nodesRepository.deleteById(id)
     }
 
@@ -168,6 +203,12 @@ class NodesController(
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
     }
+
+    private fun getCurrentUser() = CurrentUser.getId()?.let {
+        usersRepository.findById(it).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $it not found")
+        }
+    } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
     private fun Nodes.toResponse() = NodeResponse(
         id = requireNotNull(id),

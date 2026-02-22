@@ -16,6 +16,7 @@ import ru.kavader.arepos.repository.RelationRulesRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 
@@ -26,7 +27,8 @@ class NotationsController(
     private val usersRepository: UsersRepository,
     private val componentsRepository: ComponentsRepository,
     private val relationsRepository: RelationsRepository,
-    private val relationRulesRepository: RelationRulesRepository
+    private val relationRulesRepository: RelationRulesRepository,
+    private val accessService: ResourceAccessService
 ) {
 
     @GetMapping
@@ -35,29 +37,26 @@ class NotationsController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<NotationResponse> {
+        if (!CurrentUser.isAdmin()) {
+            val filtered = notationsRepository.findAll(Pageable.unpaged()).content
+                .asSequence()
+                .filter { accessService.canEditNotation(it) }
+                .filter { ownerId == null || it.owner.id == ownerId }
+                .filter { name == null || it.name.contains(name, ignoreCase = true) }
+                .toList()
+            return filtered.toPage(pageable).map { it.toResponse() }
+        }
+
+        val effectiveOwner = resolveReadableOwner(ownerId)
         val notations = when {
-            ownerId != null && name != null -> {
-                val owner = usersRepository.findById(ownerId).orElse(null)
-                if (owner != null) {
-                    notationsRepository.findByOwnerAndNameContainingIgnoreCase(owner, name, pageable)
-                } else {
-                    notationsRepository.findAll(pageable)
-                }
-            }
-            ownerId != null -> {
-                val owner = usersRepository.findById(ownerId).orElse(null)
-                if (owner != null) {
-                    notationsRepository.findByOwner(owner, pageable)
-                } else {
-                    notationsRepository.findAll(pageable)
-                }
-            }
-            name != null -> {
+            effectiveOwner != null && name != null ->
+                notationsRepository.findByOwnerAndNameContainingIgnoreCase(effectiveOwner, name, pageable)
+            effectiveOwner != null ->
+                notationsRepository.findByOwner(effectiveOwner, pageable)
+            name != null ->
                 notationsRepository.findByNameContainingIgnoreCase(name, pageable)
-            }
-            else -> {
+            else ->
                 notationsRepository.findAll(pageable)
-            }
         }
         return notations.map { it.toResponse() }
     }
@@ -65,7 +64,10 @@ class NotationsController(
     @GetMapping("/{id}")
     fun getNotation(@PathVariable id: UUID): NotationResponse =
         notationsRepository.findById(id)
-            .map { it.toResponse() }
+            .map {
+                accessService.requireCanEditNotation(it)
+                it.toResponse()
+            }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
             }
@@ -75,6 +77,10 @@ class NotationsController(
     fun createNotation(@RequestBody request: NotationRequest): NotationResponse {
         val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
+        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
@@ -103,9 +109,13 @@ class NotationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
             }
-        checkOwnerOrRole(notation.owner.id!!)
+        accessService.requireCanEditNotation(notation)
 
         val owner = request.ownerId?.let {
+            val currentUserId = accessService.currentUserId()
+            if (!CurrentUser.isAdmin() && currentUserId != notation.owner.id) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
             usersRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
             }
@@ -133,8 +143,13 @@ class NotationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Source notation $sourceId not found")
             }
+        accessService.requireCanEditNotation(source)
         val resolvedOwnerId = request.ownerId ?: CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
+        if (!CurrentUser.isAdmin() && resolvedOwnerId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
         val owner = usersRepository.findById(resolvedOwnerId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
@@ -224,7 +239,7 @@ class NotationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
             }
-        checkOwnerOrRole(notation.owner.id!!)
+        accessService.requireCanEditNotation(notation)
         val deletedCount = notationsRepository.softDeleteById(id)
         if (deletedCount == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
@@ -235,6 +250,33 @@ class NotationsController(
         val currentUserId = CurrentUser.getId() ?: return
         if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
+    }
+
+    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? {
+        val currentUserId = CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+
+        if (CurrentUser.isAdmin()) {
+            return ownerId?.let {
+                usersRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
+                }
+            }
+        }
+
+        if (ownerId != null && ownerId != currentUserId) {
+            val hasSharedFromOwner = notationsRepository.findAll(Pageable.unpaged()).content.any {
+                it.owner.id == ownerId && accessService.canEditNotation(it)
+            }
+            if (!hasSharedFromOwner) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
+            return null
+        }
+
+        return usersRepository.findById(currentUserId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $currentUserId not found")
         }
     }
 
