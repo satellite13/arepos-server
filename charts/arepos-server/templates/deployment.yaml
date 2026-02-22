@@ -13,9 +13,14 @@ spec:
       {{- include "arepos-server.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- if or .Values.podAnnotations .Values.deployMetadata.buildId }}
       annotations:
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.deployMetadata.buildId }}
+        arepos-server/build-id: {{ .Values.deployMetadata.buildId | quote }}
+        {{- end }}
       {{- end }}
       labels:
         {{- include "arepos-server.labels" . | nindent 8 }}

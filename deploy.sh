@@ -43,6 +43,8 @@ log_info "Проверка необходимых команд..."
 check_command kubectl
 check_command helm
 check_command docker
+check_command curl
+check_command jq
 
 # Проверка подключения к кластеру
 log_info "Проверка подключения к Kubernetes кластеру..."
@@ -84,7 +86,10 @@ GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
 APP_VERSION=$(grep '^version' build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "0.0.1-SNAPSHOT")
 IMAGE_TAG="${APP_VERSION}-${GIT_HASH}"
 IMAGE_NAME="arch/arepos-server"
+EXPECTED_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+DEPLOY_BUILD_ID="${IMAGE_TAG}-$(date +%s)"
 log_info "Тег образа: ${IMAGE_TAG}"
+log_info "Build ID деплоя: ${DEPLOY_BUILD_ID}"
 
 # Сборка Docker образа
 if [ "$BUILD_IMAGE" = "true" ]; then
@@ -95,8 +100,12 @@ if [ "$BUILD_IMAGE" = "true" ]; then
         exit 1
     fi
     # Дополнительный тег с git hash
-    docker tag "${IMAGE_NAME}:${APP_VERSION}" "${IMAGE_NAME}:${IMAGE_TAG}"
-    log_info "Docker образ собран и помечен как ${IMAGE_NAME}:${IMAGE_TAG}"
+    docker tag "${IMAGE_NAME}:${APP_VERSION}" "${EXPECTED_IMAGE}"
+    if ! docker image inspect "${EXPECTED_IMAGE}" > /dev/null 2>&1; then
+        log_error "Не найден локальный образ ${EXPECTED_IMAGE} после тегирования"
+        exit 1
+    fi
+    log_info "Docker образ собран и помечен как ${EXPECTED_IMAGE}"
 else
     log_warn "Пропуск сборки Docker образа (BUILD_IMAGE=false)"
 fi
@@ -138,7 +147,9 @@ if [ "$POSTGRESQL_ENABLED" = "true" ]; then
 fi
 
 # Передаем уникальный тег образа
-HELM_CMD="$HELM_CMD --set image.tag=$IMAGE_TAG"
+HELM_CMD="$HELM_CMD --set-string image.tag=$IMAGE_TAG"
+HELM_CMD="$HELM_CMD --set image.pullPolicy=Always"
+HELM_CMD="$HELM_CMD --set-string deployMetadata.buildId=$DEPLOY_BUILD_ID"
 
 eval $HELM_CMD
 
@@ -184,6 +195,15 @@ fi
 # Проверка статуса подов
 log_info "Статус подов:"
 kubectl get pods -n "$NAMESPACE"
+
+# Проверка фактически запущенного образа
+POD_NAME=$(kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=arepos-server -o jsonpath="{.items[0].metadata.name}")
+RUNNING_IMAGE=$(kubectl get pod "$POD_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.containers[0].image}")
+if [ "$RUNNING_IMAGE" != "$EXPECTED_IMAGE" ]; then
+    log_error "Запущен неожиданный образ: $RUNNING_IMAGE (ожидался $EXPECTED_IMAGE)"
+    exit 1
+fi
+log_info "Запущен ожидаемый образ: $RUNNING_IMAGE"
 
 # Проверка Health Check
 log_info "Проверка Health Check..."
