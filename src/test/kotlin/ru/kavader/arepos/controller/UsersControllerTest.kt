@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -14,6 +15,8 @@ import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -27,6 +30,9 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var usersRepository: UsersRepository
+
+    @Autowired
+    lateinit var passwordEncoder: PasswordEncoder
 
     @Test
     fun `creates user via REST`() {
@@ -148,6 +154,39 @@ class UsersControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.email").value("new@test.com"))
             .andExpect(jsonPath("$.attrs").value("""{"updated":true}"""))
+    }
+
+    @Test
+    fun `admin can update user password`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val user = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "password@test.com",
+                passwordHash = passwordEncoder.encode("oldpass123"),
+                createdAt = Instant.now()
+            )
+        )
+
+        val payload = UserUpdateRequest(password = "newpass123")
+
+        mockMvc.perform(
+            put("/api/v1/users/${user.id}")
+                .withAuth(admin.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.email").value("password@test.com"))
+
+        val updated = usersRepository.findById(user.id!!).orElseThrow()
+        assertTrue(passwordEncoder.matches("newpass123", updated.passwordHash))
+        assertFalse(passwordEncoder.matches("oldpass123", updated.passwordHash))
     }
 
     @Test

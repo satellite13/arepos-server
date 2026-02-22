@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Role
@@ -16,7 +17,8 @@ import java.util.UUID
 @RequestMapping("/api/v1/users")
 @PreAuthorize("hasRole('ADMIN')")
 class UsersController(
-    private val usersRepository: UsersRepository
+    private val usersRepository: UsersRepository,
+    private val passwordEncoder: PasswordEncoder
 ) {
 
     @GetMapping
@@ -74,13 +76,19 @@ class UsersController(
                 throw ResponseStatusException(HttpStatus.CONFLICT, "User with email $newEmail already exists")
             }
         }
+        request.password?.let { newPassword ->
+            if (newPassword.length < 6) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be at least 6 characters")
+            }
+        }
 
         val updated = usersRepository.save(
             user.copy(
                 email = request.email ?: user.email,
                 attrs = request.attrs ?: user.attrs,
                 role = request.role ?: user.role,
-                isActive = request.isActive ?: user.isActive
+                isActive = request.isActive ?: user.isActive,
+                passwordHash = request.password?.let(passwordEncoder::encode) ?: user.passwordHash
             )
         )
         return updated.toResponse()
@@ -116,7 +124,8 @@ data class UserUpdateRequest(
     val email: String? = null,
     val attrs: String? = null,
     val role: Role? = null,
-    val isActive: Boolean? = null
+    val isActive: Boolean? = null,
+    val password: String? = null
 )
 
 data class UserResponse(
