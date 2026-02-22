@@ -19,6 +19,7 @@ class AuthController(
     private val usersRepository: UsersRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenProvider: JwtTokenProvider,
+    private val userProfileAttrsService: UserProfileAttrsService,
     @Value("\${arepos.admin-secret:}") private val adminSecret: String
 ) {
 
@@ -33,6 +34,12 @@ class AuthController(
             Users(
                 email = request.email,
                 passwordHash = passwordEncoder.encode(request.password),
+                attrs = userProfileAttrsService.buildProfileAttrs(
+                    firstName = request.firstName,
+                    lastName = request.lastName,
+                    middleName = request.middleName,
+                    position = request.position
+                ),
                 role = Role.USER,
                 createdAt = now,
                 updatedAt = now
@@ -96,6 +103,12 @@ class AuthController(
             Users(
                 email = request.email,
                 passwordHash = passwordEncoder.encode(request.password),
+                attrs = userProfileAttrsService.buildProfileAttrs(
+                    firstName = request.firstName,
+                    lastName = request.lastName,
+                    middleName = request.middleName,
+                    position = request.position
+                ),
                 role = Role.ADMIN,
                 createdAt = now,
                 updatedAt = now
@@ -112,10 +125,15 @@ class AuthController(
         val user = usersRepository.findById(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
 
+        val profile = userProfileAttrsService.readProfile(user.attrs)
         return UserInfoResponse(
             id = user.id!!,
             email = user.email,
             role = user.role.name,
+            firstName = profile.firstName,
+            lastName = profile.lastName,
+            middleName = profile.middleName,
+            position = profile.position,
             attrs = user.attrs,
             createdAt = user.createdAt,
             updatedAt = user.updatedAt
@@ -125,6 +143,7 @@ class AuthController(
     private fun buildAuthResponse(user: Users): AuthResponse {
         val accessToken = jwtTokenProvider.generateAccessToken(user.id!!, user.role.name)
         val refreshToken = jwtTokenProvider.generateRefreshToken(user.id)
+        val profile = userProfileAttrsService.readProfile(user.attrs)
         return AuthResponse(
             accessToken = accessToken,
             refreshToken = refreshToken,
@@ -132,6 +151,10 @@ class AuthController(
                 id = user.id,
                 email = user.email,
                 role = user.role.name,
+                firstName = profile.firstName,
+                lastName = profile.lastName,
+                middleName = profile.middleName,
+                position = profile.position,
                 attrs = user.attrs,
                 createdAt = user.createdAt,
                 updatedAt = user.updatedAt
@@ -142,7 +165,11 @@ class AuthController(
 
 data class RegisterRequest(
     val email: String,
-    val password: String
+    val password: String,
+    val firstName: String,
+    val lastName: String,
+    val middleName: String? = null,
+    val position: String? = null
 )
 
 data class LoginRequest(
@@ -157,6 +184,10 @@ data class RefreshRequest(
 data class AdminRegisterRequest(
     val email: String,
     val password: String,
+    val firstName: String,
+    val lastName: String,
+    val middleName: String? = null,
+    val position: String? = null,
     val adminSecret: String
 )
 
@@ -170,6 +201,10 @@ data class UserInfoResponse(
     val id: UUID,
     val email: String,
     val role: String,
+    val firstName: String?,
+    val lastName: String?,
+    val middleName: String?,
+    val position: String?,
     val attrs: String?,
     val createdAt: Instant?,
     val updatedAt: Instant?

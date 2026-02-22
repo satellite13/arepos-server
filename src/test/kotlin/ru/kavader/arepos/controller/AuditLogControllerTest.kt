@@ -42,7 +42,18 @@ class AuditLogControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(RegisterRequest("audit@test.com", "password123")))
+                .content(
+                    objectMapper.writeValueAsString(
+                        RegisterRequest(
+                            email = "audit@test.com",
+                            password = "password123",
+                            firstName = "Аудит",
+                            lastName = "Тестов",
+                            middleName = null,
+                            position = "Инженер"
+                        )
+                    )
+                )
         ).andExpect(status().isCreated)
 
         mockMvc.perform(

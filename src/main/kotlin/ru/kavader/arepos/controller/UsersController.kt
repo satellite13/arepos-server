@@ -5,6 +5,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Role
@@ -18,7 +19,8 @@ import java.util.UUID
 @PreAuthorize("hasRole('ADMIN')")
 class UsersController(
     private val usersRepository: UsersRepository,
-    private val passwordEncoder: PasswordEncoder
+    private val passwordEncoder: PasswordEncoder,
+    private val userProfileAttrsService: UserProfileAttrsService
 ) {
 
     @GetMapping
@@ -41,6 +43,28 @@ class UsersController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
             }
+
+    @GetMapping("/{id}/public")
+    @PreAuthorize("isAuthenticated()")
+    fun getUserPublic(@PathVariable id: UUID): UserPublicResponse =
+        usersRepository.findById(id)
+            .map { it.toPublicResponse() }
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
+            }
+
+    @GetMapping("/me/profile")
+    @PreAuthorize("isAuthenticated()")
+    fun getCurrentUserProfile(): UserPublicResponse {
+        val currentUserId = SecurityContextHolder.getContext().authentication?.principal as? UUID
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+
+        return usersRepository.findById(currentUserId)
+            .map { it.toPublicResponse() }
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "User $currentUserId not found")
+            }
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -82,16 +106,54 @@ class UsersController(
             }
         }
 
+        val nextAttrs = userProfileAttrsService.mergeProfile(
+            existingAttrs = request.attrs ?: user.attrs,
+            patch = UserProfilePatch(
+                firstName = request.firstName,
+                lastName = request.lastName,
+                middleName = request.middleName,
+                position = request.position
+            )
+        )
+
         val updated = usersRepository.save(
             user.copy(
                 email = request.email ?: user.email,
-                attrs = request.attrs ?: user.attrs,
+                attrs = nextAttrs,
                 role = request.role ?: user.role,
                 isActive = request.isActive ?: user.isActive,
                 passwordHash = request.password?.let(passwordEncoder::encode) ?: user.passwordHash
             )
         )
         return updated.toResponse()
+    }
+
+    @PutMapping("/me/profile")
+    @PreAuthorize("isAuthenticated()")
+    fun updateMyProfile(@RequestBody request: UserProfileUpdateRequest): UserPublicResponse {
+        val currentUserId = SecurityContextHolder.getContext().authentication?.principal as? UUID
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+
+        val user = usersRepository.findById(currentUserId)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "User $currentUserId not found")
+            }
+
+        val updated = usersRepository.save(
+            user.copy(
+                attrs = userProfileAttrsService.mergeProfile(
+                    existingAttrs = user.attrs,
+                    patch = UserProfilePatch(
+                        firstName = request.firstName,
+                        lastName = request.lastName,
+                        middleName = request.middleName,
+                        position = request.position
+                    )
+                )
+            )
+        )
+
+        return updated.toPublicResponse()
     }
 
     @DeleteMapping("/{id}")
@@ -103,15 +165,34 @@ class UsersController(
         usersRepository.deleteById(id)
     }
 
-    private fun Users.toResponse() = UserResponse(
-        id = requireNotNull(id),
-        email = email,
-        role = role.name,
-        isActive = isActive,
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
+    private fun Users.toResponse(): UserResponse {
+        val profile = userProfileAttrsService.readProfile(attrs)
+        return UserResponse(
+            id = requireNotNull(id),
+            email = email,
+            role = role.name,
+            isActive = isActive,
+            firstName = profile.firstName,
+            lastName = profile.lastName,
+            middleName = profile.middleName,
+            position = profile.position,
+            attrs = attrs,
+            createdAt = createdAt,
+            updatedAt = updatedAt
+        )
+    }
+
+    private fun Users.toPublicResponse(): UserPublicResponse {
+        val profile = userProfileAttrsService.readProfile(attrs)
+        return UserPublicResponse(
+            id = requireNotNull(id),
+            email = email,
+            firstName = profile.firstName,
+            lastName = profile.lastName,
+            middleName = profile.middleName,
+            position = profile.position
+        )
+    }
 }
 
 data class UserRequest(
@@ -125,7 +206,18 @@ data class UserUpdateRequest(
     val attrs: String? = null,
     val role: Role? = null,
     val isActive: Boolean? = null,
-    val password: String? = null
+    val password: String? = null,
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val middleName: String? = null,
+    val position: String? = null
+)
+
+data class UserProfileUpdateRequest(
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val middleName: String? = null,
+    val position: String? = null
 )
 
 data class UserResponse(
@@ -133,7 +225,20 @@ data class UserResponse(
     val email: String,
     val role: String,
     val isActive: Boolean,
+    val firstName: String?,
+    val lastName: String?,
+    val middleName: String?,
+    val position: String?,
     val attrs: String?,
     val createdAt: Instant?,
     val updatedAt: Instant?
+)
+
+data class UserPublicResponse(
+    val id: UUID,
+    val email: String,
+    val firstName: String?,
+    val lastName: String?,
+    val middleName: String?,
+    val position: String?
 )

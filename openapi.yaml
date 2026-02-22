@@ -286,6 +286,65 @@ paths:
         '404':
           description: Пользователь не найден
 
+  /api/v1/users/{id}/public:
+    get:
+      tags:
+        - users
+      summary: Публичная информация о пользователе
+      description: Доступно любому аутентифицированному пользователю
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID пользователя
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublicResponse'
+        '404':
+          description: Пользователь не найден
+
+  /api/v1/users/me/profile:
+    get:
+      tags:
+        - users
+      summary: Мой профиль
+      description: Возвращает профиль текущего пользователя
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublicResponse'
+        '401':
+          description: Не аутентифицирован
+    put:
+      tags:
+        - users
+      summary: Обновить мой профиль
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdateRequest'
+      responses:
+        '200':
+          description: Профиль обновлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublicResponse'
+        '401':
+          description: Не аутентифицирован
+
   /api/v1/models:
     get:
       tags:
@@ -1679,6 +1738,8 @@ components:
       required:
         - email
         - password
+        - firstName
+        - lastName
       properties:
         email:
           type: string
@@ -1686,6 +1747,16 @@ components:
         password:
           type: string
           minLength: 6
+        firstName:
+          type: string
+        lastName:
+          type: string
+        middleName:
+          type: string
+          nullable: true
+        position:
+          type: string
+          nullable: true
 
     LoginRequest:
       type: object
@@ -1712,6 +1783,8 @@ components:
       required:
         - email
         - password
+        - firstName
+        - lastName
         - adminSecret
       properties:
         email:
@@ -1720,6 +1793,16 @@ components:
         password:
           type: string
           minLength: 6
+        firstName:
+          type: string
+        lastName:
+          type: string
+        middleName:
+          type: string
+          nullable: true
+        position:
+          type: string
+          nullable: true
         adminSecret:
           type: string
           description: Секретный ключ для создания администратора (ADMIN_SECRET)
@@ -1746,6 +1829,29 @@ components:
         role:
           type: string
           enum: [USER, EDITOR, ADMIN]
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        middleName:
+          type: string
+          nullable: true
+        position:
+          type: string
+          nullable: true
+        attrs:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
     # Общие схемы для пагинации
     Pageable:
       type: object
@@ -1833,6 +1939,34 @@ components:
         attrs:
           type: string
           nullable: true
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        middleName:
+          type: string
+          nullable: true
+        position:
+          type: string
+          nullable: true
+
+    UserProfileUpdateRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        middleName:
+          type: string
+          nullable: true
+        position:
+          type: string
+          nullable: true
 
     UserResponse:
       type: object
@@ -1848,6 +1982,18 @@ components:
           enum: [USER, EDITOR, ADMIN]
         isActive:
           type: boolean
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        middleName:
+          type: string
+          nullable: true
+        position:
+          type: string
+          nullable: true
         attrs:
           type: string
           nullable: true
@@ -1861,6 +2007,28 @@ components:
           format: date-time
           nullable: true
           description: Дата и время последнего обновления
+
+    UserPublicResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        middleName:
+          type: string
+          nullable: true
+        position:
+          type: string
+          nullable: true
 
     PageUserResponse:
       allOf:

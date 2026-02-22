@@ -26,12 +26,18 @@ class AuthControllerTest : ControllerIntegrationTest() {
     @Autowired
     lateinit var usersRepository: UsersRepository
 
+    private fun registerRequest(email: String): RegisterRequest = RegisterRequest(
+        email = email,
+        password = "password123",
+        firstName = "Иван",
+        lastName = "Иванов",
+        middleName = "Иванович",
+        position = "Архитектор"
+    )
+
     @Test
     fun `registers new user and returns tokens`() {
-        val payload = RegisterRequest(
-            email = "newuser@test.com",
-            password = "password123"
-        )
+        val payload = registerRequest("newuser@test.com")
 
         mockMvc.perform(
             post("/api/v1/auth/register")
@@ -43,14 +49,14 @@ class AuthControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.refreshToken").isNotEmpty)
             .andExpect(jsonPath("$.user.email").value("newuser@test.com"))
             .andExpect(jsonPath("$.user.role").value("USER"))
+            .andExpect(jsonPath("$.user.firstName").value("Иван"))
+            .andExpect(jsonPath("$.user.lastName").value("Иванов"))
+            .andExpect(jsonPath("$.user.position").value("Архитектор"))
     }
 
     @Test
     fun `returns 409 for duplicate email on register`() {
-        val payload = RegisterRequest(
-            email = "dup@test.com",
-            password = "password123"
-        )
+        val payload = registerRequest("dup@test.com")
 
         mockMvc.perform(
             post("/api/v1/auth/register")
@@ -70,7 +76,7 @@ class AuthControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(RegisterRequest("login@test.com", "password123")))
+                .content(objectMapper.writeValueAsString(registerRequest("login@test.com")))
         ).andExpect(status().isCreated)
 
         mockMvc.perform(
@@ -98,7 +104,7 @@ class AuthControllerTest : ControllerIntegrationTest() {
         val registerJson = mockMvc.perform(
             post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(RegisterRequest("refresh@test.com", "password123")))
+                .content(objectMapper.writeValueAsString(registerRequest("refresh@test.com")))
         )
             .andExpect(status().isCreated)
             .andReturn()
@@ -121,7 +127,7 @@ class AuthControllerTest : ControllerIntegrationTest() {
         val registerJson = mockMvc.perform(
             post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(RegisterRequest("me@test.com", "password123")))
+                .content(objectMapper.writeValueAsString(registerRequest("me@test.com")))
         )
             .andExpect(status().isCreated)
             .andReturn()
@@ -136,6 +142,8 @@ class AuthControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.email").value("me@test.com"))
             .andExpect(jsonPath("$.role").value("USER"))
+            .andExpect(jsonPath("$.firstName").value("Иван"))
+            .andExpect(jsonPath("$.lastName").value("Иванов"))
     }
 
     @Test

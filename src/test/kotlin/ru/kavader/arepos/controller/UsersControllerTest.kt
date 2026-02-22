@@ -142,7 +142,11 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
         val payload = UserUpdateRequest(
             email = "new@test.com",
-            attrs = """{"updated":true}"""
+            attrs = """{"updated":true}""",
+            firstName = "Петр",
+            lastName = "Петров",
+            middleName = "Петрович",
+            position = "Техлид"
         )
 
         mockMvc.perform(
@@ -153,7 +157,10 @@ class UsersControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.email").value("new@test.com"))
-            .andExpect(jsonPath("$.attrs").value("""{"updated":true}"""))
+            .andExpect(jsonPath("$.attrs").isNotEmpty)
+            .andExpect(jsonPath("$.firstName").value("Петр"))
+            .andExpect(jsonPath("$.lastName").value("Петров"))
+            .andExpect(jsonPath("$.position").value("Техлид"))
     }
 
     @Test
@@ -187,6 +194,65 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val updated = usersRepository.findById(user.id!!).orElseThrow()
         assertTrue(passwordEncoder.matches("newpass123", updated.passwordHash))
         assertFalse(passwordEncoder.matches("oldpass123", updated.passwordHash))
+    }
+
+    @Test
+    fun `returns public user info for authenticated user`() {
+        val requester = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "requester@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val target = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "public@test.com",
+                attrs = """{"firstName":"Анна","lastName":"Смирнова","position":"Архитектор"}""",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/users/${target.id}/public")
+                .withAuth(requester.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.email").value("public@test.com"))
+            .andExpect(jsonPath("$.firstName").value("Анна"))
+            .andExpect(jsonPath("$.lastName").value("Смирнова"))
+            .andExpect(jsonPath("$.position").value("Архитектор"))
+    }
+
+    @Test
+    fun `user can update own profile`() {
+        val user = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "self@test.com",
+                attrs = """{"firstName":"Старое","lastName":"Имя","position":"Стажер"}""",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+
+        val payload = UserProfileUpdateRequest(
+            firstName = "Новое",
+            lastName = "Имя",
+            middleName = "Отчество",
+            position = "Инженер"
+        )
+
+        mockMvc.perform(
+            put("/api/v1/users/me/profile")
+                .withAuth(user.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.email").value("self@test.com"))
+            .andExpect(jsonPath("$.firstName").value("Новое"))
+            .andExpect(jsonPath("$.middleName").value("Отчество"))
+            .andExpect(jsonPath("$.position").value("Инженер"))
     }
 
     @Test
