@@ -790,6 +790,11 @@ paths:
           description: Фильтр по имени (поиск по подстроке)
           schema:
             type: string
+        - name: tagsAll
+          in: query
+          description: Фильтр по тегам (в attrs.tags должны присутствовать все перечисленные теги, через запятую)
+          schema:
+            type: string
       responses:
         '200':
           description: Успешный ответ
@@ -918,6 +923,11 @@ paths:
         - name: name
           in: query
           description: Фильтр по имени (поиск по подстроке)
+          schema:
+            type: string
+        - name: tagsAll
+          in: query
+          description: Фильтр по тегам (в attrs.tags должны присутствовать все перечисленные теги, через запятую)
           schema:
             type: string
       responses:
@@ -1582,6 +1592,12 @@ paths:
         - name: ownerId
           in: query
           description: Фильтр по владельцу
+          schema:
+            type: string
+            format: uuid
+        - name: notationId
+          in: query
+          description: Фильтр по нотации (правило и обе его компоненты должны принадлежать нотации)
           schema:
             type: string
             format: uuid

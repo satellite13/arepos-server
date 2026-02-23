@@ -32,7 +32,8 @@ class RelationRulesController(
     fun listRelationRules(
         pageable: Pageable,
         @RequestParam(required = false) relationId: UUID?,
-        @RequestParam(required = false) ownerId: UUID?
+        @RequestParam(required = false) ownerId: UUID?,
+        @RequestParam(required = false) notationId: UUID?
     ): Page<RelationRuleResponse> {
         if (!CurrentUser.isAdmin()) {
             val accessibleNotationIds = diagramsRepository.findAll(Pageable.unpaged()).content
@@ -40,47 +41,23 @@ class RelationRulesController(
                 .filter { accessService.canViewDiagram(it) }
                 .mapNotNull { it.notation.id }
                 .toSet()
-            val filtered = relationRulesRepository.findAll(Pageable.unpaged()).content
+            val filtered = relationRulesRepository
+                .findByFilters(relationId, ownerId, notationId, Pageable.unpaged())
+                .content
                 .asSequence()
                 .filter {
                     accessService.canViewRelationRule(it) || accessibleNotationIds.contains(it.relation.notation.id)
                 }
-                .filter { relationId == null || it.relation.id == relationId }
-                .filter { ownerId == null || it.owner.id == ownerId }
                 .toList()
             return filtered.toPage(pageable).map { it.toResponse() }
         }
 
-        val relationRules = when {
-            relationId != null && ownerId != null -> {
-                val relation = relationsRepository.findById(relationId).orElse(null)
-                val owner = usersRepository.findById(ownerId).orElse(null)
-                if (relation != null && owner != null) {
-                    relationRulesRepository.findByRelationAndOwner(relation, owner, pageable)
-                } else {
-                    relationRulesRepository.findAll(pageable)
-                }
-            }
-            relationId != null -> {
-                val relation = relationsRepository.findById(relationId).orElse(null)
-                if (relation != null) {
-                    relationRulesRepository.findByRelation(relation, pageable)
-                } else {
-                    relationRulesRepository.findAll(pageable)
-                }
-            }
-            ownerId != null -> {
-                val owner = usersRepository.findById(ownerId).orElse(null)
-                if (owner != null) {
-                    relationRulesRepository.findByOwner(owner, pageable)
-                } else {
-                    relationRulesRepository.findAll(pageable)
-                }
-            }
-            else -> {
-                relationRulesRepository.findAll(pageable)
-            }
-        }
+        val relationRules = relationRulesRepository.findByFilters(
+            relationId = relationId,
+            ownerId = ownerId,
+            notationId = notationId,
+            pageable = pageable
+        )
         return relationRules.map { it.toResponse() }
     }
 

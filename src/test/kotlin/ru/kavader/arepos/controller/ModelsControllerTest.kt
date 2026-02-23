@@ -13,9 +13,12 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.ModelsRepository
+import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
+import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -32,6 +35,9 @@ class ModelsControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var modelsRepository: ModelsRepository
+
+    @Autowired
+    lateinit var nodesRepository: NodesRepository
 
     @Test
     fun `creates model via REST`() {
@@ -61,6 +67,15 @@ class ModelsControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.ownerId").value(owner.id.toString()))
 
         assertEquals(1, modelsRepository.count())
+        assertEquals(1, nodesRepository.count())
+
+        val createdModel = modelsRepository.findAll().first()
+        val attrsNode = objectMapper.readTree(createdModel.attrs ?: "{}")
+        val rootNodeIdRaw = attrsNode.path("treeRootNodeId").asText()
+        assertNotNull(rootNodeIdRaw.takeIf { it.isNotBlank() })
+        val rootNodeId = UUID.fromString(rootNodeIdRaw)
+        val rootNode = nodesRepository.findById(rootNodeId).orElseThrow()
+        assertEquals(createdModel.id, rootNode.model.id)
     }
 
     @Test

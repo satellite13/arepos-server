@@ -1,5 +1,6 @@
 package ru.kavader.arepos.controller
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -27,7 +28,8 @@ class NodesController(
     private val diagramsRepository: DiagramsRepository,
     private val componentsRepository: ComponentsRepository,
     private val usersRepository: UsersRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val objectMapper: ObjectMapper
 ) {
 
     @GetMapping
@@ -38,7 +40,12 @@ class NodesController(
         @RequestParam(required = false) name: String?
     ): Page<NodeResponse> {
         if (!CurrentUser.isAdmin()) {
-            val filtered = nodesRepository.findAll(Pageable.unpaged()).content
+            val baseNodes = if (modelId != null) {
+                nodesRepository.findByModelIdOrdered(modelId, Pageable.unpaged()).content
+            } else {
+                nodesRepository.findAll(Pageable.unpaged()).content
+            }
+            val filtered = baseNodes
                 .asSequence()
                 .filter { accessService.canViewNode(it) }
                 .filter { modelId == null || it.model.id == modelId }
@@ -52,7 +59,7 @@ class NodesController(
             modelId != null -> {
                 val model = modelsRepository.findById(modelId).orElse(null)
                 if (model != null) {
-                    nodesRepository.findByModel(model, pageable)
+                    nodesRepository.findByModelIdOrdered(model.id!!, pageable)
                 } else {
                     nodesRepository.findAll(pageable)
                 }
@@ -140,6 +147,9 @@ class NodesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found")
             }
+        if (isSystemTreeRoot(node)) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "System tree root node cannot be modified")
+        }
         accessService.requireCanEditNode(node)
 
         val model = request.modelId?.let {
@@ -168,14 +178,17 @@ class NodesController(
             requireCanUseNodeTypeForModel(newNodeType, model)
         } ?: node.nodeType
 
-        val parentNode = request.parentNodeId?.let {
-            if (it == id) {
+        val parentNode = if (request.parentNodeId != null) {
+            val parentId = request.parentNodeId
+            if (parentId == id) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Node cannot be its own parent")
             }
-            nodesRepository.findById(it).orElse(null)?.also { parent ->
+            nodesRepository.findById(parentId).orElse(null)?.also { parent ->
                 accessService.requireCanEditNode(parent)
             }
-        } ?: node.parentNode
+        } else {
+            null
+        }
 
         val updated = nodesRepository.save(
             node.copy(
@@ -197,6 +210,9 @@ class NodesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found")
             }
+        if (isSystemTreeRoot(node)) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "System tree root node cannot be deleted")
+        }
         accessService.requireCanEditNode(node)
         nodesRepository.deleteById(id)
     }
@@ -258,6 +274,16 @@ class NodesController(
 
         return componentsRepository.findAll(Pageable.unpaged()).content.any { component ->
             component.nodeType.id == nodeTypeId && notationIds.contains(component.notation.id)
+        }
+    }
+
+    private fun isSystemTreeRoot(node: Nodes): Boolean {
+        val attrs = node.attrs ?: return false
+        return try {
+            val root = objectMapper.readTree(attrs)
+            root.path("system").path("hiddenTreeRoot").asBoolean(false)
+        } catch (_: Exception) {
+            false
         }
     }
 

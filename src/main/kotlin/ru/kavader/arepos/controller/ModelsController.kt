@@ -1,5 +1,7 @@
 package ru.kavader.arepos.controller
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ObjectNode
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -7,8 +9,12 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Models
+import ru.kavader.arepos.model.Nodes
+import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.model.ShareResourceType
 import ru.kavader.arepos.repository.ModelsRepository
+import ru.kavader.arepos.repository.NodesRepository
+import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
@@ -19,9 +25,16 @@ import java.util.UUID
 @RequestMapping("/api/v1/models")
 class ModelsController(
     private val modelsRepository: ModelsRepository,
+    private val nodesRepository: NodesRepository,
+    private val nodeTypesRepository: NodeTypesRepository,
     private val usersRepository: UsersRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val objectMapper: ObjectMapper
 ) {
+    companion object {
+        private const val SYSTEM_ROOT_NODE_TYPE_NAME = "__model_tree_root_type__"
+        private const val SYSTEM_ROOT_NODE_NAME = "__model_tree_root__"
+    }
 
     @GetMapping
     fun listModels(
@@ -95,7 +108,22 @@ class ModelsController(
                 deleted = false
             )
         )
-        return saved.toResponse()
+        val rootNodeType = getOrCreateSystemRootNodeType(owner, now)
+        val rootNode = nodesRepository.save(
+            Nodes(
+                name = SYSTEM_ROOT_NODE_NAME,
+                createdAt = now,
+                updatedAt = now,
+                attrs = """{"system":{"hiddenTreeRoot":true},"treeOrder":0}""",
+                parentNode = null,
+                model = saved,
+                owner = owner,
+                nodeType = rootNodeType
+            )
+        )
+        val attrsWithRoot = mergeModelAttrsWithRootNodeId(saved.attrs, requireNotNull(rootNode.id))
+        val updatedModel = modelsRepository.save(saved.copy(attrs = attrsWithRoot))
+        return updatedModel.toResponse()
     }
 
     @PutMapping("/{id}")
@@ -198,6 +226,37 @@ class ModelsController(
         createdAt = createdAt,
         updatedAt = updatedAt
     )
+
+    private fun getOrCreateSystemRootNodeType(
+        owner: ru.kavader.arepos.model.Users,
+        now: Instant
+    ): NodeTypes =
+        nodeTypesRepository.findByNameIgnoreCase(SYSTEM_ROOT_NODE_TYPE_NAME)
+            ?: nodeTypesRepository.save(
+                NodeTypes(
+                    name = SYSTEM_ROOT_NODE_TYPE_NAME,
+                    createdAt = now,
+                    updatedAt = now,
+                    attrs = """{"system":{"hiddenTreeRootType":true}}""",
+                    owner = owner
+                )
+            )
+
+    private fun mergeModelAttrsWithRootNodeId(existingAttrs: String?, rootNodeId: UUID): String {
+        val rootId = rootNodeId.toString()
+        val baseNode = try {
+            existingAttrs
+                ?.takeIf { it.isNotBlank() }
+                ?.let { objectMapper.readTree(it) }
+                ?.takeIf { it.isObject }
+                ?.deepCopy<ObjectNode>()
+                ?: objectMapper.createObjectNode()
+        } catch (_: Exception) {
+            objectMapper.createObjectNode()
+        }
+        baseNode.put("treeRootNodeId", rootId)
+        return objectMapper.writeValueAsString(baseNode)
+    }
 }
 
 data class ModelRequest(

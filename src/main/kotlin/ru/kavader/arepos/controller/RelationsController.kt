@@ -33,66 +33,37 @@ class RelationsController(
         pageable: Pageable,
         @RequestParam(required = false) notationId: UUID?,
         @RequestParam(required = false) ownerId: UUID?,
-        @RequestParam(required = false) name: String?
+        @RequestParam(required = false) name: String?,
+        @RequestParam(required = false) tagsAll: String?
     ): Page<RelationResponse> {
+        val normalizedName = name?.trim()?.takeIf { it.isNotEmpty() }
+        val tags = parseTags(tagsAll)
+        val tagsJson = if (tags.isEmpty()) null else tags.toJsonArray()
+
         if (!CurrentUser.isAdmin()) {
             val accessibleNotationIds = diagramsRepository.findAll(Pageable.unpaged()).content
                 .asSequence()
                 .filter { accessService.canViewDiagram(it) }
                 .mapNotNull { it.notation.id }
                 .toSet()
-            val filtered = relationsRepository.findAll(Pageable.unpaged()).content
+            val filtered = relationsRepository
+                .findByFilters(notationId, ownerId, normalizedName, tagsJson, Pageable.unpaged())
+                .content
                 .asSequence()
                 .filter {
                     accessService.canViewRelation(it) || accessibleNotationIds.contains(it.notation.id)
                 }
-                .filter { notationId == null || it.notation.id == notationId }
-                .filter { ownerId == null || it.owner.id == ownerId }
-                .filter { name == null || it.name.contains(name, ignoreCase = true) }
                 .toList()
             return filtered.toPage(pageable).map { it.toResponse() }
         }
 
-        val relations = when {
-            notationId != null && name != null -> {
-                val notation = notationsRepository.findById(notationId).orElse(null)
-                if (notation != null) {
-                    relationsRepository.findByNotationAndNameContainingIgnoreCase(notation, name, pageable)
-                } else {
-                    relationsRepository.findAll(pageable)
-                }
-            }
-            notationId != null -> {
-                val notation = notationsRepository.findById(notationId).orElse(null)
-                if (notation != null) {
-                    relationsRepository.findByNotation(notation, pageable)
-                } else {
-                    relationsRepository.findAll(pageable)
-                }
-            }
-            ownerId != null && name != null -> {
-                val owner = usersRepository.findById(ownerId).orElse(null)
-                if (owner != null) {
-                    relationsRepository.findByOwnerAndNameContainingIgnoreCase(owner, name, pageable)
-                } else {
-                    relationsRepository.findAll(pageable)
-                }
-            }
-            ownerId != null -> {
-                val owner = usersRepository.findById(ownerId).orElse(null)
-                if (owner != null) {
-                    relationsRepository.findByOwner(owner, pageable)
-                } else {
-                    relationsRepository.findAll(pageable)
-                }
-            }
-            name != null -> {
-                relationsRepository.findByNameContainingIgnoreCase(name, pageable)
-            }
-            else -> {
-                relationsRepository.findAll(pageable)
-            }
-        }
+        val relations = relationsRepository.findByFilters(
+            notationId = notationId,
+            ownerId = ownerId,
+            name = normalizedName,
+            tagsJson = tagsJson,
+            pageable = pageable
+        )
         return relations.map { it.toResponse() }
     }
 
@@ -229,6 +200,17 @@ class RelationsController(
         createdAt = createdAt,
         updatedAt = updatedAt
     )
+
+    private fun parseTags(raw: String?): List<String> =
+        raw
+            ?.split(",")
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?.distinct()
+            ?: emptyList()
+
+    private fun List<String>.toJsonArray(): String =
+        joinToString(prefix = "[", postfix = "]") { "\"${it.replace("\"", "\\\"")}\"" }
 
     private fun requireCanUseLinkTypeForNotation(
         linkType: ru.kavader.arepos.model.LinkTypes,

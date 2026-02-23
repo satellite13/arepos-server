@@ -9,7 +9,9 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.model.Role
@@ -124,5 +126,99 @@ class NodesControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.totalElements").value(2))
+    }
+
+    @Test
+    fun `updates node parent to root when parentNodeId is null`() {
+        val folder = nodesRepository.save(
+            ru.kavader.arepos.model.Nodes(
+                name = "Folder",
+                model = model,
+                owner = owner,
+                nodeType = nodeType,
+                createdAt = Instant.now()
+            )
+        )
+        val child = nodesRepository.save(
+            ru.kavader.arepos.model.Nodes(
+                name = "Child",
+                model = model,
+                owner = owner,
+                nodeType = nodeType,
+                parentNode = folder,
+                createdAt = Instant.now()
+            )
+        )
+
+        val payload = NodeUpdateRequest(
+            name = child.name,
+            modelId = model.id!!,
+            ownerId = owner.id!!,
+            nodeTypeId = nodeType.id!!,
+            parentNodeId = null,
+            attrs = child.attrs
+        )
+
+        mockMvc.perform(
+            put("/api/v1/nodes/${child.id}")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.parentNodeId").doesNotExist())
+
+        val reloaded = nodesRepository.findById(child.id!!).orElseThrow()
+        assertEquals(null, reloaded.parentNode?.id)
+    }
+
+    @Test
+    fun `forbids update of system tree root node`() {
+        val rootNode = nodesRepository.save(
+            ru.kavader.arepos.model.Nodes(
+                name = "__model_tree_root__",
+                model = model,
+                owner = owner,
+                nodeType = nodeType,
+                attrs = """{"system":{"hiddenTreeRoot":true}}""",
+                createdAt = Instant.now()
+            )
+        )
+
+        val payload = NodeUpdateRequest(
+            name = "new-name",
+            modelId = model.id!!,
+            ownerId = owner.id!!,
+            nodeTypeId = nodeType.id!!,
+            parentNodeId = null
+        )
+
+        mockMvc.perform(
+            put("/api/v1/nodes/${rootNode.id}")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `forbids delete of system tree root node`() {
+        val rootNode = nodesRepository.save(
+            ru.kavader.arepos.model.Nodes(
+                name = "__model_tree_root__",
+                model = model,
+                owner = owner,
+                nodeType = nodeType,
+                attrs = """{"system":{"hiddenTreeRoot":true}}""",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            delete("/api/v1/nodes/${rootNode.id}")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isBadRequest)
     }
 }
