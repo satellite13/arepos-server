@@ -121,4 +121,12 @@ Please read `SECURITY.md` for reporting vulnerabilities.
 
 ## License
 
-License is not finalized yet. Choose and add a `LICENSE` file before public release.
+This project uses dual licensing:
+
+- `AGPL-3.0-or-later` for open-source usage
+- Commercial license for proprietary/closed-source commercial usage
+
+See:
+
+- `LICENSE`
+- `LICENSE_COMMERCIAL.md`

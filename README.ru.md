@@ -121,4 +121,12 @@ charts/arepos-server/
 
 ## Лицензия
 
-Лицензия пока не зафиксирована. Перед публикацией добавьте файл `LICENSE`.
+Проект использует dual licensing:
+
+- `AGPL-3.0-or-later` для open-source использования
+- Коммерческая лицензия для проприетарного/закрытого коммерческого использования
+
+См.:
+
+- `LICENSE` / `LICENSE.ru.md`
+- `LICENSE_COMMERCIAL.md` / `LICENSE_COMMERCIAL.ru.md`
