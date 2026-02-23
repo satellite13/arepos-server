@@ -13,6 +13,20 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "0.0.1-SNAPSHOT"
 
+# Blue/Green deployment settings
+# When enabled:
+# - chart creates two deployments: <fullname>-blue and <fullname>-green
+# - service routes traffic only to pods with activeColor label
+blueGreen:
+  enabled: false
+  # Traffic selector for service ("blue" or "green")
+  activeColor: "blue"
+  image:
+    # If empty, fallback to .image.tag
+    blueTag: ""
+    # If empty, fallback to .image.tag
+    greenTag: ""
+
 # Deployment metadata used to force rollout on each deploy.
 deployMetadata:
   buildId: ""

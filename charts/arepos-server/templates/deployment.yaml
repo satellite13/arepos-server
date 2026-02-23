@@ -1,3 +1,177 @@
+{{- define "arepos-server.deploymentSpec" -}}
+{{- $ctx := .ctx -}}
+{{- if not $ctx.Values.autoscaling.enabled }}
+replicas: {{ $ctx.Values.replicaCount }}
+{{- end }}
+selector:
+  matchLabels:
+    {{- include "arepos-server.selectorLabels" $ctx | nindent 4 }}
+    {{- if .color }}
+    app.kubernetes.io/color: {{ .color | quote }}
+    {{- end }}
+template:
+  metadata:
+    {{- if or $ctx.Values.podAnnotations $ctx.Values.deployMetadata.buildId }}
+    annotations:
+      {{- with $ctx.Values.podAnnotations }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- if $ctx.Values.deployMetadata.buildId }}
+      arepos-server/build-id: {{ $ctx.Values.deployMetadata.buildId | quote }}
+      {{- end }}
+    {{- end }}
+    labels:
+      {{- include "arepos-server.labels" $ctx | nindent 6 }}
+      {{- if .color }}
+      app.kubernetes.io/color: {{ .color | quote }}
+      {{- end }}
+      {{- with $ctx.Values.podLabels }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+  spec:
+    {{- if $ctx.Values.postgresql.enabled }}
+    initContainers:
+      - name: wait-for-postgresql
+        image: "{{ $ctx.Values.postgresql.image.repository }}:{{ $ctx.Values.postgresql.image.tag }}"
+        command: ['sh', '-c']
+        args:
+          - |
+            until pg_isready -h {{ include "arepos-server.postgresql.fullname" $ctx }} -p 5432 -U {{ $ctx.Values.postgresql.auth.username }}; do
+              echo "Waiting for PostgreSQL to be ready..."
+              sleep 2
+            done
+            echo "PostgreSQL is ready!"
+    {{- end }}
+    {{- with $ctx.Values.imagePullSecrets }}
+    imagePullSecrets:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    serviceAccountName: {{ include "arepos-server.serviceAccountName" $ctx }}
+    {{- with $ctx.Values.podSecurityContext }}
+    securityContext:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    containers:
+      - name: {{ $ctx.Chart.Name }}
+        {{- with $ctx.Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        image: "{{ $ctx.Values.image.repository }}:{{ .imageTag }}"
+        imagePullPolicy: {{ $ctx.Values.image.pullPolicy }}
+        ports:
+          - name: http
+            containerPort: {{ $ctx.Values.service.port }}
+            protocol: TCP
+        {{- with $ctx.Values.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $ctx.Values.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $ctx.Values.startupProbe }}
+        startupProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        env:
+          {{- if $ctx.Values.database.existingSecret }}
+          - name: DB_URL
+            valueFrom:
+              secretKeyRef:
+                name: {{ $ctx.Values.database.existingSecret }}
+                key: {{ $ctx.Values.database.secretKeyUrl }}
+          - name: DB_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ $ctx.Values.database.existingSecret }}
+                key: {{ $ctx.Values.database.secretKeyUsername }}
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ $ctx.Values.database.existingSecret }}
+                key: {{ $ctx.Values.database.secretKeyPassword }}
+          {{- else }}
+          - name: DB_URL
+            value: "jdbc:postgresql://{{ if $ctx.Values.postgresql.enabled }}{{ include "arepos-server.postgresql.fullname" $ctx }}{{ else }}{{ $ctx.Values.database.host }}{{ end }}:{{ $ctx.Values.database.port }}/{{ $ctx.Values.database.name }}"
+          - name: DB_USERNAME
+            {{- if and $ctx.Values.postgresql.enabled (not $ctx.Values.database.existingSecret) }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "arepos-server.postgresql.fullname" $ctx }}
+                key: username
+            {{- else }}
+            value: {{ $ctx.Values.database.username | quote }}
+            {{- end }}
+          - name: DB_PASSWORD
+            {{- if and $ctx.Values.postgresql.enabled (not $ctx.Values.database.existingSecret) }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "arepos-server.postgresql.fullname" $ctx }}
+                key: password
+            {{- else if $ctx.Values.database.password }}
+            value: {{ $ctx.Values.database.password | quote }}
+            {{- else if not $ctx.Values.database.existingSecret }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "arepos-server.fullname" $ctx }}-db-secret
+                key: password
+            {{- end }}
+          {{- end }}
+          {{- with $ctx.Values.env }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+        {{- with $ctx.Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $ctx.Values.volumeMounts }}
+        volumeMounts:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+    {{- with $ctx.Values.volumes }}
+    volumes:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $ctx.Values.nodeSelector }}
+    nodeSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $ctx.Values.affinity }}
+    affinity:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $ctx.Values.tolerations }}
+    tolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{- end -}}
+
+{{- if .Values.blueGreen.enabled }}
+{{- $defaultTag := .Values.image.tag | default .Chart.AppVersion -}}
+{{- $blueTag := .Values.blueGreen.image.blueTag | default $defaultTag -}}
+{{- $greenTag := .Values.blueGreen.image.greenTag | default $defaultTag -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arepos-server.fullname" . }}-blue
+  labels:
+    {{- include "arepos-server.labels" . | nindent 4 }}
+    app.kubernetes.io/color: "blue"
+spec:
+  {{- include "arepos-server.deploymentSpec" (dict "ctx" . "color" "blue" "imageTag" $blueTag) | nindent 2 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arepos-server.fullname" . }}-green
+  labels:
+    {{- include "arepos-server.labels" . | nindent 4 }}
+    app.kubernetes.io/color: "green"
+spec:
+  {{- include "arepos-server.deploymentSpec" (dict "ctx" . "color" "green" "imageTag" $greenTag) | nindent 2 }}
+{{- else }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,143 +179,5 @@ metadata:
   labels:
     {{- include "arepos-server.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
-  {{- end }}
-  selector:
-    matchLabels:
-      {{- include "arepos-server.selectorLabels" . | nindent 6 }}
-  template:
-    metadata:
-      {{- if or .Values.podAnnotations .Values.deployMetadata.buildId }}
-      annotations:
-        {{- with .Values.podAnnotations }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-        {{- if .Values.deployMetadata.buildId }}
-        arepos-server/build-id: {{ .Values.deployMetadata.buildId | quote }}
-        {{- end }}
-      {{- end }}
-      labels:
-        {{- include "arepos-server.labels" . | nindent 8 }}
-        {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-    spec:
-      {{- if .Values.postgresql.enabled }}
-      initContainers:
-        - name: wait-for-postgresql
-          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
-          command: ['sh', '-c']
-          args:
-            - |
-              until pg_isready -h {{ include "arepos-server.postgresql.fullname" . }} -p 5432 -U {{ .Values.postgresql.auth.username }}; do
-                echo "Waiting for PostgreSQL to be ready..."
-                sleep 2
-              done
-              echo "PostgreSQL is ready!"
-      {{- end }}
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      serviceAccountName: {{ include "arepos-server.serviceAccountName" . }}
-      {{- with .Values.podSecurityContext }}
-      securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      containers:
-        - name: {{ .Chart.Name }}
-          {{- with .Values.securityContext }}
-          securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.service.port }}
-              protocol: TCP
-          {{- with .Values.livenessProbe }}
-          livenessProbe:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- with .Values.readinessProbe }}
-          readinessProbe:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- with .Values.startupProbe }}
-          startupProbe:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          env:
-            {{- if .Values.database.existingSecret }}
-            - name: DB_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.existingSecret }}
-                  key: {{ .Values.database.secretKeyUrl }}
-            - name: DB_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.existingSecret }}
-                  key: {{ .Values.database.secretKeyUsername }}
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.existingSecret }}
-                  key: {{ .Values.database.secretKeyPassword }}
-            {{- else }}
-            - name: DB_URL
-              value: "jdbc:postgresql://{{ if .Values.postgresql.enabled }}{{ include "arepos-server.postgresql.fullname" . }}{{ else }}{{ .Values.database.host }}{{ end }}:{{ .Values.database.port }}/{{ .Values.database.name }}"
-            - name: DB_USERNAME
-              {{- if and .Values.postgresql.enabled (not .Values.database.existingSecret) }}
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "arepos-server.postgresql.fullname" . }}
-                  key: username
-              {{- else }}
-              value: {{ .Values.database.username | quote }}
-              {{- end }}
-            - name: DB_PASSWORD
-              {{- if and .Values.postgresql.enabled (not .Values.database.existingSecret) }}
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "arepos-server.postgresql.fullname" . }}
-                  key: password
-              {{- else if .Values.database.password }}
-              value: {{ .Values.database.password | quote }}
-              {{- else if not .Values.database.existingSecret }}
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "arepos-server.fullname" . }}-db-secret
-                  key: password
-              {{- end }}
-            {{- end }}
-            {{- with .Values.env }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
-          {{- with .Values.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- with .Values.volumeMounts }}
-          volumeMounts:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-      {{- with .Values.volumes }}
-      volumes:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+  {{- include "arepos-server.deploymentSpec" (dict "ctx" . "color" "" "imageTag" (.Values.image.tag | default .Chart.AppVersion)) | nindent 2 }}
+{{- end }}

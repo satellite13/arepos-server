@@ -13,3 +13,6 @@ spec:
       name: http
   selector:
     {{- include "arepos-server.selectorLabels" . | nindent 4 }}
+    {{- if .Values.blueGreen.enabled }}
+    app.kubernetes.io/color: {{ .Values.blueGreen.activeColor | default "blue" | quote }}
+    {{- end }}
