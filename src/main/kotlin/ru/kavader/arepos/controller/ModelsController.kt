@@ -32,8 +32,8 @@ class ModelsController(
     private val objectMapper: ObjectMapper
 ) {
     companion object {
-        private const val SYSTEM_ROOT_NODE_TYPE_NAME = "__model_tree_root_type__"
-        private const val SYSTEM_ROOT_NODE_NAME = "__model_tree_root__"
+        private const val SYSTEM_ROOT_NODE_TYPE_NAME = "Directory"
+        private const val SYSTEM_ROOT_NODE_NAME = "Root"
     }
 
     @GetMapping
