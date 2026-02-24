@@ -100,11 +100,13 @@ fi
 
 # Определение тега образа
 GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
-APP_VERSION=$(grep '^version' build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "0.0.1-SNAPSHOT")
+APP_VERSION=$(grep '^version' build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "0.1.0")
 IMAGE_TAG="${APP_VERSION}-${GIT_HASH}"
 IMAGE_NAME="arch/arepos-server"
 EXPECTED_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
 DEPLOY_BUILD_ID="${IMAGE_TAG}-$(date +%s)"
+VERSION_CHECK_ATTEMPTS="${VERSION_CHECK_ATTEMPTS:-10}"
+VERSION_CHECK_DELAY="${VERSION_CHECK_DELAY:-2}"
 log_info "Тег образа: ${IMAGE_TAG}"
 log_info "Build ID деплоя: ${DEPLOY_BUILD_ID}"
 log_info "Image pull policy: ${DEPLOY_IMAGE_PULL_POLICY}"
@@ -282,6 +284,37 @@ if [ -n "$HEALTH" ]; then
 else
     log_warn "Не удалось проверить Health Check"
 fi
+
+# Проверка версии развернутого приложения через REST endpoint
+log_info "Проверка версии приложения..."
+VERSION_URL="http://$SERVICE_NAME.$NAMESPACE.svc.cluster.local:8080/api/v1/system/version"
+DEPLOYED_VERSION=""
+
+for ATTEMPT in $(seq 1 "$VERSION_CHECK_ATTEMPTS"); do
+    VERSION_RESPONSE=$(curl -s "$VERSION_URL" 2>/dev/null || echo "")
+    DEPLOYED_VERSION=$(echo "$VERSION_RESPONSE" | jq -r '.version // empty' 2>/dev/null || echo "")
+
+    if [ -n "$DEPLOYED_VERSION" ]; then
+        break
+    fi
+
+    if [ "$ATTEMPT" -lt "$VERSION_CHECK_ATTEMPTS" ]; then
+        log_warn "Не удалось получить версию (попытка $ATTEMPT/$VERSION_CHECK_ATTEMPTS), повтор через ${VERSION_CHECK_DELAY}с..."
+        sleep "$VERSION_CHECK_DELAY"
+    fi
+done
+
+if [ -z "$DEPLOYED_VERSION" ]; then
+    log_error "Не удалось получить версию приложения с endpoint: $VERSION_URL"
+    exit 1
+fi
+
+if [ "$DEPLOYED_VERSION" != "$APP_VERSION" ]; then
+    log_error "Версия развернутого приложения не совпадает с ожидаемой: получено '$DEPLOYED_VERSION', ожидалось '$APP_VERSION'"
+    exit 1
+fi
+
+log_info "Версия приложения совпадает: $DEPLOYED_VERSION"
 
 # Вывод информации о доступе
 log_info "Приложение развернуто!"

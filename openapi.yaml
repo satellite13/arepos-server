@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Arepos Server API
   description: REST API для управления моделями, узлами, связями и компонентами
-  version: 0.0.1-SNAPSHOT
+  version: 0.1.0
   contact:
     name: API Support
 
@@ -41,11 +41,28 @@ tags:
     description: Просмотр журнала аудита
   - name: access-shares
     description: Делегирование прав редактирования на ресурсы
+  - name: system
+    description: Системные endpoint'ы приложения
 
 security:
   - bearerAuth: []
 
 paths:
+  /api/v1/system/version:
+    get:
+      tags:
+        - system
+      summary: Текущая версия приложения
+      description: Возвращает версию запущенного экземпляра приложения
+      security: []
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+
   /api/v1/auth/register:
     post:
       tags:
@@ -1853,6 +1870,12 @@ components:
       description: JWT access токен. Получите через /api/v1/auth/login или /api/v1/auth/register
 
   schemas:
+    VersionResponse:
+      type: object
+      properties:
+        version:
+          type: string
+
     AccessShareRequest:
       type: object
       required:

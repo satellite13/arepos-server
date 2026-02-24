@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "ru.kvader"
-version = "0.0.1-SNAPSHOT"
+version = "0.1.0"
 
 val mockitoAgent = configurations.create("mockitoAgent")
 
@@ -70,4 +70,8 @@ tasks {
             "-javaagent:${agentFile.absolutePath}"
         )
     }
+}
+
+springBoot {
+    buildInfo()
 }
