@@ -155,12 +155,14 @@ class FileStorageService(
 
     fun getFile(id: UUID): Pair<Files, Resource>? {
         val file = filesRepository.findById(id).orElse(null) ?: return null
-        val stream = minioClient.getObject(
-            GetObjectArgs.builder()
-                .bucket(minioProperties.bucket)
-                .`object`(file.objectKey)
-                .build()
-        )
+        val latestVersion = fileVersionsRepository.findTopByFileOrderByVersionNumberDesc(file)
+        val builder = GetObjectArgs.builder()
+            .bucket(minioProperties.bucket)
+            .`object`(file.objectKey)
+        if (latestVersion != null && latestVersion.versionId != "null") {
+            builder.versionId(latestVersion.versionId)
+        }
+        val stream = minioClient.getObject(builder.build())
         return file to InputStreamResource(stream)
     }
 

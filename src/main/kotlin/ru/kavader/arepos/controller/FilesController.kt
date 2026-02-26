@@ -107,7 +107,7 @@ class FilesController(
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(file.contentType))
             .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"${file.filename}\"")
-            .header(HttpHeaders.CACHE_CONTROL, "private, max-age=86400")
+            .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
             .body(resource)
     }
 
@@ -135,7 +135,7 @@ class FilesController(
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(file.contentType))
             .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"${file.filename}\"")
-            .header(HttpHeaders.CACHE_CONTROL, "private, max-age=86400")
+            .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
             .body(resource)
     }
 }
