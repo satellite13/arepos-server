@@ -16,6 +16,7 @@ import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
 
@@ -29,7 +30,8 @@ class LinksController(
     private val linkTypesRepository: LinkTypesRepository,
     private val diagramsRepository: DiagramsRepository,
     private val relationsRepository: RelationsRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val mdFileLinkValidator: MdFileLinkValidator
 ) {
 
     @GetMapping
@@ -155,6 +157,7 @@ class LinksController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${request.linkTypeId} not found")
             }
         requireCanUseLinkTypeForModel(linkType, model)
+        mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = linksRepository.save(
             Links(
@@ -220,6 +223,7 @@ class LinksController(
             requireCanUseLinkTypeForModel(newLinkType, model)
         } ?: link.linkType
 
+        mdFileLinkValidator.validate(request.attrs)
         val updated = linksRepository.save(
             link.copy(
                 source = source,

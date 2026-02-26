@@ -18,6 +18,7 @@ import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
 
@@ -30,7 +31,8 @@ class NotationsController(
     private val componentsRepository: ComponentsRepository,
     private val relationsRepository: RelationsRepository,
     private val relationRulesRepository: RelationRulesRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val mdFileLinkValidator: MdFileLinkValidator
 ) {
 
     @GetMapping
@@ -117,6 +119,7 @@ class NotationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
+        mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = notationsRepository.save(
             Notations(
@@ -153,6 +156,7 @@ class NotationsController(
             notation.owner
         }
 
+        mdFileLinkValidator.validate(request.attrs)
         val updated = notationsRepository.save(
             notation.copy(
                 name = request.name ?: notation.name,
@@ -187,6 +191,7 @@ class NotationsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
 
+        mdFileLinkValidator.validate(request.attrs ?: source.attrs)
         val now = Instant.now()
         val newNotation = notationsRepository.save(
             Notations(

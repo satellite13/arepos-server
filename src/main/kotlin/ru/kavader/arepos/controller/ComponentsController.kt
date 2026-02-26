@@ -14,6 +14,7 @@ import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
 
@@ -25,7 +26,8 @@ class ComponentsController(
     private val notationsRepository: NotationsRepository,
     private val nodeTypesRepository: NodeTypesRepository,
     private val diagramsRepository: DiagramsRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val mdFileLinkValidator: MdFileLinkValidator
 ) {
 
     @GetMapping
@@ -101,6 +103,7 @@ class ComponentsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${request.nodeTypeId} not found")
             }
         requireCanUseNodeTypeForNotation(nodeType, notation)
+        mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = componentsRepository.save(
             Components(
@@ -152,6 +155,7 @@ class ComponentsController(
             requireCanUseNodeTypeForNotation(newNodeType, notation)
         } ?: component.nodeType
 
+        mdFileLinkValidator.validate(request.attrs)
         val updated = componentsRepository.save(
             component.copy(
                 name = request.name ?: component.name,

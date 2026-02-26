@@ -32,6 +32,7 @@ dependencies {
     implementation("org.postgresql:postgresql")
     implementation("com.vladmihalcea:hibernate-types-60:2.21.1")
     implementation("jakarta.persistence:jakarta.persistence-api:3.1.0")
+    implementation("io.minio:minio:8.5.13")
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")

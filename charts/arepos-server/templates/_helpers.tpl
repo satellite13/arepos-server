@@ -67,3 +67,10 @@ PostgreSQL resource names (respect fullnameOverride/nameOverride).
 {{- define "arepos-server.postgresql.fullname" -}}
 {{- printf "%s-postgresql" (include "arepos-server.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
+
+{{/*
+MinIO resource names.
+*/}}
+{{- define "arepos-server.minio.fullname" -}}
+{{- printf "%s-minio" (include "arepos-server.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}

@@ -34,3 +34,10 @@ arepos:
     access-expiration: ${JWT_ACCESS_EXPIRATION:PT30M}
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:P7D}
   admin-secret: ${ADMIN_SECRET:}
+  files:
+    storage: ${FILE_STORAGE:minio}
+    minio:
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}
+      bucket: ${MINIO_BUCKET:arepos-files}

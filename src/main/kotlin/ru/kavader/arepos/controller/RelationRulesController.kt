@@ -14,6 +14,7 @@ import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
 
@@ -25,7 +26,8 @@ class RelationRulesController(
     private val relationsRepository: RelationsRepository,
     private val componentsRepository: ComponentsRepository,
     private val diagramsRepository: DiagramsRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val mdFileLinkValidator: MdFileLinkValidator
 ) {
 
     @GetMapping
@@ -106,6 +108,7 @@ class RelationRulesController(
                 "Relation rule with the same relation/from/to already exists"
             )
         }
+        mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = relationRulesRepository.save(
             RelationRules(
@@ -176,6 +179,7 @@ class RelationRulesController(
             )
         }
 
+        mdFileLinkValidator.validate(request.attrs)
         val updated = relationRulesRepository.save(
             relationRule.copy(
                 owner = owner,

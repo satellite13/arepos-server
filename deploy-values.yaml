@@ -33,6 +33,10 @@ resources:
 ingress:
   enabled: false
 
+# MinIO (enabled by default in values.yaml)
+minio:
+  enabled: true
+
 # Additional environment variables
 env:
   - name: BPL_JVM_THREAD_COUNT

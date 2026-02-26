@@ -16,6 +16,7 @@ import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
 
@@ -29,7 +30,8 @@ class NodesController(
     private val componentsRepository: ComponentsRepository,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val mdFileLinkValidator: MdFileLinkValidator
 ) {
 
     @GetMapping
@@ -122,6 +124,7 @@ class NodesController(
             }
         }
 
+        mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = nodesRepository.save(
             Nodes(
@@ -178,6 +181,7 @@ class NodesController(
             requireCanUseNodeTypeForModel(newNodeType, model)
         } ?: node.nodeType
 
+        mdFileLinkValidator.validate(request.attrs)
         val parentNode = if (request.parentNodeId != null) {
             val parentId = request.parentNodeId
             if (parentId == id) {

@@ -43,6 +43,8 @@ tags:
     description: Делегирование прав редактирования на ресурсы
   - name: system
     description: Системные endpoint'ы приложения
+  - name: files
+    description: Управление файлами (изображения, markdown-документация)
 
 security:
   - bearerAuth: []
@@ -904,6 +906,184 @@ paths:
           description: Связь удалена
         '404':
           description: Связь не найдена
+
+  /api/v1/files/upload:
+    post:
+      tags:
+        - files
+      summary: Загрузка файла
+      description: Загрузка изображения или другого файла (multipart/form-data). Максимальный размер 5MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Файл для загрузки (image/*, text/markdown)
+      responses:
+        '201':
+          description: Файл загружен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadResponse'
+        '400':
+          description: Неверный формат файла или превышен размер
+        '401':
+          description: Не аутентифицирован
+
+  /api/v1/files/upload-markdown:
+    post:
+      tags:
+        - files
+      summary: Загрузка markdown-контента как файла
+      description: Создает файл из markdown-контента. Используется для хранения документации с поддержкой версионирования.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadMarkdownRequest'
+      responses:
+        '201':
+          description: Markdown-файл создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadResponse'
+        '400':
+          description: Контент слишком большой или неверный формат
+        '401':
+          description: Не аутентифицирован
+
+  /api/v1/files/{id}:
+    get:
+      tags:
+        - files
+      summary: Получить файл
+      description: Возвращает содержимое файла по ID. Требует права на просмотр (владелец или админ).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Содержимое файла
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            image/*:
+              schema:
+                type: string
+                format: binary
+            text/markdown:
+              schema:
+                type: string
+        '404':
+          description: Файл не найден
+        '403':
+          description: Доступ запрещен
+
+  /api/v1/files/{id}/markdown:
+    put:
+      tags:
+        - files
+      summary: Обновить markdown-файл
+      description: Создает новую версию существующего markdown-файла
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadMarkdownRequest'
+      responses:
+        '200':
+          description: Файл обновлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadResponse'
+        '400':
+          description: Контент слишком большой
+        '404':
+          description: Файл не найден
+        '401':
+          description: Не аутентифицирован
+
+  /api/v1/files/{id}/versions:
+    get:
+      tags:
+        - files
+      summary: Список версий файла
+      description: Возвращает историю версий файла с информацией о номере версии, дате создания и авторе
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Список версий
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FileVersionResponse'
+        '404':
+          description: Файл не найден
+
+  /api/v1/files/{id}/versions/{versionNumber}:
+    get:
+      tags:
+        - files
+      summary: Получить конкретную версию файла
+      description: Возвращает содержимое файла указанной версии
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: versionNumber
+          in: path
+          required: true
+          description: Номер версии (начиная с 1)
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Содержимое файла указанной версии
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            text/markdown:
+              schema:
+                type: string
+        '404':
+          description: Файл или версия не найдены
 
   /api/v1/components:
     get:
@@ -3171,6 +3351,60 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/AuditLogResponse'
+
+    # File schemas
+    FileUploadResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID файла
+        url:
+          type: string
+          description: URL для доступа к файлу
+        filename:
+          type: string
+          description: Оригинальное имя файла
+        contentType:
+          type: string
+          description: MIME-тип файла
+        size:
+          type: integer
+          format: int64
+          description: Размер файла в байтах
+
+    UploadMarkdownRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          description: Markdown-контент
+        filename:
+          type: string
+          default: documentation.md
+          description: Имя файла (опционально)
+      required:
+        - content
+
+    FileVersionResponse:
+      type: object
+      properties:
+        versionNumber:
+          type: integer
+          description: Порядковый номер версии (1, 2, 3...)
+        createdAt:
+          type: string
+          format: date-time
+          description: Дата создания версии
+        createdBy:
+          type: string
+          format: uuid
+          description: ID пользователя, создавшего версию
+        size:
+          type: integer
+          format: int64
+          description: Размер файла в байтах
 
     # Схемы ошибок
     Error:

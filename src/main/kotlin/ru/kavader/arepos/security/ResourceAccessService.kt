@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Components
+import ru.kavader.arepos.model.Files
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.model.Links
@@ -77,6 +78,15 @@ class ResourceAccessService(
 
     fun canViewDiagram(diagram: Diagrams): Boolean =
         canViewModel(diagram.model) && (canViewNotation(diagram.notation) || canEditModel(diagram.model))
+
+    fun canViewFile(file: Files): Boolean =
+        CurrentUser.isAdmin() || file.owner.id == CurrentUser.getId()
+
+    fun requireCanViewFile(file: Files) {
+        if (!canViewFile(file)) {
+            deny()
+        }
+    }
 
     fun requireCanEditModel(model: Models) {
         if (!canEditModel(model)) {

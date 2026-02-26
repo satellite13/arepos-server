@@ -108,4 +108,22 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 013-add-files
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/013-add-files.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+  - changeSet:
+      id: 014-add-file-versions
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/014-add-file-versions.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

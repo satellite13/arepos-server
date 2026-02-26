@@ -18,6 +18,7 @@ import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
 
@@ -29,7 +30,8 @@ class ModelsController(
     private val nodeTypesRepository: NodeTypesRepository,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val mdFileLinkValidator: MdFileLinkValidator
 ) {
     companion object {
         private const val SYSTEM_ROOT_NODE_TYPE_NAME = "Directory"
@@ -96,6 +98,7 @@ class ModelsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
+        mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = modelsRepository.save(
             Models(
@@ -136,6 +139,7 @@ class ModelsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
             }
         accessService.requireCanEditModel(model)
+        mdFileLinkValidator.validate(request.attrs)
 
         val newName = request.name ?: model.name
         val newVersion = request.version ?: model.version

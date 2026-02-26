@@ -24,6 +24,7 @@ abstract class ControllerIntegrationTest : PostgresContainerTest() {
             """
             TRUNCATE TABLE
                 public.audit_log,
+                public.files,
                 public.relation_rules,
                 public.relations,
                 public.links,

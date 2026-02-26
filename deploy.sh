@@ -16,6 +16,7 @@ POSTGRESQL_ENABLED="${POSTGRESQL_ENABLED:-true}"
 BUILD_IMAGE="${BUILD_IMAGE:-true}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-300}"
 KEEP_POSTGRES_VOLUME="${KEEP_POSTGRES_VOLUME:-false}"
+KEEP_MINIO_VOLUME="${KEEP_MINIO_VOLUME:-false}"
 AUTH_SECRET_NAME="${AUTH_SECRET_NAME:-arepos-server-auth-secret}"
 DEPLOY_IMAGE_PULL_POLICY="${DEPLOY_IMAGE_PULL_POLICY:-IfNotPresent}"
 CHART_PATH="${CHART_PATH:-charts/arepos-server}"
@@ -187,8 +188,8 @@ if [ "$BLUE_GREEN" = "true" ]; then
 else
     # Удаление предыдущего развертывания, если существует
     if helm list -n "$NAMESPACE" | grep -q "$RELEASE_NAME"; then
-        if [ "$KEEP_POSTGRES_VOLUME" = "true" ]; then
-            log_warn "Найдено существующее развертывание '$RELEASE_NAME'. Используем upgrade без удаления PVC (KEEP_POSTGRES_VOLUME=true)"
+        if [ "$KEEP_POSTGRES_VOLUME" = "true" ] || [ "$KEEP_MINIO_VOLUME" = "true" ]; then
+            log_warn "Найдено существующее развертывание '$RELEASE_NAME'. Используем upgrade без удаления PVC (KEEP_POSTGRES_VOLUME=$KEEP_POSTGRES_VOLUME, KEEP_MINIO_VOLUME=$KEEP_MINIO_VOLUME)"
         else
             log_warn "Найдено существующее развертывание '$RELEASE_NAME'. Удаление..."
             helm uninstall "$RELEASE_NAME" -n "$NAMESPACE" || true
@@ -196,17 +197,24 @@ else
         fi
     fi
 
-    # Удаление PVC, если существует
+    # Удаление PostgreSQL PVC, если существует
     if [ "$KEEP_POSTGRES_VOLUME" != "true" ] && kubectl get pvc -n "$NAMESPACE" | grep -q "postgresql-data"; then
-        log_warn "Удаление существующего PVC..."
-        kubectl delete pvc -n "$NAMESPACE" arepos-server-postgresql-data || true
+        log_warn "Удаление существующего PostgreSQL PVC..."
+        kubectl delete pvc -n "$NAMESPACE" arepos-server-postgresql-data --wait=false || true
+        sleep 3
+    fi
+
+    # Удаление MinIO PVC, если существует
+    if [ "$KEEP_MINIO_VOLUME" != "true" ] && kubectl get pvc -n "$NAMESPACE" | grep -q "minio-data"; then
+        log_warn "Удаление существующего MinIO PVC..."
+        kubectl delete pvc -n "$NAMESPACE" arepos-server-minio-data --wait=false || true
         sleep 3
     fi
 
     # Развертывание через Helm
     log_info "Развертывание приложения через Helm..."
     HELM_ACTION="install"
-    if [ "$KEEP_POSTGRES_VOLUME" = "true" ]; then
+    if [ "$KEEP_POSTGRES_VOLUME" = "true" ] || [ "$KEEP_MINIO_VOLUME" = "true" ]; then
         HELM_ACTION="upgrade --install"
     fi
     HELM_CMD="helm $HELM_ACTION $RELEASE_NAME $CHART_PATH -n $NAMESPACE"
@@ -326,6 +334,8 @@ echo "Просмотр логов:"
 echo "  kubectl logs -n $NAMESPACE -l app.kubernetes.io/name=arepos-server"
 echo ""
 echo "Порт-форвард для локального доступа:"
-echo "  kubectl port-forward -n $NAMESPACE svc/$SERVICE_NAME 8080:8080"
+echo "  arepos-server: kubectl port-forward -n $NAMESPACE svc/$SERVICE_NAME 8080:8080"
+echo "  MinIO консоль: kubectl port-forward -n $NAMESPACE svc/${SERVICE_NAME}-minio 9001:9001"
+echo "  (MinIO консоль: http://localhost:9001)"
 echo ""
 

@@ -14,6 +14,7 @@ import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
 
@@ -25,7 +26,8 @@ class DiagramsController(
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
     private val notationsRepository: NotationsRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val mdFileLinkValidator: MdFileLinkValidator
 ) {
 
     @GetMapping
@@ -108,6 +110,7 @@ class DiagramsController(
             )
         }
 
+        mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = diagramsRepository.save(
             Diagrams(
@@ -186,6 +189,7 @@ class DiagramsController(
             )
         }
 
+        mdFileLinkValidator.validate(request.attrs)
         val updated = diagramsRepository.save(
             diagram.copy(
                 name = newName,

@@ -13,6 +13,7 @@ import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
 
@@ -23,7 +24,8 @@ class NodeTypesController(
     private val usersRepository: UsersRepository,
     private val notationsRepository: NotationsRepository,
     private val componentsRepository: ComponentsRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val mdFileLinkValidator: MdFileLinkValidator
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(NodeTypesController::class.java)
@@ -111,6 +113,7 @@ class NodeTypesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
+        mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = nodeTypesRepository.save(
             NodeTypes(
