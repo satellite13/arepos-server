@@ -1,0 +1,424 @@
+# AGENTS.md - Arepos Server
+
+This file provides essential guidance for AI coding agents working with the arepos-server codebase.
+
+## Project Overview
+
+Arepos Server is a Kotlin/Spring Boot backend service for managing domain models, notations, and related entities with comprehensive audit trail support. It provides a REST API for managing users, models, notations, node/link types, components, relations, and relation rules.
+
+**Key Features:**
+- REST API under `/api/v1/*`
+- JWT-based authentication with refresh tokens
+- Automatic database migrations via Liquibase
+- Audit logging via PostgreSQL triggers
+- Multi-tenant access control with ownership model
+- File storage via MinIO (S3-compatible)
+- Prometheus metrics and health endpoints
+
+## Technology Stack
+
+| Component | Version/Technology |
+|-----------|-------------------|
+| Language | Kotlin 2.2.21 |
+| Framework | Spring Boot 3.5.7 |
+| JDK | 24-25 |
+| Database | PostgreSQL 16+ |
+| Migrations | Liquibase |
+| Build Tool | Gradle (Kotlin DSL) |
+| Testing | JUnit 5, TestContainers, Mockito |
+| Deployment | Kubernetes + Helm |
+
+## Project Structure
+
+```
+src/main/kotlin/ru/kavader/arepos/
+├── AreposServerApplication.kt    # Application entry point
+├── config/                       # Configuration classes
+│   ├── AuditInterceptor.kt       # Hibernate interceptor for audit
+│   ├── AuditRetentionScheduler.kt # Audit cleanup scheduler
+│   ├── JpaConfig.kt              # JPA configuration
+│   ├── MinioConfig.kt            # MinIO client configuration
+│   └── MinioProperties.kt        # MinIO properties
+├── controller/                   # REST controllers (API layer)
+│   ├── *Controller.kt            # One per entity type
+│   └── PagingSupport.kt          # Pagination utilities
+├── model/                        # JPA entities
+│   ├── Users.kt                  # User entity with roles
+│   ├── Models.kt, Nodes.kt       # Domain model entities
+│   ├── Notations.kt, Components.kt
+│   ├── NodeTypes.kt, LinkTypes.kt
+│   ├── Links.kt, Relations.kt, RelationRules.kt
+│   ├── Diagrams.kt               # Visualization diagrams
+│   ├── Files.kt, FileVersions.kt # File storage entities
+│   ├── ResourceShares.kt         # Access sharing
+│   └── AuditLog.kt               # Audit log entity
+├── repository/                   # Spring Data JPA repositories
+├── security/                     # Security configuration
+│   ├── SecurityConfig.kt         # Spring Security setup
+│   ├── JwtAuthenticationFilter.kt
+│   ├── JwtTokenProvider.kt
+│   ├── ResourceAccessService.kt  # Permission checking
+│   └── CurrentUser.kt            # Current user utilities
+├── service/                      # Business services
+│   ├── FileStorageService.kt
+│   └── MdFileLinkValidator.kt
+└── metrics/                      # Custom metrics
+    └── CustomMetricsService.kt
+
+src/main/resources/
+├── application.yaml              # Main configuration
+└── db/changelog/                 # Liquibase migrations
+    ├── db.changelog-master.yaml
+    ├── 001-init.sql              # Initial schema
+    └── 002-014-*.sql             # Incremental migrations
+
+src/test/kotlin/ru/kavader/arepos/
+├── support/PostgresContainerTest.kt  # TestContainers base
+├── repository/RepositoryTestBase.kt  # Repository test utilities
+├── repository/*RepositoryTest.kt     # Repository tests
+├── controller/*ControllerTest.kt     # Controller tests
+└── security/JwtTokenProviderTest.kt
+
+charts/arepos-server/             # Helm chart for K8s deployment
+├── Chart.yaml
+├── values.yaml                   # Default values
+└── templates/                    # K8s manifests
+```
+
+## Build Commands
+
+```bash
+# Full build with tests
+./gradlew build
+
+# Run all tests (requires Docker for TestContainers)
+./gradlew test
+
+# Run specific test class
+./gradlew test --tests "*RepositoryTest"
+
+# Run application locally
+./gradlew bootRun
+
+# Build Docker image
+./gradlew bootBuildImage
+
+# Check Helm chart
+helm lint ./charts/arepos-server
+```
+
+## Testing Strategy
+
+### Test Architecture
+
+Tests use **TestContainers** with a shared PostgreSQL container across the test suite:
+
+- **Base Class**: `PostgresContainerTest` - sets up PostgreSQL 16.4 container
+- **Repository Tests**: Extend `RepositoryTestBase` which provides test data builders
+- **Controller Tests**: Use MockMvc with mocked repositories
+
+### Test Data Builders (RepositoryTestBase)
+
+```kotlin
+// Available builder methods for creating test data:
+persistUser(email = "test@example.com")
+persistModel(owner = user, name = "Test Model", version = "1.0.0")
+persistNotation(owner = user)
+persistNodeType(owner = user)
+persistNode(model = model, nodeType = nodeType)
+persistLinkType(owner = user)
+persistLink(model = model, source = node1, target = node2)
+persistComponent(notation = notation)
+persistRelation(notation = notation)
+persistRelationRule(relation = relation)
+persistDiagram(model = model)
+persistAuditLog(tableName = "users", operation = "INSERT")
+```
+
+### Running Tests
+
+```bash
+# All tests (Docker required)
+./gradlew test
+
+# Specific repository tests
+./gradlew test --tests "ModelsRepositoryTest"
+
+# Specific controller tests
+./gradlew test --tests "ModelsControllerTest"
+```
+
+## Database & Migrations
+
+### PostgreSQL Schema
+
+- **Custom Domain Types**: `version_type` (semantic versioning), `email_type`, `url_type`, etc.
+- **JSONB Columns**: Most entities have `attrs` field for flexible data storage
+- **Audit Triggers**: Automatic audit logging via PostgreSQL trigger `audit_trigger`
+- **Ownership**: All entities have `owner` field (FK to users) for access control
+
+### Liquibase Migrations
+
+Migrations are in `src/main/resources/db/changelog/`:
+- `001-init.sql` - Initial schema with tables, indexes, triggers
+- `002-014-*.sql` - Incremental changes
+- `db.changelog-master.yaml` - Migration order
+
+**Guidelines for new migrations:**
+1. Create new SQL file with next sequence number
+2. Add entry to `db.changelog-master.yaml`
+3. Use `splitStatements: false` for PostgreSQL function definitions
+4. Include `runOnChange: true` for idempotent changes
+
+### Audit System
+
+Audit logging works via:
+1. `AuditInterceptor` captures user ID from `X-User-Id` header or ThreadLocal
+2. Sets PostgreSQL session variable `app.current_user_id`
+3. Trigger `audit_trigger` writes to `audit_log` table
+
+For tests without HTTP context:
+```kotlin
+AuditInterceptor.setCurrentUserId(userId)
+// ... perform operation
+AuditInterceptor.clearCurrentUserId()
+```
+
+## Security & Authentication
+
+### JWT Authentication
+
+- **Access Token**: Short-lived (30 min default), used for API access
+- **Refresh Token**: Long-lived (7 days default), used to obtain new access tokens
+- **Header**: `Authorization: Bearer <token>`
+
+### User Roles
+
+```kotlin
+enum class Role { USER, EDITOR, ADMIN }
+```
+
+- **USER**: Standard user, can manage own resources
+- **EDITOR**: Can edit shared resources
+- **ADMIN**: Full system access
+
+### Access Control
+
+- Resources have `owner` field for ownership-based access
+- `ResourceShares` allows sharing resources with specific permissions
+- `ResourceAccessService` checks view/edit permissions
+
+### Environment Variables for Security
+
+```bash
+JWT_SECRET              # Required in production (min 256 bits)
+ADMIN_SECRET            # For admin registration
+JWT_ACCESS_EXPIRATION   # Default: PT30M
+JWT_REFRESH_EXPIRATION  # Default: P7D
+```
+
+## Configuration
+
+### Application Properties (application.yaml)
+
+```yaml
+# Database
+DB_URL=jdbc:postgresql://localhost:5432/arepos
+DB_USERNAME=arepos
+DB_PASSWORD=arepos
+
+# JWT
+JWT_SECRET=change-in-production
+JWT_ACCESS_EXPIRATION=PT30M
+JWT_REFRESH_EXPIRATION=P7D
+
+# Admin
+ADMIN_SECRET=your-secret-for-admin-registration
+
+# Audit
+AUDIT_RETENTION=PT24H
+AUDIT_CLEANUP_CRON=0 0 * * * *
+
+# File Storage
+FILE_STORAGE=minio  # or "disabled" for tests
+MINIO_ENDPOINT=http://localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=arepos-files
+```
+
+## Deployment
+
+### Kubernetes Deployment
+
+```bash
+# Deploy to Kubernetes
+./deploy.sh
+
+# Undeploy
+./undeploy.sh
+
+# Validate Helm chart
+./helmCheck.sh
+```
+
+### Deployment Options
+
+Environment variables for deployment:
+```bash
+NAMESPACE=arch                    # K8s namespace
+RELEASE_NAME=arepos-server        # Helm release name
+VALUES_FILE=deploy-values.yaml    # Values file
+POSTGRESQL_ENABLED=true           # Deploy PostgreSQL
+BUILD_IMAGE=true                  # Build Docker image
+BLUE_GREEN=false                  # Blue/green deployment
+```
+
+### Health Endpoints
+
+- Liveness: `GET /actuator/health/liveness`
+- Readiness: `GET /actuator/health/readiness`
+- Metrics: `GET /actuator/prometheus`
+
+### Blue/Green Deployment
+
+```bash
+BLUE_GREEN=true BG_SWITCH=true ./deploy.sh
+```
+
+Creates two deployments (`-blue` and `-green`), service routes to active color.
+
+## Development Guidelines
+
+### Code Style
+
+- **Language**: Kotlin with idiomatic patterns
+- **Null Safety**: Use nullable types (`UUID?`) for JPA entity IDs
+- **Immutability**: Use `val` for entity properties where possible
+- **Entity Pattern**: Data classes with JPA annotations
+
+### Entity Conventions
+
+```kotlin
+@Entity
+@Table(name = "entities", schema = "public")
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class EntityName(
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
+    val id: UUID? = null,
+
+    @Column(name = "name", nullable = false)
+    val name: String,
+
+    @Column(name = "created_at", nullable = false)
+    val createdAt: Instant? = null,
+
+    @Column(name = "updated_at")
+    val updatedAt: Instant? = null,
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "attrs", columnDefinition = "jsonb")
+    val attrs: String? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner", nullable = false)
+    val owner: Users
+)
+```
+
+### Controller Conventions
+
+```kotlin
+@RestController
+@RequestMapping("/api/v1/entities")
+class EntityController(
+    private val repository: EntityRepository,
+    private val accessService: ResourceAccessService
+) {
+    @GetMapping
+    fun list(pageable: Pageable): Page<EntityResponse> { ... }
+
+    @GetMapping("/{id}")
+    fun get(@PathVariable id: UUID): EntityResponse { ... }
+
+    @PostMapping
+    fun create(@RequestBody request: CreateRequest): EntityResponse { ... }
+
+    @PutMapping("/{id}")
+    fun update(@PathVariable id: UUID, @RequestBody request: UpdateRequest): EntityResponse { ... }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun delete(@PathVariable id: UUID) { ... }
+}
+```
+
+### Repository Conventions
+
+```kotlin
+@Repository
+interface EntityRepository : JpaRepository<Entity, UUID> {
+    fun findByOwner(owner: Users, pageable: Pageable): Page<Entity>
+    fun findByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<Entity>
+}
+```
+
+### Pagination
+
+Use Spring Data's `Pageable` and `Page` types:
+```kotlin
+@GetMapping
+fun list(pageable: Pageable): Page<EntityResponse> {
+    return repository.findAll(pageable).map { it.toResponse() }
+}
+```
+
+For in-memory pagination, use `toPage()` extension from `PagingSupport.kt`.
+
+## API Reference
+
+OpenAPI specification: `openapi.yaml`
+
+Main endpoints:
+- `POST /api/v1/auth/register` - User registration
+- `POST /api/v1/auth/login` - Login
+- `POST /api/v1/auth/refresh` - Refresh tokens
+- `GET /api/v1/auth/me` - Current user info
+- `GET /api/v1/models` - List models
+- `GET /api/v1/nodes` - List nodes
+- `GET /api/v1/notations` - List notations
+- And more...
+
+## Entity Relationships
+
+```
+Users
+├── Models ──┬─> Nodes (tree-structured with parent-child)
+│            └─> Links (source/target between nodes)
+│            └─> Diagrams (model + notation based)
+├── Notations ─┬─> Components (links to NodeTypes)
+│              └─> Relations (links to LinkTypes) ─> RelationRules
+├── NodeTypes
+└── LinkTypes
+
+ResourceShares - cross-cutting permission delegation
+```
+
+## Important Notes
+
+1. **UUID Generation**: All entities use `GenerationType.UUID` for IDs
+2. **Versioning**: Models, Notations, Components, Relations use semantic versioning enforced by PostgreSQL domain type `version_type`
+3. **Soft Delete**: Some entities have `deleted` flag for soft deletion
+4. **Audit Trail**: All changes are automatically logged to `audit_log` table
+5. **JSONB Attributes**: Use `attrs` field for extensible, schema-less data
+6. **X-User-Id Header**: Required for audit tracking on modifying operations
+
+## License
+
+Dual licensing:
+- `AGPL-3.0-or-later` for open-source usage
+- Commercial license for proprietary usage
+
+See `LICENSE` and `LICENSE_COMMERCIAL.md` for details.

@@ -8,6 +8,7 @@ import java.util.UUID
 @Table(name = "file_versions", schema = "public")
 data class FileVersions(
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
     val id: UUID? = null,
 

@@ -73,6 +73,8 @@ spec:
           args:
             - server
             - /data
+            - --console-address
+            - ":9001"
           volumeMounts:
             - name: minio-data
               mountPath: /data
