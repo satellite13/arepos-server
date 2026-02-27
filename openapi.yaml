@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Arepos Server API
   description: REST API для управления моделями, узлами, связями и компонентами
-  version: 0.2.0
+  version: 0.2.2
   contact:
     name: API Support
 

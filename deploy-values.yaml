@@ -5,7 +5,7 @@ replicaCount: 1
 image:
   repository: arch/arepos-server
   pullPolicy: Always
-  tag: "0.2.0"
+  tag: "0.2.2"
 
 # Database configuration
 database:

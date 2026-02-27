@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.repository.LinkTypesRepository
+import ru.kavader.arepos.repository.LinksRepository
+import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
@@ -24,6 +26,8 @@ class LinkTypesController(
     private val usersRepository: UsersRepository,
     private val notationsRepository: NotationsRepository,
     private val relationsRepository: RelationsRepository,
+    private val modelsRepository: ModelsRepository,
+    private val linksRepository: LinksRepository,
     private val accessService: ResourceAccessService,
     private val mdFileLinkValidator: MdFileLinkValidator
 ) {
@@ -36,6 +40,7 @@ class LinkTypesController(
         pageable: Pageable,
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) notationId: UUID?,
+        @RequestParam(required = false) modelId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<LinkTypeResponse> {
         if (!CurrentUser.isAdmin()) {
@@ -52,13 +57,24 @@ class LinkTypesController(
             }
             val notationOwnerId = notationContext?.first
             val notationLinkTypeIds = notationContext?.second ?: emptySet()
+            val modelLinkTypeIds = modelId?.let { requestedModelId ->
+                val model = modelsRepository.findById(requestedModelId).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Model $requestedModelId not found")
+                }
+                accessService.requireCanViewModel(model)
+                linksRepository.findByModel(model, Pageable.unpaged()).content
+                    .asSequence()
+                    .mapNotNull { it.linkType.id }
+                    .toSet()
+            } ?: emptySet()
             val filtered = linkTypesRepository.findAll(Pageable.unpaged()).content
                 .asSequence()
                 .filter {
                     accessService.canViewLinkType(it) ||
                         accessService.canUseLinkType(it) ||
                         (notationOwnerId != null && it.owner.id == notationOwnerId) ||
-                        notationLinkTypeIds.contains(it.id)
+                        notationLinkTypeIds.contains(it.id) ||
+                        modelLinkTypeIds.contains(it.id)
                 }
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { name == null || it.name.contains(name, ignoreCase = true) }
@@ -97,6 +113,9 @@ class LinkTypesController(
     @ResponseStatus(HttpStatus.CREATED)
     fun createLinkType(@RequestBody request: LinkTypeRequest): LinkTypeResponse {
         val currentUserId = accessService.currentUserId()
+        if (!CurrentUser.isAdmin() && request.ownerId != null && request.ownerId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot create link type for another user")
+        }
         val resolvedOwnerId = if (CurrentUser.isAdmin()) {
             request.ownerId ?: currentUserId
         } else {
