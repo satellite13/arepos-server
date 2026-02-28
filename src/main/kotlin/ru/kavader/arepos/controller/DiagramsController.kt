@@ -219,6 +219,53 @@ class DiagramsController(
         }
     }
 
+    @PostMapping("/{id}/baseline")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createBaseline(@PathVariable id: UUID): DiagramResponse {
+        val diagram = diagramsRepository.findById(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
+            }
+        accessService.requireCanEditDiagram(diagram)
+        val newVersion = bumpMinorVersion(diagram.version)
+            ?: throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Invalid diagram version '${diagram.version}'; expected semantic version (e.g. 1.2.3)"
+            )
+        if (diagramsRepository.existsByModelAndNameAndVersion(diagram.model, diagram.name, newVersion)) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Diagram with name '${diagram.name}' and version '$newVersion' already exists"
+            )
+        }
+        mdFileLinkValidator.validate(diagram.attrs)
+        val now = Instant.now()
+        val saved = diagramsRepository.save(
+            Diagrams(
+                name = diagram.name,
+                createdAt = now,
+                updatedAt = now,
+                attrs = diagram.attrs,
+                version = newVersion,
+                owner = diagram.owner,
+                deleted = false,
+                model = diagram.model,
+                notation = diagram.notation,
+                node = diagram.node
+            )
+        )
+        return saved.toResponse()
+    }
+
+    /** Bumps minor version and resets patch: 1.2.3 -> 1.3.0 */
+    private fun bumpMinorVersion(version: String): String? {
+        val parts = version.trim().split(".")
+        if (parts.size < 2) return null
+        val major = parts[0].toIntOrNull() ?: return null
+        val minor = parts.getOrNull(1)?.toIntOrNull() ?: return null
+        return "$major.${minor + 1}.0"
+    }
+
     private fun checkOwnerOrRole(ownerId: UUID) {
         val currentUserId = CurrentUser.getId() ?: return
         if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {

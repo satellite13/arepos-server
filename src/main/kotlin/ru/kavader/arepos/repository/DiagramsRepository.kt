@@ -13,6 +13,11 @@ import java.util.UUID
 
 @Repository
 interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
+
+    fun findByModel_IdAndNameAndDeletedFalseOrderByCreatedAtDesc(
+        modelId: UUID,
+        name: String
+    ): List<Diagrams>
     @Query("SELECT d FROM Diagrams d WHERE d.deleted = false")
     override fun findAll(pageable: Pageable): Page<Diagrams>
 
