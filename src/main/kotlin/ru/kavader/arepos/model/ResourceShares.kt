@@ -20,7 +20,8 @@ enum class ShareResourceType {
     MODEL,
     NOTATION,
     NODE_TYPE,
-    LINK_TYPE
+    LINK_TYPE,
+    NODE_SHAPE
 }
 
 enum class SharePermission {

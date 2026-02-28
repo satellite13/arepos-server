@@ -126,4 +126,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 015-add-node-shapes
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/015-add-node-shapes.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

@@ -15,6 +15,7 @@ import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.ShareResourceType
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.ModelsRepository
+import ru.kavader.arepos.repository.NodeShapesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.ResourceSharesRepository
@@ -31,6 +32,7 @@ class AccessSharesController(
     private val modelsRepository: ModelsRepository,
     private val notationsRepository: NotationsRepository,
     private val nodeTypesRepository: NodeTypesRepository,
+    private val nodeShapesRepository: NodeShapesRepository,
     private val linkTypesRepository: LinkTypesRepository,
     private val accessService: ResourceAccessService
 ) {
@@ -129,6 +131,10 @@ class AccessSharesController(
 
             ShareResourceType.LINK_TYPE -> linkTypesRepository.findById(resourceId).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $resourceId not found")
+            }.owner.id!!
+
+            ShareResourceType.NODE_SHAPE -> nodeShapesRepository.findById(resourceId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "NodeShape $resourceId not found")
             }.owner.id!!
         }
     }

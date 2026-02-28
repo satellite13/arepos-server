@@ -9,6 +9,7 @@ import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.model.Models
+import ru.kavader.arepos.model.NodeShapes
 import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.model.Notations
@@ -49,6 +50,9 @@ class ResourceAccessService(
 
     fun canViewLinkType(linkType: LinkTypes): Boolean =
         canViewTopLevel(linkType.owner.id!!, ShareResourceType.LINK_TYPE, linkType.id!!)
+
+    fun canEditNodeShape(shape: NodeShapes): Boolean =
+        canEditTopLevel(shape.owner.id!!, ShareResourceType.NODE_SHAPE, shape.id!!)
 
     fun canUseNodeType(nodeType: NodeTypes): Boolean = canViewNodeType(nodeType) || isCommonType(nodeType.owner)
 
@@ -126,6 +130,12 @@ class ResourceAccessService(
 
     fun requireCanEditLinkType(linkType: LinkTypes) {
         if (!canEditLinkType(linkType)) {
+            deny()
+        }
+    }
+
+    fun requireCanEditNodeShape(shape: NodeShapes) {
+        if (!canEditNodeShape(shape)) {
             deny()
         }
     }
@@ -255,6 +265,9 @@ class ResourceAccessService(
 
     fun linkTypeAccessPermission(linkType: LinkTypes): String? =
         topLevelAccessPermission(linkType.owner.id!!, ShareResourceType.LINK_TYPE, linkType.id!!)
+
+    fun nodeShapeAccessPermission(shape: NodeShapes): String? =
+        topLevelAccessPermission(shape.owner.id!!, ShareResourceType.NODE_SHAPE, shape.id!!)
 
     private fun canEditTopLevel(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): Boolean {
         if (CurrentUser.isAdmin()) {
