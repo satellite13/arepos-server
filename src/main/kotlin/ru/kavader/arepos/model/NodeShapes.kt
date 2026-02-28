@@ -35,6 +35,10 @@ data class NodeShapes(
     @Column(name = "outline", columnDefinition = "jsonb")
     val outline: String? = null,
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "content_area", columnDefinition = "jsonb", nullable = true)
+    val contentArea: String? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant? = null,
 

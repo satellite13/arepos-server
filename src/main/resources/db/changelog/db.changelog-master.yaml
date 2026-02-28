@@ -135,4 +135,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 016-add-node-shapes-content-area
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/016-add-node-shapes-content-area.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 
