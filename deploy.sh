@@ -99,10 +99,10 @@ else
     log_info "Секрет '$AUTH_SECRET_NAME' уже существует"
 fi
 
-# Определение тега образа
+# Определение тега образа (можно переопределить: IMAGE_TAG=0.2.5 ./deploy.sh)
 GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
 APP_VERSION=$(grep '^version' build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "0.1.0")
-IMAGE_TAG="${APP_VERSION}-${GIT_HASH}"
+IMAGE_TAG="${IMAGE_TAG:-${APP_VERSION}-${GIT_HASH}}"
 IMAGE_NAME="arch/arepos-server"
 EXPECTED_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
 DEPLOY_BUILD_ID="${IMAGE_TAG}-$(date +%s)"
