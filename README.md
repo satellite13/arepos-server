@@ -2,6 +2,8 @@
 
 Backend service for managing domain models, notations, and related entities with full audit trail support.
 
+Русская версия: `README.ru.md`
+
 The project is built with Kotlin + Spring Boot, stores flexible entity attributes in PostgreSQL JSONB, and is designed to run both locally and in Kubernetes.
 
 ## Features
@@ -106,10 +108,9 @@ For blue/green and deployment flags, see `charts/arepos-server/README.md`.
 
 If you plan to publish the project publicly, start with:
 
-- `docs/OPEN_SOURCE_PREPARATION.md`
-- `CONTRIBUTING.md`
-- `SECURITY.md`
-- `CODE_OF_CONDUCT.md`
+- `CONTRIBUTING.md` / `CONTRIBUTING.ru.md`
+- `SECURITY.md` / `SECURITY.ru.md`
+- `CODE_OF_CONDUCT.md` / `CODE_OF_CONDUCT.ru.md`
 
 ## Contributing
 

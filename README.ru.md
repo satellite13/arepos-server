@@ -2,6 +2,8 @@
 
 Сервис backend для управления доменными моделями, нотациями и связанными сущностями с полной поддержкой аудита изменений.
 
+English version: `README.md`
+
 Проект написан на Kotlin + Spring Boot, использует PostgreSQL (JSONB для гибких атрибутов) и рассчитан на запуск как локально, так и в Kubernetes.
 
 ## Возможности
@@ -106,10 +108,9 @@ charts/arepos-server/
 
 Для подготовки публичного релиза начните с:
 
-- `docs/OPEN_SOURCE_PREPARATION.md`
-- `CONTRIBUTING.md`
-- `SECURITY.md`
-- `CODE_OF_CONDUCT.md`
+- `CONTRIBUTING.md` / `CONTRIBUTING.ru.md`
+- `SECURITY.md` / `SECURITY.ru.md`
+- `CODE_OF_CONDUCT.md` / `CODE_OF_CONDUCT.ru.md`
 
 ## Вклад в проект
 

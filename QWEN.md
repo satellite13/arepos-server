@@ -267,5 +267,4 @@ src/test/kotlin/ru/kavader/arepos/
 | `CONTRIBUTING.md` | Руководство по внесению изменений |
 | `SECURITY.md` | Политика безопасности |
 | `CODE_OF_CONDUCT.md` | Кодекс поведения |
-| `docs/OPEN_SOURCE_PREPARATION.md` | Подготовка к публикации |
 | `charts/arepos-server/README.md` | Документация Helm chart |
