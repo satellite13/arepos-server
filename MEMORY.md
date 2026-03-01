@@ -19,8 +19,7 @@
    - убедиться, что в релиз входят только нужные изменения
 
 2. Поднять версию релиза:
-   - `build.gradle.kts` -> `version = "X.Y.Z"` (без `-SNAPSHOT`)
-   - `openapi.yaml` -> `info.version: X.Y.Z`
+   - `build.gradle.kts` -> `version = "X.Y.Z"` (без `-SNAPSHOT`; версия в Swagger берётся из buildInfo)
    - `charts/arepos-server/values.yaml` -> `image.tag: "X.Y.Z"`
    - `deploy-values.yaml` -> `image.tag: "X.Y.Z"`
    - `charts/arepos-server/Chart.yaml`:

@@ -379,7 +379,9 @@ For in-memory pagination, use `toPage()` extension from `PagingSupport.kt`.
 
 ## API Reference
 
-OpenAPI specification: `openapi.yaml`
+OpenAPI documentation is generated at runtime by springdoc:
+- Swagger UI: `/swagger-ui.html`
+- OpenAPI JSON: `/v3/api-docs`
 
 Main endpoints:
 - `POST /api/v1/auth/register` - User registration

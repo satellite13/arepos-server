@@ -25,6 +25,12 @@ management:
     prometheus:
       access: read_only
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
 arepos:
   audit:
     retention: ${AUDIT_RETENTION:PT24H}

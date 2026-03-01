@@ -88,7 +88,8 @@ charts/arepos-server/
 
 ## API
 
-- OpenAPI-спецификация: `openapi.yaml`
+- Swagger UI: `/swagger-ui.html` — интерактивная документация API
+- OpenAPI-спецификация (JSON): `/v3/api-docs`
 - Health endpoints:
   - `/actuator/health/liveness`
   - `/actuator/health/readiness`

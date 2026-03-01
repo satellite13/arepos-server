@@ -88,7 +88,8 @@ Important environment variables:
 
 ## API
 
-- OpenAPI spec: `openapi.yaml`
+- Swagger UI: `/swagger-ui.html` — interactive API documentation
+- OpenAPI spec (JSON): `/v3/api-docs`
 - Health endpoints:
   - `/actuator/health/liveness`
   - `/actuator/health/readiness`

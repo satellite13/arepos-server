@@ -38,6 +38,7 @@ class SecurityConfig(
                     .requestMatchers("/error").permitAll()
                     .requestMatchers("/api/v1/auth/**").permitAll()
                     .requestMatchers("/actuator/health/**").permitAll()
+                    .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/system/version").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/diagrams/svg/public/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/**").authenticated()

@@ -153,4 +153,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 018-add-document-refs
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/018-add-document-refs.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

@@ -318,12 +318,10 @@ class DiagramsController(
 
     @GetMapping("svg/public/{token}")
     fun getDiagramSvgPublic(@PathVariable token: UUID): ResponseEntity<Any> {
-        val link = diagramPreviewLinksRepository.findByToken(token)
-            .orElseGet {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .contentType(MediaType.TEXT_PLAIN)
-                    .body("Share link not found or expired.")
-            }
+        val link = diagramPreviewLinksRepository.findByToken(token).orElse(null)
+            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.TEXT_PLAIN)
+                .body("Share link not found or expired.")
         val diagramId: UUID = when {
             link.diagram != null -> link.diagram!!.id!!
             link.model != null && link.diagramName != null -> {

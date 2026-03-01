@@ -1,0 +1,37 @@
+package ru.kavader.arepos.repository
+
+import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
+import org.springframework.stereotype.Repository
+import ru.kavader.arepos.model.DocumentRefs
+import ru.kavader.arepos.model.Users
+import java.util.UUID
+
+@Repository
+interface DocumentRefsRepository : JpaRepository<DocumentRefs, UUID> {
+
+    @Query(
+        """
+        SELECT dr FROM DocumentRefs dr
+        JOIN FETCH dr.file f
+        WHERE dr.createdBy.id = :userId
+          AND (:modelId IS NULL OR dr.model.id = :modelId)
+          AND (:notationId IS NULL OR dr.notation.id = :notationId)
+          AND (:componentId IS NULL OR dr.component.id = :componentId)
+          AND (:nodeId IS NULL OR dr.node.id = :nodeId)
+          AND (:nodeTypeId IS NULL OR dr.nodeType.id = :nodeTypeId)
+          AND (:linkTypeId IS NULL OR dr.linkType.id = :linkTypeId)
+        ORDER BY dr.createdAt DESC
+        """
+    )
+    fun findByFilters(
+        @Param("userId") userId: UUID,
+        @Param("modelId") modelId: UUID?,
+        @Param("notationId") notationId: UUID?,
+        @Param("componentId") componentId: UUID?,
+        @Param("nodeId") nodeId: UUID?,
+        @Param("nodeTypeId") nodeTypeId: UUID?,
+        @Param("linkTypeId") linkTypeId: UUID?
+    ): List<DocumentRefs>
+}

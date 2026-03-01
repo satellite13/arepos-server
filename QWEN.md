@@ -49,7 +49,6 @@ arepos-server/
 │   ├── security/                     # Тесты безопасности
 │   └── support/                      # Тестовые утилиты
 ├── charts/arepos-server/             # Helm chart для Kubernetes
-├── openapi.yaml                      # OpenAPI спецификация (3421 строка)
 ├── build.gradle.kts                  # Gradle сборка
 ├── deploy.sh                         # Скрипт деплоя в Kubernetes
 └── undeploy.sh                       # Скрипт удаления из Kubernetes
@@ -223,8 +222,7 @@ src/test/kotlin/ru/kavader/arepos/
 **Кратко:**
 
 1. Поднять версию в файлах:
-   - `build.gradle.kts` → `version = "X.Y.Z"`
-   - `openapi.yaml` → `info.version: X.Y.Z`
+   - `build.gradle.kts` → `version = "X.Y.Z"` (версия в Swagger подтягивается из buildInfo)
    - `charts/arepos-server/values.yaml` → `image.tag: "X.Y.Z"`
    - `deploy-values.yaml` → `image.tag: "X.Y.Z"`
    - `charts/arepos-server/Chart.yaml` → `version` и `appVersion`
