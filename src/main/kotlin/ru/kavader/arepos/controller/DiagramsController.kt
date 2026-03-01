@@ -139,6 +139,7 @@ class DiagramsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
             }
         accessService.requireCanEditDiagram(diagram)
+        requireLatestDiagramVersion(diagram, "updated")
 
         val owner = if (CurrentUser.isAdmin()) {
             request.ownerId?.let {
@@ -227,6 +228,7 @@ class DiagramsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
             }
         accessService.requireCanEditDiagram(diagram)
+        requireLatestDiagramVersion(diagram, "used to create baseline")
         val newVersion = bumpMinorVersion(diagram.version)
             ?: throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
@@ -264,6 +266,48 @@ class DiagramsController(
         val major = parts[0].toIntOrNull() ?: return null
         val minor = parts.getOrNull(1)?.toIntOrNull() ?: return null
         return "$major.${minor + 1}.0"
+    }
+
+    private fun requireLatestDiagramVersion(diagram: Diagrams, action: String) {
+        val modelId = diagram.model.id ?: return
+        val allByName = diagramsRepository.findByModel_IdAndNameAndDeletedFalse(modelId, diagram.name)
+        if (allByName.isEmpty()) return
+        val latest = allByName.maxWithOrNull(::compareDiagramVersions) ?: return
+        if (latest.id != diagram.id) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Only latest diagram version can be $action. Latest version is '${latest.version}'."
+            )
+        }
+    }
+
+    private fun compareDiagramVersions(a: Diagrams, b: Diagrams): Int {
+        val aSemver = parseSemver(a.version)
+        val bSemver = parseSemver(b.version)
+        if (aSemver != null && bSemver != null) {
+            val majorCmp = aSemver.first.compareTo(bSemver.first)
+            if (majorCmp != 0) return majorCmp
+            val minorCmp = aSemver.second.compareTo(bSemver.second)
+            if (minorCmp != 0) return minorCmp
+            val patchCmp = aSemver.third.compareTo(bSemver.third)
+            if (patchCmp != 0) return patchCmp
+        }
+        val aUpdated = a.updatedAt ?: a.createdAt ?: Instant.EPOCH
+        val bUpdated = b.updatedAt ?: b.createdAt ?: Instant.EPOCH
+        val timeCmp = aUpdated.compareTo(bUpdated)
+        if (timeCmp != 0) return timeCmp
+        val aId = a.id?.toString().orEmpty()
+        val bId = b.id?.toString().orEmpty()
+        return aId.compareTo(bId)
+    }
+
+    private fun parseSemver(version: String): Triple<Int, Int, Int>? {
+        val parts = version.trim().split(".")
+        if (parts.size != 3) return null
+        val major = parts[0].toIntOrNull() ?: return null
+        val minor = parts[1].toIntOrNull() ?: return null
+        val patch = parts[2].toIntOrNull() ?: return null
+        return Triple(major, minor, patch)
     }
 
     private fun checkOwnerOrRole(ownerId: UUID) {

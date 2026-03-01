@@ -640,6 +640,32 @@ paths:
         '404':
           description: Диаграмма не найдена
 
+  /api/v1/diagrams/{id}/baseline:
+    post:
+      tags:
+        - diagrams
+      summary: Создать baseline-версию диаграммы
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Baseline-версия создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiagramResponse'
+        '400':
+          description: Текущая версия диаграммы некорректна (ожидается semver)
+        '404':
+          description: Диаграмма не найдена
+        '409':
+          description: Нельзя создать baseline из неактуальной версии или есть конфликт версии
+
   /api/v1/nodes:
     get:
       tags:

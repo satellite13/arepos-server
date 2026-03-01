@@ -461,4 +461,134 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.content.length()").value(1))
             .andExpect(jsonPath("$.content[0].nodeId").value(node1.id.toString()))
     }
+
+    @Test
+    fun `rejects updating non-latest diagram version`() {
+        val owner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "owner-non-latest-update@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "model-non-latest-update",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+        val notation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "notation-non-latest-update",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val oldDiagram = diagramsRepository.save(
+            ru.kavader.arepos.model.Diagrams(
+                name = "diagram-baseline",
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+        diagramsRepository.save(
+            ru.kavader.arepos.model.Diagrams(
+                name = "diagram-baseline",
+                version = "1.1.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+
+        val updatePayload = DiagramUpdateRequest(
+            name = "diagram-baseline-renamed",
+            version = "1.0.1",
+            attrs = """{"layout":"updated"}"""
+        )
+
+        mockMvc.perform(
+            put("/api/v1/diagrams/${oldDiagram.id}")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updatePayload))
+        )
+            .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `creates baseline only from latest diagram version`() {
+        val owner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "owner-baseline-latest@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "model-baseline-latest",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+        val notation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "notation-baseline-latest",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val oldDiagram = diagramsRepository.save(
+            ru.kavader.arepos.model.Diagrams(
+                name = "diagram-baseline",
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+        val latestDiagram = diagramsRepository.save(
+            ru.kavader.arepos.model.Diagrams(
+                name = "diagram-baseline",
+                version = "1.1.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            post("/api/v1/diagrams/${latestDiagram.id}/baseline")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}")
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.name").value("diagram-baseline"))
+            .andExpect(jsonPath("$.version").value("1.2.0"))
+
+        mockMvc.perform(
+            post("/api/v1/diagrams/${oldDiagram.id}/baseline")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}")
+        )
+            .andExpect(status().isConflict)
+    }
 }

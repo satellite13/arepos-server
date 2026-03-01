@@ -14,6 +14,8 @@ import java.util.UUID
 @Repository
 interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
 
+    fun findByModel_IdAndNameAndDeletedFalse(modelId: UUID, name: String): List<Diagrams>
+
     fun findByModel_IdAndNameAndDeletedFalseOrderByCreatedAtDesc(
         modelId: UUID,
         name: String
