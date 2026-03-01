@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
 import org.slf4j.LoggerFactory
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
@@ -27,8 +28,32 @@ class SecurityConfig(
         private val log = LoggerFactory.getLogger(SecurityConfig::class.java)
     }
 
+    /** Публичные пути (/, Swagger UI, api-docs) — без JWT, всегда permitAll. */
     @Bean
-    fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
+    @Order(0)
+    fun publicSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
+        return http
+            .securityMatchers { matchers ->
+                matchers
+                    .requestMatchers(
+                        "/",
+                        "/swagger-ui.html",
+                        "/swagger-ui",
+                        "/swagger-ui/**",
+                        "/v3/api-docs",
+                        "/v3/api-docs/**"
+                    )
+            }
+            .authorizeHttpRequests { auth -> auth.anyRequest().permitAll() }
+            .csrf { it.disable() }
+            .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+            .build()
+    }
+
+    /** API и остальные пути — JWT + авторизация. */
+    @Bean
+    @Order(1)
+    fun apiSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
             .csrf { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
@@ -38,13 +63,6 @@ class SecurityConfig(
                     .requestMatchers("/error").permitAll()
                     .requestMatchers("/api/v1/auth/**").permitAll()
                     .requestMatchers("/actuator/health/**").permitAll()
-                    .requestMatchers(
-                        "/",
-                        "/swagger-ui.html",
-                        "/swagger-ui/**",
-                        "/v3/api-docs",
-                        "/v3/api-docs/**"
-                    ).permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/system/version").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/diagrams/svg/public/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/**").authenticated()
