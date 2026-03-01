@@ -2,11 +2,17 @@ package ru.kavader.arepos.controller
 
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.model.DiagramPreviewLinks
 import ru.kavader.arepos.model.Diagrams
+import ru.kavader.arepos.model.Models
+import ru.kavader.arepos.repository.DiagramPreviewLinksRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
@@ -14,6 +20,7 @@ import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.DiagramSvgStorage
 import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
@@ -27,7 +34,9 @@ class DiagramsController(
     private val nodesRepository: NodesRepository,
     private val notationsRepository: NotationsRepository,
     private val accessService: ResourceAccessService,
-    private val mdFileLinkValidator: MdFileLinkValidator
+    private val mdFileLinkValidator: MdFileLinkValidator,
+    private val diagramSvgStorage: DiagramSvgStorage,
+    private val diagramPreviewLinksRepository: DiagramPreviewLinksRepository
 ) {
 
     @GetMapping
@@ -220,6 +229,149 @@ class DiagramsController(
         }
     }
 
+    @PutMapping("/{id}/svg")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun uploadDiagramSvg(@PathVariable id: UUID, @RequestBody body: String) {
+        val diagram = diagramsRepository.findById(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
+            }
+        accessService.requireCanEditDiagram(diagram)
+        if (!diagramSvgStorage.putSvg(id, body)) {
+            throw ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Diagram preview storage is not available"
+            )
+        }
+    }
+
+    @PostMapping("/share-link")
+    fun createShareLink(@RequestBody request: DiagramShareLinkRequest): DiagramShareLinkResponse {
+        val currentUser = accessService.currentUserId()
+        val user = usersRepository.findById(currentUser)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Current user not found")
+            }
+        val link: DiagramPreviewLinks = when {
+            request.diagramId != null -> {
+                val diagram = diagramsRepository.findById(request.diagramId)
+                    .orElseThrow {
+                        ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram ${request.diagramId} not found")
+                    }
+                accessService.requireCanViewDiagram(diagram)
+                val existing = diagramPreviewLinksRepository.findByDiagram(diagram)
+                if (existing.isPresent) {
+                    return DiagramShareLinkResponse(
+                        url = "/diagrams/svg/public/${existing.get().token}",
+                        token = existing.get().token!!
+                    )
+                }
+                diagramPreviewLinksRepository.save(
+                    DiagramPreviewLinks(
+                        token = UUID.randomUUID(),
+                        diagram = diagram,
+                        model = null,
+                        diagramName = null,
+                        createdAt = Instant.now(),
+                        createdBy = user
+                    )
+                )
+            }
+            request.modelId != null && request.diagramName != null && request.latest == true -> {
+                val model = modelsRepository.findById(request.modelId)
+                    .orElseThrow {
+                        ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
+                    }
+                accessService.requireCanViewModel(model)
+                val allByName = diagramsRepository.findByModel_IdAndNameAndDeletedFalse(model.id!!, request.diagramName)
+                    .filter { accessService.canViewDiagram(it) }
+                allByName.maxWithOrNull(::compareDiagramVersions)
+                    ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No diagram named '${request.diagramName}' found")
+                val existing = diagramPreviewLinksRepository.findByModelAndDiagramName(model, request.diagramName)
+                if (existing.isPresent) {
+                    return DiagramShareLinkResponse(
+                        url = "/diagrams/svg/public/${existing.get().token}",
+                        token = existing.get().token!!
+                    )
+                }
+                diagramPreviewLinksRepository.save(
+                    DiagramPreviewLinks(
+                        token = UUID.randomUUID(),
+                        diagram = null,
+                        model = model,
+                        diagramName = request.diagramName,
+                        createdAt = Instant.now(),
+                        createdBy = user
+                    )
+                )
+            }
+            else -> throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Provide either diagramId or (modelId, diagramName, latest: true)"
+            )
+        }
+        return DiagramShareLinkResponse(
+            url = "/diagrams/svg/public/${link.token}",
+            token = link.token
+        )
+    }
+
+    @GetMapping("svg/public/{token}")
+    fun getDiagramSvgPublic(@PathVariable token: UUID): ResponseEntity<Any> {
+        val link = diagramPreviewLinksRepository.findByToken(token)
+            .orElseGet {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body("Share link not found or expired.")
+            }
+        val diagramId: UUID = when {
+            link.diagram != null -> link.diagram!!.id!!
+            link.model != null && link.diagramName != null -> {
+                val allByName = diagramsRepository.findByModel_IdAndNameAndDeletedFalse(link.model!!.id!!, link.diagramName!!)
+                val latest = allByName.maxWithOrNull(::compareDiagramVersions)
+                    ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .body("Diagram not found.")
+                latest.id!!
+            }
+            else -> return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.TEXT_PLAIN)
+                .body("Invalid share link.")
+        }
+        val svg = diagramSvgStorage.getSvg(diagramId)
+        if (svg == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.TEXT_PLAIN)
+                .body("Preview not found. The diagram owner can upload it in the editor: open the diagram, then use \"Update preview\" in the toolbar or save the model.")
+        }
+        val headers = HttpHeaders().apply {
+            contentType = MediaType.parseMediaType("image/svg+xml")
+            cacheControl = "public, max-age=300"
+        }
+        return ResponseEntity.ok().headers(headers).body(svg)
+    }
+
+    @DeleteMapping("share-link/{token}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
+    fun revokeShareLink(@PathVariable token: UUID) {
+        val link = diagramPreviewLinksRepository.findByToken(token)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Share link not found")
+            }
+        val currentUserId = CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized")
+        val canRevoke = when {
+            link.diagram != null -> accessService.canEditDiagram(link.diagram!!)
+            link.model != null -> accessService.canEditModel(link.model!!)
+            else -> false
+        }
+        if (!canRevoke) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot revoke this link")
+        }
+        diagramPreviewLinksRepository.delete(link)
+    }
+
     @PostMapping("/{id}/baseline")
     @ResponseStatus(HttpStatus.CREATED)
     fun createBaseline(@PathVariable id: UUID): DiagramResponse {
@@ -362,4 +514,16 @@ data class DiagramResponse(
     val attrs: String?,
     val createdAt: Instant?,
     val updatedAt: Instant?
+)
+
+data class DiagramShareLinkRequest(
+    val diagramId: UUID? = null,
+    val modelId: UUID? = null,
+    val diagramName: String? = null,
+    val latest: Boolean? = null
+)
+
+data class DiagramShareLinkResponse(
+    val url: String,
+    val token: UUID
 )

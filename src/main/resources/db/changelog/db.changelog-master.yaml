@@ -144,4 +144,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 017-add-diagram-preview-links
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/017-add-diagram-preview-links.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 
