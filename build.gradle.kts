@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "ru.kvader"
-version = "0.2.4"
+version = "0.2.5"
 
 val mockitoAgent = configurations.create("mockitoAgent")
 
