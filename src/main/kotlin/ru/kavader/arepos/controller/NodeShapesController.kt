@@ -71,6 +71,7 @@ class NodeShapesController(
                 owner = owner,
                 outline = request.outline,
                 contentArea = request.contentArea,
+                attrs = request.attrs,
                 createdAt = now,
                 updatedAt = now
             )
@@ -92,6 +93,7 @@ class NodeShapesController(
                 name = request.name ?: shape.name,
                 outline = request.outline ?: shape.outline,
                 contentArea = request.contentArea ?: shape.contentArea,
+                attrs = request.attrs ?: shape.attrs,
                 updatedAt = Instant.now()
             )
         )
@@ -114,6 +116,7 @@ class NodeShapesController(
         ownerId = owner.id!!,
         outline = outline,
         contentArea = contentArea,
+        attrs = attrs,
         createdAt = createdAt,
         updatedAt = updatedAt,
         canEdit = accessService.canEditNodeShape(this)
@@ -123,13 +126,15 @@ class NodeShapesController(
 data class NodeShapeRequest(
     val name: String,
     val outline: String? = null,
-    val contentArea: String? = null
+    val contentArea: String? = null,
+    val attrs: String? = null
 )
 
 data class NodeShapeUpdateRequest(
     val name: String? = null,
     val outline: String? = null,
-    val contentArea: String? = null
+    val contentArea: String? = null,
+    val attrs: String? = null
 )
 
 data class NodeShapeResponse(
@@ -138,6 +143,7 @@ data class NodeShapeResponse(
     val ownerId: UUID,
     val outline: String?,
     val contentArea: String?,
+    val attrs: String?,
     val createdAt: Instant?,
     val updatedAt: Instant?,
     val canEdit: Boolean

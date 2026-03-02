@@ -7,21 +7,29 @@ import ru.kavader.arepos.model.DocumentRefs
 import ru.kavader.arepos.model.Files
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.ComponentsRepository
+import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.DocumentRefsRepository
 import ru.kavader.arepos.repository.FilesRepository
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.ModelsRepository
+import ru.kavader.arepos.repository.NodeShapesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
+import kotlin.comparisons.compareBy
 
 data class DocumentItem(
     val fileId: UUID,
-    val label: String
+    val label: String,
+    val entityType: String? = null,
+    val entityId: UUID? = null,
+    val entityName: String? = null,
+    val parentName: String? = null
 )
 
 data class RegisterDocumentRefRequest(
@@ -31,7 +39,10 @@ data class RegisterDocumentRefRequest(
     val componentId: UUID? = null,
     val nodeId: UUID? = null,
     val nodeTypeId: UUID? = null,
-    val linkTypeId: UUID? = null
+    val linkTypeId: UUID? = null,
+    val diagramId: UUID? = null,
+    val relationId: UUID? = null,
+    val nodeShapeId: UUID? = null,
 )
 
 @Service
@@ -45,6 +56,9 @@ class DocumentRefsService(
     private val componentsRepository: ComponentsRepository,
     private val nodeTypesRepository: NodeTypesRepository,
     private val linkTypesRepository: LinkTypesRepository,
+    private val diagramsRepository: DiagramsRepository,
+    private val relationsRepository: RelationsRepository,
+    private val nodeShapesRepository: NodeShapesRepository,
     private val accessService: ResourceAccessService
 ) {
 
@@ -58,7 +72,8 @@ class DocumentRefsService(
 
         val hasContext = request.modelId != null || request.notationId != null ||
             request.componentId != null || request.nodeId != null ||
-            request.nodeTypeId != null || request.linkTypeId != null
+            request.nodeTypeId != null || request.linkTypeId != null ||
+            request.diagramId != null || request.relationId != null || request.nodeShapeId != null
         if (!hasContext) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one context id must be set")
         }
@@ -93,6 +108,30 @@ class DocumentRefsService(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Link type not found")
             }.also { t -> accessService.requireCanEditLinkType(t) }
         }
+        val diagram = request.diagramId?.let {
+            diagramsRepository.findById(it).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram not found")
+            }.also { d -> accessService.requireCanEditDiagram(d) }
+        }
+        val relation = request.relationId?.let {
+            relationsRepository.findById(it).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Relation not found")
+            }.also { r -> accessService.requireCanEditRelation(r) }
+        }
+        val nodeShape = request.nodeShapeId?.let {
+            nodeShapesRepository.findById(it).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Node shape not found")
+            }.also { s -> accessService.requireCanEditNodeShape(s) }
+        }
+
+        request.nodeTypeId?.let { nodeTypeId ->
+            documentRefsRepository.findFirstByFile_IdAndNodeType_Id(request.fileId, nodeTypeId)
+                .orElse(null)?.let { existing -> return refToDocumentItem(existing) }
+        }
+        request.linkTypeId?.let { linkTypeId ->
+            documentRefsRepository.findFirstByFile_IdAndLinkType_Id(request.fileId, linkTypeId)
+                .orElse(null)?.let { existing -> return refToDocumentItem(existing) }
+        }
 
         val ref = DocumentRefs(
             file = file,
@@ -103,10 +142,41 @@ class DocumentRefsService(
             notation = notation,
             component = component,
             model = model,
-            node = node
+            node = node,
+            diagram = diagram,
+            relation = relation,
+            nodeShape = nodeShape
         )
         documentRefsRepository.save(ref)
         return DocumentItem(fileId = file.id, label = file.filename)
+    }
+
+    private fun refToDocumentItem(ref: DocumentRefs): DocumentItem =
+        DocumentItem(fileId = ref.file.id!!, label = ref.file.filename)
+
+    private fun entityTypeAndName(ref: DocumentRefs): Pair<String, String?> {
+        return when {
+            ref.nodeType != null -> "nodeType" to ref.nodeType!!.name
+            ref.linkType != null -> "linkType" to ref.linkType!!.name
+            ref.nodeShape != null -> "nodeShape" to ref.nodeShape!!.name
+            ref.notation != null && ref.component == null && ref.relation == null -> "notation" to ref.notation!!.name
+            ref.component != null -> "component" to ref.component!!.name
+            ref.relation != null -> "relation" to ref.relation!!.name
+            ref.model != null && ref.node == null && ref.diagram == null -> "model" to ref.model!!.name
+            ref.node != null -> "node" to ref.node!!.name
+            ref.diagram != null -> "diagram" to ref.diagram!!.name
+            else -> "unknown" to null
+        }
+    }
+
+    private fun parentName(ref: DocumentRefs): String? {
+        return when {
+            ref.component != null -> ref.notation?.name
+            ref.relation != null -> ref.notation?.name
+            ref.node != null -> ref.model?.name
+            ref.diagram != null -> ref.model?.name
+            else -> null
+        }
     }
 
     fun listForSelect(
@@ -115,7 +185,10 @@ class DocumentRefsService(
         componentId: UUID? = null,
         nodeId: UUID? = null,
         nodeTypeId: UUID? = null,
-        linkTypeId: UUID? = null
+        linkTypeId: UUID? = null,
+        diagramId: UUID? = null,
+        relationId: UUID? = null,
+        nodeShapeId: UUID? = null
     ): List<DocumentItem> {
         val userId = accessService.currentUserId()
         val refs = documentRefsRepository.findByFilters(
@@ -125,12 +198,51 @@ class DocumentRefsService(
             componentId = componentId,
             nodeId = nodeId,
             nodeTypeId = nodeTypeId,
-            linkTypeId = linkTypeId
+            linkTypeId = linkTypeId,
+            diagramId = diagramId,
+            relationId = relationId,
+            nodeShapeId = nodeShapeId
         )
-        val seen = mutableSetOf<UUID>()
-        return refs.mapNotNull { ref ->
-            val fid = ref.file.id!!
-            if (seen.add(fid)) DocumentItem(fileId = fid, label = ref.file.filename) else null
+        val withContext = modelId == null && notationId == null && componentId == null &&
+            nodeId == null && nodeTypeId == null && linkTypeId == null &&
+            diagramId == null && relationId == null && nodeShapeId == null
+        if (!withContext) {
+            val seen = mutableSetOf<UUID>()
+            return refs.mapNotNull { ref ->
+                val fid = ref.file.id!!
+                if (!seen.add(fid)) return@mapNotNull null
+                DocumentItem(fileId = fid, label = ref.file.filename)
+            }
+        }
+        val byFile = refs.groupBy { it.file.id!! }
+        return byFile.mapNotNull { (_, fileRefs) ->
+            val ref = fileRefs.maxWithOrNull(
+                compareBy(
+                    { r -> val (t, _) = entityTypeAndName(r); if (t != null && t != "unknown") 1 else 0 },
+                    { r -> r.createdAt?.toEpochMilli() ?: 0L }
+                )
+            ) ?: return@mapNotNull null
+            val (entityType, entityName) = entityTypeAndName(ref)
+            val entityId = when (entityType) {
+                "nodeType" -> ref.nodeType?.id
+                "linkType" -> ref.linkType?.id
+                "nodeShape" -> ref.nodeShape?.id
+                "notation" -> ref.notation?.id
+                "component" -> ref.component?.id
+                "relation" -> ref.relation?.id
+                "model" -> ref.model?.id
+                "node" -> ref.node?.id
+                "diagram" -> ref.diagram?.id
+                else -> null
+            }
+            DocumentItem(
+                fileId = ref.file.id!!,
+                label = ref.file.filename,
+                entityType = entityType,
+                entityId = entityId,
+                entityName = entityName,
+                parentName = parentName(ref)
+            )
         }
     }
 }

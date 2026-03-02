@@ -26,13 +26,19 @@ class DocumentsController(
         @RequestParam(required = false) componentId: UUID?,
         @RequestParam(required = false) nodeId: UUID?,
         @RequestParam(required = false) nodeTypeId: UUID?,
-        @RequestParam(required = false) linkTypeId: UUID?
+        @RequestParam(required = false) linkTypeId: UUID?,
+        @RequestParam(required = false) diagramId: UUID?,
+        @RequestParam(required = false) relationId: UUID?,
+        @RequestParam(required = false) nodeShapeId: UUID?
     ) = documentRefsService.listForSelect(
         modelId = modelId,
         notationId = notationId,
         componentId = componentId,
         nodeId = nodeId,
         nodeTypeId = nodeTypeId,
-        linkTypeId = linkTypeId
+        linkTypeId = linkTypeId,
+        diagramId = diagramId,
+        relationId = relationId,
+        nodeShapeId = nodeShapeId
     )
 }

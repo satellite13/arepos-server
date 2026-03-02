@@ -6,10 +6,14 @@ import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.DocumentRefs
 import ru.kavader.arepos.model.Users
+import java.util.Optional
 import java.util.UUID
 
 @Repository
 interface DocumentRefsRepository : JpaRepository<DocumentRefs, UUID> {
+
+    fun findFirstByFile_IdAndNodeType_Id(fileId: UUID, nodeTypeId: UUID): Optional<DocumentRefs>
+    fun findFirstByFile_IdAndLinkType_Id(fileId: UUID, linkTypeId: UUID): Optional<DocumentRefs>
 
     @Query(
         """
@@ -22,6 +26,9 @@ interface DocumentRefsRepository : JpaRepository<DocumentRefs, UUID> {
           AND (:nodeId IS NULL OR dr.node.id = :nodeId)
           AND (:nodeTypeId IS NULL OR dr.nodeType.id = :nodeTypeId)
           AND (:linkTypeId IS NULL OR dr.linkType.id = :linkTypeId)
+          AND (:diagramId IS NULL OR dr.diagram.id = :diagramId)
+          AND (:relationId IS NULL OR dr.relation.id = :relationId)
+          AND (:nodeShapeId IS NULL OR dr.nodeShape.id = :nodeShapeId)
         ORDER BY dr.createdAt DESC
         """
     )
@@ -32,6 +39,9 @@ interface DocumentRefsRepository : JpaRepository<DocumentRefs, UUID> {
         @Param("componentId") componentId: UUID?,
         @Param("nodeId") nodeId: UUID?,
         @Param("nodeTypeId") nodeTypeId: UUID?,
-        @Param("linkTypeId") linkTypeId: UUID?
+        @Param("linkTypeId") linkTypeId: UUID?,
+        @Param("diagramId") diagramId: UUID?,
+        @Param("relationId") relationId: UUID?,
+        @Param("nodeShapeId") nodeShapeId: UUID?
     ): List<DocumentRefs>
 }

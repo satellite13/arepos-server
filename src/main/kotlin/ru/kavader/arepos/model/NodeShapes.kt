@@ -43,5 +43,9 @@ data class NodeShapes(
     val createdAt: Instant? = null,
 
     @Column(name = "updated_at")
-    val updatedAt: Instant? = null
+    val updatedAt: Instant? = null,
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "attrs", columnDefinition = "jsonb")
+    val attrs: String? = null,
 )

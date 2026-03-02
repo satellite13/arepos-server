@@ -180,4 +180,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 021-document-refs-wiki-and-node-shapes-attrs
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/021-document-refs-wiki-and-node-shapes-attrs.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

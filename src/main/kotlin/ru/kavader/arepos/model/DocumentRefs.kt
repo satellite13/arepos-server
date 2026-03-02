@@ -46,4 +46,16 @@ data class DocumentRefs(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "node_id")
     val node: Nodes? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "diagram_id")
+    val diagram: Diagrams? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "relation_id")
+    val relation: Relations? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "node_shape_id")
+    val nodeShape: NodeShapes? = null,
 )
