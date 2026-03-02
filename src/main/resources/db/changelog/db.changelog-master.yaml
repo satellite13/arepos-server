@@ -162,4 +162,22 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 019-models-source-id
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/019-models-source-id.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+  - changeSet:
+      id: 020-notations-source-id
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/020-notations-source-id.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

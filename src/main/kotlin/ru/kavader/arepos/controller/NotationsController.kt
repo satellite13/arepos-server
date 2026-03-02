@@ -201,6 +201,7 @@ class NotationsController(
                 attrs = request.attrs ?: source.attrs,
                 createdAt = now,
                 updatedAt = now,
+                source = source,
                 deleted = false
             )
         )
@@ -325,7 +326,8 @@ class NotationsController(
         accessPermission = accessService.notationAccessPermission(this),
         attrs = attrs,
         createdAt = createdAt,
-        updatedAt = updatedAt
+        updatedAt = updatedAt,
+        sourceId = source?.id
     )
 }
 
@@ -351,7 +353,8 @@ data class NotationResponse(
     val accessPermission: String? = null,
     val attrs: String?,
     val createdAt: Instant?,
-    val updatedAt: Instant?
+    val updatedAt: Instant?,
+    val sourceId: UUID? = null
 )
 
 data class NotationMetaResponse(

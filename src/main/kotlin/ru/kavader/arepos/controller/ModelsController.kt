@@ -8,10 +8,14 @@ import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.model.Diagrams
+import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.model.ShareResourceType
+import ru.kavader.arepos.repository.DiagramsRepository
+import ru.kavader.arepos.repository.LinksRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
@@ -29,6 +33,8 @@ class ModelsController(
     private val nodesRepository: NodesRepository,
     private val nodeTypesRepository: NodeTypesRepository,
     private val usersRepository: UsersRepository,
+    private val linksRepository: LinksRepository,
+    private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService,
     private val objectMapper: ObjectMapper,
     private val mdFileLinkValidator: MdFileLinkValidator
@@ -185,6 +191,178 @@ class ModelsController(
         }
     }
 
+    @PostMapping("/{sourceId}/copy")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Transactional
+    fun copyModel(
+        @PathVariable sourceId: UUID,
+        @RequestBody request: ModelRequest
+    ): ModelResponse {
+        val source = modelsRepository.findById(sourceId)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Source model $sourceId not found")
+            }
+        accessService.requireCanEditModel(source)
+        if (modelsRepository.existsByNameAndVersion(request.name, request.version)) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Model with name '${request.name}' and version '${request.version}' already exists"
+            )
+        }
+        val currentUserId = accessService.currentUserId()
+        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+            request.ownerId ?: currentUserId
+        } else {
+            currentUserId
+        }
+        val owner = usersRepository.findById(resolvedOwnerId)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
+            }
+        mdFileLinkValidator.validate(request.attrs)
+        val now = Instant.now()
+
+        val newModel = modelsRepository.save(
+            Models(
+                name = request.name,
+                createdAt = now,
+                updatedAt = now,
+                attrs = source.attrs,
+                version = request.version,
+                owner = owner,
+                source = source,
+                deleted = false
+            )
+        )
+
+        val rootNodeType = getOrCreateSystemRootNodeType(owner, now)
+        val sourceNodes = nodesRepository.findByModelIdOrdered(source.id!!, Pageable.unpaged()).content
+        val nodeIdMap = mutableMapOf<UUID, UUID>()
+        val sourceRoot = sourceNodes.firstOrNull { it.parentNode == null }
+            ?: throw ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Source model has no root node")
+
+        val newRoot = nodesRepository.save(
+            Nodes(
+                name = SYSTEM_ROOT_NODE_NAME,
+                createdAt = now,
+                updatedAt = now,
+                attrs = sourceRoot.attrs,
+                parentNode = null,
+                model = newModel,
+                owner = owner,
+                nodeType = rootNodeType
+            )
+        )
+        nodeIdMap[sourceRoot.id!!] = newRoot.id!!
+        val attrsWithRoot = mergeModelAttrsWithRootNodeId(newModel.attrs, newRoot.id!!)
+        modelsRepository.save(newModel.copy(attrs = attrsWithRoot))
+
+        val pendingNodes = sourceNodes.filter { it.id != sourceRoot.id }.toMutableList()
+        while (pendingNodes.isNotEmpty()) {
+            var progress = false
+            val iterator = pendingNodes.iterator()
+            while (iterator.hasNext()) {
+                val srcNode = iterator.next()
+                val newParentId = srcNode.parentNode?.id?.let { nodeIdMap[it] } ?: continue
+                val newParent = nodesRepository.findById(newParentId).orElseThrow { IllegalStateException("New parent not found") }
+                val saved = nodesRepository.save(
+                    srcNode.copy(
+                        id = null,
+                        parentNode = newParent,
+                        model = newModel,
+                        owner = owner,
+                        createdAt = now,
+                        updatedAt = now
+                    )
+                )
+                nodeIdMap[srcNode.id!!] = saved.id!!
+                iterator.remove()
+                progress = true
+            }
+            if (!progress) {
+                val unmapped = pendingNodes.firstOrNull()
+                throw IllegalStateException(
+                    "Parent node not yet mapped for node ${unmapped?.id}. " +
+                        "Check that all nodes have a path to root (no cycles or broken parent links)."
+                )
+            }
+        }
+
+        val sourceLinks = linksRepository.findByModel(source, Pageable.unpaged()).content
+        for (srcLink in sourceLinks) {
+            val newSourceId = nodeIdMap[srcLink.source.id!!]
+                ?: continue
+            val newTargetId = nodeIdMap[srcLink.target.id!!]
+                ?: continue
+            val newSource = nodesRepository.findById(newSourceId).orElseThrow { IllegalStateException("New source node not found") }
+            val newTarget = nodesRepository.findById(newTargetId).orElseThrow { IllegalStateException("New target node not found") }
+            linksRepository.save(
+                Links(
+                    source = newSource,
+                    target = newTarget,
+                    attrs = srcLink.attrs,
+                    createdAt = now,
+                    updatedAt = now,
+                    owner = owner,
+                    linkType = srcLink.linkType,
+                    model = newModel
+                )
+            )
+        }
+
+        val sourceDiagrams = diagramsRepository.findByFilters(
+            ownerId = null,
+            modelId = source.id,
+            nodeId = null,
+            notationId = null,
+            name = "",
+            pageable = Pageable.unpaged()
+        ).content
+        for (srcDiagram in sourceDiagrams) {
+            val newNodeId = srcDiagram.node?.id?.let { nodeIdMap[it] }?.let { nodesRepository.findById(it).orElse(null) }
+            val remappedAttrs = remapDiagramAttrsNodeIds(srcDiagram.attrs, nodeIdMap)
+            diagramsRepository.save(
+                Diagrams(
+                    name = srcDiagram.name,
+                    version = srcDiagram.version,
+                    createdAt = now,
+                    updatedAt = now,
+                    attrs = remappedAttrs,
+                    owner = owner,
+                    model = newModel,
+                    notation = srcDiagram.notation,
+                    node = newNodeId,
+                    deleted = false
+                )
+            )
+        }
+
+        return modelsRepository.findById(newModel.id!!).orElseThrow { IllegalStateException("New model not found") }.toResponse()
+    }
+
+    private fun remapDiagramAttrsNodeIds(attrs: String?, nodeIdMap: Map<UUID, UUID>): String? {
+        if (attrs.isNullOrBlank()) return attrs
+        return try {
+            val tree = objectMapper.readTree(attrs) ?: return attrs
+            val instances = tree.get("instances") ?: return objectMapper.writeValueAsString(tree)
+            val nodes = instances.get("nodes") ?: return objectMapper.writeValueAsString(tree)
+            for (i in 0 until nodes.size()) {
+                val node = nodes.get(i) ?: continue
+                val modelNodeId = node.get("modelNodeId")?.asText() ?: continue
+                val oldUuid = try {
+                    UUID.fromString(modelNodeId)
+                } catch (_: Exception) {
+                    continue
+                }
+                val newUuid = nodeIdMap[oldUuid] ?: continue
+                (node as? ObjectNode)?.put("modelNodeId", newUuid.toString())
+            }
+            objectMapper.writeValueAsString(tree)
+        } catch (_: Exception) {
+            attrs
+        }
+    }
+
     private fun checkOwnerOrRole(ownerId: UUID) {
         val currentUserId = CurrentUser.getId() ?: return
         if (currentUserId != ownerId && !CurrentUser.isAdmin()) {
@@ -228,7 +406,8 @@ class ModelsController(
         accessPermission = accessService.modelAccessPermission(this),
         attrs = attrs,
         createdAt = createdAt,
-        updatedAt = updatedAt
+        updatedAt = updatedAt,
+        sourceId = source?.id
     )
 
     private fun getOrCreateSystemRootNodeType(
@@ -285,5 +464,6 @@ data class ModelResponse(
     val accessPermission: String? = null,
     val attrs: String?,
     val createdAt: Instant?,
-    val updatedAt: Instant?
+    val updatedAt: Instant?,
+    val sourceId: UUID? = null
 )

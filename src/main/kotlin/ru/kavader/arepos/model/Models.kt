@@ -38,6 +38,10 @@ data class Models(
     @JoinColumn(name = "owner", nullable = false)
     val owner: Users,
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_id")
+    val source: Models? = null,
+
     @Column(name = "deleted", nullable = false)
     val deleted: Boolean = false
 )

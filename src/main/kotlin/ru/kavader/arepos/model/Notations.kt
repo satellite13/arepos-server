@@ -38,6 +38,10 @@ data class Notations(
     @Column(name = "version", nullable = false, columnDefinition = "version_type")
     val version: String,
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_id")
+    val source: Notations? = null,
+
     @Column(name = "deleted", nullable = false)
     val deleted: Boolean = false
 )
