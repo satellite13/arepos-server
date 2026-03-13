@@ -106,6 +106,18 @@ class NotationsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
             }
 
+    @GetMapping("/{id}/newer-versions")
+    fun getNewerVersions(@PathVariable id: UUID): List<NotationResponse> {
+        accessService.requireCanViewNotation(
+            notationsRepository.findById(id).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
+            }
+        )
+        return notationsRepository.findBySourceId(id)
+            .filter { accessService.canViewNotation(it) }
+            .map { it.toResponse() }
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createNotation(@RequestBody request: NotationRequest): NotationResponse {
@@ -214,6 +226,7 @@ class NotationsController(
                 srcComponent.copy(
                     id = null,
                     notation = newNotation,
+                    version = newNotation.version,
                     owner = owner,
                     createdAt = now,
                     updatedAt = now
@@ -230,6 +243,7 @@ class NotationsController(
                 srcRelation.copy(
                     id = null,
                     notation = newNotation,
+                    version = newNotation.version,
                     owner = owner,
                     createdAt = now,
                     updatedAt = now

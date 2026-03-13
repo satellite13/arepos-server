@@ -41,3 +41,6 @@ out/
 .kotlin
 
 .DS_store
+
+metrics/grafana/
+metrics/prometheus/
