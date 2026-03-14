@@ -86,6 +86,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         )
         val node = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
+                stableId = java.util.UUID.randomUUID(),
                 name = "diagram-node",
                 model = model,
                 owner = owner,
@@ -405,6 +406,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         )
         val node1 = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
+                stableId = java.util.UUID.randomUUID(),
                 name = "list-node-1",
                 model = model,
                 owner = owner,
@@ -414,6 +416,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         )
         val node2 = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
+                stableId = java.util.UUID.randomUUID(),
                 name = "list-node-2",
                 model = model,
                 owner = owner,

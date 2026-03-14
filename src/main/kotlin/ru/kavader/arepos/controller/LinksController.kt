@@ -161,6 +161,7 @@ class LinksController(
         val now = Instant.now()
         val saved = linksRepository.save(
             Links(
+                stableId = request.stableId ?: UUID.randomUUID(),
                 source = source,
                 target = target,
                 createdAt = now,
@@ -263,6 +264,7 @@ class LinksController(
 
     private fun Links.toResponse() = LinkResponse(
         id = requireNotNull(id),
+        stableId = stableId,
         sourceId = source.id!!,
         targetId = target.id!!,
         modelId = model.id!!,
@@ -315,7 +317,8 @@ data class LinkRequest(
     val modelId: UUID,
     val ownerId: UUID? = null,
     val linkTypeId: UUID,
-    val attrs: String? = null
+    val attrs: String? = null,
+    val stableId: UUID? = null
 )
 
 data class LinkUpdateRequest(
@@ -329,6 +332,7 @@ data class LinkUpdateRequest(
 
 data class LinkResponse(
     val id: UUID,
+    val stableId: UUID,
     val sourceId: UUID,
     val targetId: UUID,
     val modelId: UUID,

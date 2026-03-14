@@ -25,6 +25,12 @@ interface ModelsRepository : JpaRepository<Models, UUID> {
     
     @Query("SELECT m FROM Models m WHERE LOWER(m.name) LIKE LOWER(CONCAT('%', :name, '%')) AND m.deleted = false")
     fun findByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<Models>
+
+    @Query("SELECT m FROM Models m WHERE m.name = :name AND m.deleted = false")
+    fun findByNameAndDeletedFalse(name: String): List<Models>
+
+    @Query("SELECT m FROM Models m WHERE m.source.id = :sourceId AND m.deleted = false")
+    fun findBySourceIdAndDeletedFalse(sourceId: UUID): List<Models>
     
     @Query("SELECT m FROM Models m WHERE m.owner = :owner AND LOWER(m.name) LIKE LOWER(CONCAT('%', :name, '%')) AND m.deleted = false")
     fun findByOwnerAndNameContainingIgnoreCase(owner: Users, name: String, pageable: Pageable): Page<Models>
@@ -38,6 +44,12 @@ interface ModelsRepository : JpaRepository<Models, UUID> {
     @Query("SELECT CASE WHEN COUNT(m) > 0 THEN true ELSE false END FROM Models m WHERE m.id = :id AND m.deleted = false")
     override fun existsById(id: UUID): Boolean
     
+    @Query("SELECT m FROM Models m WHERE m.deleted = true")
+    fun findByDeletedTrue(pageable: Pageable): Page<Models>
+
+    @Query("SELECT m FROM Models m WHERE m.id = :id")
+    fun findByIdIncludingDeleted(id: UUID): Optional<Models>
+
     // Метод для мягкого удаления
     @Modifying
     @Query("UPDATE Models m SET m.deleted = true WHERE m.id = :id")

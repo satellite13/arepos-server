@@ -104,6 +104,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
         nodesRepository.saveAll(
             listOf(
                 ru.kavader.arepos.model.Nodes(
+                    stableId = java.util.UUID.randomUUID(),
                     name = "Node-A",
                     model = model,
                     owner = owner,
@@ -111,6 +112,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
                     createdAt = Instant.now()
                 ),
                 ru.kavader.arepos.model.Nodes(
+                    stableId = java.util.UUID.randomUUID(),
                     name = "Node-B",
                     model = model,
                     owner = owner,
@@ -132,6 +134,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
     fun `updates node parent to root when parentNodeId is null`() {
         val folder = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
+                stableId = java.util.UUID.randomUUID(),
                 name = "Folder",
                 model = model,
                 owner = owner,
@@ -141,6 +144,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
         )
         val child = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
+                stableId = java.util.UUID.randomUUID(),
                 name = "Child",
                 model = model,
                 owner = owner,
@@ -176,6 +180,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
     fun `forbids update of system tree root node`() {
         val rootNode = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
+                stableId = java.util.UUID.randomUUID(),
                 name = "__model_tree_root__",
                 model = model,
                 owner = owner,
@@ -206,6 +211,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
     fun `forbids delete of system tree root node`() {
         val rootNode = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
+                stableId = java.util.UUID.randomUUID(),
                 name = "__model_tree_root__",
                 model = model,
                 owner = owner,

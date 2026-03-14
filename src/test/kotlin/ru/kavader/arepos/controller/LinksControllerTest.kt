@@ -63,6 +63,7 @@ class LinksControllerTest : ControllerIntegrationTest() {
         )
         sourceNode = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
+                stableId = java.util.UUID.randomUUID(),
                 name = "source-node",
                 model = model,
                 owner = owner,
@@ -72,6 +73,7 @@ class LinksControllerTest : ControllerIntegrationTest() {
         )
         targetNode = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
+                stableId = java.util.UUID.randomUUID(),
                 name = "target-node",
                 model = model,
                 owner = owner,

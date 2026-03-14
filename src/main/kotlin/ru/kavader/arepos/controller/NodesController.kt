@@ -128,6 +128,7 @@ class NodesController(
         val now = Instant.now()
         val saved = nodesRepository.save(
             Nodes(
+                stableId = request.stableId ?: UUID.randomUUID(),
                 name = request.name,
                 model = model,
                 owner = owner,
@@ -236,6 +237,7 @@ class NodesController(
 
     private fun Nodes.toResponse() = NodeResponse(
         id = requireNotNull(id),
+        stableId = stableId,
         name = name,
         modelId = model.id!!,
         ownerId = owner.id!!,
@@ -299,7 +301,8 @@ data class NodeRequest(
     val ownerId: UUID? = null,
     val nodeTypeId: UUID,
     val parentNodeId: UUID? = null,
-    val attrs: String? = null
+    val attrs: String? = null,
+    val stableId: UUID? = null
 )
 
 data class NodeUpdateRequest(
@@ -313,6 +316,7 @@ data class NodeUpdateRequest(
 
 data class NodeResponse(
     val id: UUID,
+    val stableId: UUID,
     val name: String,
     val modelId: UUID,
     val ownerId: UUID,

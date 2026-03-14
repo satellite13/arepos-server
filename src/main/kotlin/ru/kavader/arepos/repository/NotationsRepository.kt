@@ -31,10 +31,19 @@ interface NotationsRepository : JpaRepository<Notations, UUID> {
 
     @Query("SELECT n FROM Notations n WHERE n.source.id = :sourceId AND n.deleted = false")
     fun findBySourceId(sourceId: UUID): List<Notations>
-    
+
+    @Query("SELECT CASE WHEN COUNT(n) > 0 THEN true ELSE false END FROM Notations n WHERE n.name = :name AND n.version = :version AND n.deleted = false")
+    fun existsByNameAndVersion(name: String, version: String): Boolean
+
     @Query("SELECT CASE WHEN COUNT(n) > 0 THEN true ELSE false END FROM Notations n WHERE n.id = :id AND n.deleted = false")
     override fun existsById(id: UUID): Boolean
     
+    @Query("SELECT n FROM Notations n WHERE n.deleted = true")
+    fun findByDeletedTrue(pageable: Pageable): Page<Notations>
+
+    @Query("SELECT n FROM Notations n WHERE n.id = :id")
+    fun findByIdIncludingDeleted(id: UUID): Optional<Notations>
+
     // Метод для мягкого удаления
     @Modifying
     @Query("UPDATE Notations n SET n.deleted = true WHERE n.id = :id")

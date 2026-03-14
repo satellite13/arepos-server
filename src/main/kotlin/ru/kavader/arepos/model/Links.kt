@@ -16,6 +16,9 @@ data class Links(
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
     val id: UUID? = null,
 
+    @Column(name = "stable_id", columnDefinition = "uuid", nullable = false)
+    val stableId: UUID,
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source", nullable = false)
     val source: Nodes,

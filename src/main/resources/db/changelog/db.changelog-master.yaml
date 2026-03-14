@@ -189,4 +189,40 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: false
             endDelimiter: ;
+  - changeSet:
+      id: 022-nodes-stable-id
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/022-nodes-stable-id.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+  - changeSet:
+      id: 023-links-stable-id
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/023-links-stable-id.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+  - changeSet:
+      id: 024-models-notations-unique-where-not-deleted
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/024-models-notations-unique-where-not-deleted.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+  - changeSet:
+      id: 025-stable-id-non-unique
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/025-stable-id-non-unique.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
 

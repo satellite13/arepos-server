@@ -74,6 +74,28 @@ class ModelsController(
         return models.map { it.toResponse() }
     }
 
+    @GetMapping("/deleted")
+    fun listDeletedModels(pageable: Pageable): Page<ModelResponse> {
+        if (!CurrentUser.isAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
+        }
+        return modelsRepository.findByDeletedTrue(pageable).map { it.toResponse() }
+    }
+
+    @DeleteMapping("/{id}/permanent")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
+    fun permanentDeleteModel(@PathVariable id: UUID) {
+        if (!CurrentUser.isAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
+        }
+        val model = modelsRepository.findByIdIncludingDeleted(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
+            }
+        modelsRepository.delete(model)
+    }
+
     @GetMapping("/{id}")
     fun getModel(@PathVariable id: UUID): ModelResponse =
         modelsRepository.findById(id)
@@ -84,6 +106,42 @@ class ModelsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
             }
+
+    @GetMapping("/{id}/related-versions")
+    fun getRelatedVersions(@PathVariable id: UUID): List<ModelResponse> {
+        val model = modelsRepository.findById(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
+            }
+        accessService.requireCanViewModel(model)
+        val byName = modelsRepository.findByNameAndDeletedFalse(model.name)
+        val withSource = model.source?.let { listOf(it) } ?: emptyList()
+        val derived = modelsRepository.findBySourceIdAndDeletedFalse(id)
+        val combined = (byName + withSource + derived).distinctBy { it.id }
+        val filtered = if (CurrentUser.isAdmin()) {
+            combined
+        } else {
+            combined.filter { accessService.canViewModel(it) }
+        }
+        return filtered
+            .sortedWith(compareModelsByVersionDesc)
+            .map { it.toResponse() }
+    }
+
+    private val compareModelsByVersionDesc: Comparator<Models> = compareBy<Models> { parseSemver(it.version) == null }
+        .thenByDescending { parseSemver(it.version)?.first ?: 0 }
+        .thenByDescending { parseSemver(it.version)?.second ?: 0 }
+        .thenByDescending { parseSemver(it.version)?.third ?: 0 }
+        .thenByDescending { it.version }
+
+    private fun parseSemver(version: String): Triple<Int, Int, Int>? {
+        val parts = version.trim().split(".")
+        if (parts.size != 3) return null
+        val major = parts[0].toIntOrNull() ?: return null
+        val minor = parts[1].toIntOrNull() ?: return null
+        val patch = parts[2].toIntOrNull() ?: return null
+        return Triple(major, minor, patch)
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -120,6 +178,7 @@ class ModelsController(
         val rootNodeType = getOrCreateSystemRootNodeType(owner, now)
         val rootNode = nodesRepository.save(
             Nodes(
+                stableId = UUID.randomUUID(),
                 name = SYSTEM_ROOT_NODE_NAME,
                 createdAt = now,
                 updatedAt = now,
@@ -203,6 +262,7 @@ class ModelsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Source model $sourceId not found")
             }
         accessService.requireCanEditModel(source)
+        // Конфликт только с неудалёнными: версия, занятая удалённой моделью, допустима
         if (modelsRepository.existsByNameAndVersion(request.name, request.version)) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
@@ -243,6 +303,7 @@ class ModelsController(
 
         val newRoot = nodesRepository.save(
             Nodes(
+                stableId = sourceRoot.stableId,
                 name = SYSTEM_ROOT_NODE_NAME,
                 createdAt = now,
                 updatedAt = now,
@@ -268,6 +329,7 @@ class ModelsController(
                 val saved = nodesRepository.save(
                     srcNode.copy(
                         id = null,
+                        stableId = srcNode.stableId,
                         parentNode = newParent,
                         model = newModel,
                         owner = owner,
@@ -289,6 +351,7 @@ class ModelsController(
         }
 
         val sourceLinks = linksRepository.findByModel(source, Pageable.unpaged()).content
+        val linkIdMap = mutableMapOf<UUID, UUID>()
         for (srcLink in sourceLinks) {
             val newSourceId = nodeIdMap[srcLink.source.id!!]
                 ?: continue
@@ -296,8 +359,9 @@ class ModelsController(
                 ?: continue
             val newSource = nodesRepository.findById(newSourceId).orElseThrow { IllegalStateException("New source node not found") }
             val newTarget = nodesRepository.findById(newTargetId).orElseThrow { IllegalStateException("New target node not found") }
-            linksRepository.save(
+            val copiedLink = linksRepository.save(
                 Links(
+                    stableId = srcLink.stableId,
                     source = newSource,
                     target = newTarget,
                     attrs = srcLink.attrs,
@@ -308,6 +372,7 @@ class ModelsController(
                     model = newModel
                 )
             )
+            linkIdMap[srcLink.id!!] = copiedLink.id!!
         }
 
         val sourceDiagrams = diagramsRepository.findByFilters(
@@ -320,7 +385,7 @@ class ModelsController(
         ).content
         for (srcDiagram in sourceDiagrams) {
             val newNodeId = srcDiagram.node?.id?.let { nodeIdMap[it] }?.let { nodesRepository.findById(it).orElse(null) }
-            val remappedAttrs = remapDiagramAttrsNodeIds(srcDiagram.attrs, nodeIdMap)
+            val remappedAttrs = remapDiagramAttrs(srcDiagram.attrs, nodeIdMap, linkIdMap)
             diagramsRepository.save(
                 Diagrams(
                     name = srcDiagram.name,
@@ -340,7 +405,11 @@ class ModelsController(
         return modelsRepository.findById(newModel.id!!).orElseThrow { IllegalStateException("New model not found") }.toResponse()
     }
 
-    private fun remapDiagramAttrsNodeIds(attrs: String?, nodeIdMap: Map<UUID, UUID>): String? {
+    private fun remapDiagramAttrs(
+        attrs: String?,
+        nodeIdMap: Map<UUID, UUID>,
+        linkIdMap: Map<UUID, UUID>
+    ): String? {
         if (attrs.isNullOrBlank()) return attrs
         return try {
             val tree = objectMapper.readTree(attrs) ?: return attrs
@@ -356,6 +425,20 @@ class ModelsController(
                 }
                 val newUuid = nodeIdMap[oldUuid] ?: continue
                 (node as? ObjectNode)?.put("modelNodeId", newUuid.toString())
+            }
+            val edges = instances.get("edges")
+            if (edges != null && edges.isArray) {
+                for (i in 0 until edges.size()) {
+                    val edge = edges.get(i) ?: continue
+                    val modelLinkId = edge.get("modelLinkId")?.asText() ?: continue
+                    val oldUuid = try {
+                        UUID.fromString(modelLinkId)
+                    } catch (_: Exception) {
+                        continue
+                    }
+                    val newUuid = linkIdMap[oldUuid] ?: continue
+                    (edge as? ObjectNode)?.put("modelLinkId", newUuid.toString())
+                }
             }
             objectMapper.writeValueAsString(tree)
         } catch (_: Exception) {

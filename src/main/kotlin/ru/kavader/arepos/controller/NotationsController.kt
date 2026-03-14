@@ -65,6 +65,28 @@ class NotationsController(
         return notations.map { it.toResponse() }
     }
 
+    @GetMapping("/deleted")
+    fun listDeletedNotations(pageable: Pageable): Page<NotationResponse> {
+        if (!CurrentUser.isAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
+        }
+        return notationsRepository.findByDeletedTrue(pageable).map { it.toResponse() }
+    }
+
+    @DeleteMapping("/{id}/permanent")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
+    fun permanentDeleteNotation(@PathVariable id: UUID) {
+        if (!CurrentUser.isAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
+        }
+        val notation = notationsRepository.findByIdIncludingDeleted(id)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
+            }
+        notationsRepository.delete(notation)
+    }
+
     @GetMapping("/{id}")
     fun getNotation(@PathVariable id: UUID): NotationResponse =
         notationsRepository.findById(id)
@@ -132,6 +154,13 @@ class NotationsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
             }
         mdFileLinkValidator.validate(request.attrs)
+        // Конфликт только с неудалёнными: версия, занятая удалённой нотацией, допустима
+        if (notationsRepository.existsByNameAndVersion(request.name, request.version)) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Notation with name '${request.name}' and version '${request.version}' already exists"
+            )
+        }
         val now = Instant.now()
         val saved = notationsRepository.save(
             Notations(
@@ -192,6 +221,13 @@ class NotationsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Source notation $sourceId not found")
             }
         accessService.requireCanEditNotation(source)
+        // Конфликт только с неудалёнными: версия, занятая удалённой нотацией, допустима
+        if (notationsRepository.existsByNameAndVersion(request.name, request.version)) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Notation with name '${request.name}' and version '${request.version}' already exists"
+            )
+        }
         val currentUserId = accessService.currentUserId()
         val resolvedOwnerId = if (CurrentUser.isAdmin()) {
             request.ownerId ?: currentUserId

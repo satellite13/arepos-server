@@ -162,6 +162,7 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
         parent: Nodes? = null
     ): Nodes = nodesRepository.save(
         Nodes(
+            stableId = UUID.randomUUID(),
             name = name,
             createdAt = Instant.now(),
             attrs = attrs,
@@ -182,6 +183,7 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
         attrs: String? = """{"strength":0.5}"""
     ): Links = linksRepository.save(
         Links(
+            stableId = UUID.randomUUID(),
             source = source,
             target = target,
             attrs = attrs,

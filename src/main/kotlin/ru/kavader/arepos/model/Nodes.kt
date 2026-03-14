@@ -16,6 +16,9 @@ data class Nodes(
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
     val id: UUID? = null,
 
+    @Column(name = "stable_id", columnDefinition = "uuid", nullable = false)
+    val stableId: UUID,
+
     @Column(name = "name", nullable = false)
     val name: String,
 

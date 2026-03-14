@@ -8,9 +8,7 @@ import java.util.*
 import org.hibernate.type.SqlTypes
 
 @Entity
-@Table(name = "notations", schema = "public", uniqueConstraints = [
-    UniqueConstraint(name = "notations_name_version_key", columnNames = ["name", "version"])
-])
+@Table(name = "notations", schema = "public")
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Notations(
     @Id
