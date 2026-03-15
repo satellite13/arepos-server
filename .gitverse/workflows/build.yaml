@@ -1,6 +1,5 @@
 name: Build ArchRepo Server
-on:
- push:
+on: [push]
 jobs:
   build:
     name: Build application
