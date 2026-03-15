@@ -47,18 +47,27 @@ class AccessSharesController(
         if (request.granteeUserId == currentUser) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot grant access to yourself")
         }
-        val grantee = usersRepository.findById(request.granteeUserId).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "User ${request.granteeUserId} not found")
+        val grantee = request.granteeUserId?.let { granteeUserId ->
+            usersRepository.findById(granteeUserId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "User $granteeUserId not found")
+            }
         }
         val grantedBy = usersRepository.findById(currentUser).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "User $currentUser not found")
         }
         val requestedPermission = request.permission ?: SharePermission.VIEW
-        val existing = resourceSharesRepository.findByResourceTypeAndResourceIdAndGranteeUserId(
-            resourceType = request.resourceType,
-            resourceId = request.resourceId,
-            granteeUserId = request.granteeUserId
-        )
+        val existing = if (request.granteeUserId != null) {
+            resourceSharesRepository.findByResourceTypeAndResourceIdAndGranteeUserId(
+                resourceType = request.resourceType,
+                resourceId = request.resourceId,
+                granteeUserId = request.granteeUserId
+            )
+        } else {
+            resourceSharesRepository.findByResourceTypeAndResourceIdAndGranteeUserIsNull(
+                resourceType = request.resourceType,
+                resourceId = request.resourceId
+            )
+        }
         if (existing.isNotEmpty()) {
             val current = existing.first()
             if (current.permission == requestedPermission) {
@@ -143,7 +152,7 @@ class AccessSharesController(
         id = id!!,
         resourceType = resourceType,
         resourceId = resourceId,
-        granteeUserId = granteeUser.id!!,
+        granteeUserId = granteeUser?.id,
         grantedByUserId = grantedByUser.id!!,
         permission = permission.name,
         createdAt = createdAt,
@@ -154,7 +163,7 @@ class AccessSharesController(
 data class AccessShareRequest(
     val resourceType: ShareResourceType,
     val resourceId: UUID,
-    val granteeUserId: UUID,
+    val granteeUserId: UUID? = null,
     val permission: SharePermission? = null
 )
 
@@ -162,7 +171,7 @@ data class AccessShareResponse(
     val id: UUID,
     val resourceType: ShareResourceType,
     val resourceId: UUID,
-    val granteeUserId: UUID,
+    val granteeUserId: UUID?,
     val grantedByUserId: UUID,
     val permission: String,
     val createdAt: Instant?,

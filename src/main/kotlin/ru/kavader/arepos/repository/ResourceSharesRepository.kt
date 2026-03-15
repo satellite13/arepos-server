@@ -47,10 +47,31 @@ interface ResourceSharesRepository : JpaRepository<ResourceShares, UUID> {
         granteeUserId: UUID
     ): List<ResourceShares>
 
+    fun findByResourceTypeAndResourceIdAndGranteeUserIsNull(
+        resourceType: ShareResourceType,
+        resourceId: UUID
+    ): List<ResourceShares>
+
     fun existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermissionIn(
         resourceType: ShareResourceType,
         resourceId: UUID,
         granteeUserId: UUID,
         permissions: Collection<SharePermission>
     ): Boolean
+
+    fun existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermissionIn(
+        resourceType: ShareResourceType,
+        resourceId: UUID,
+        permissions: Collection<SharePermission>
+    ): Boolean
+
+    fun existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermission(
+        resourceType: ShareResourceType,
+        resourceId: UUID,
+        permission: SharePermission
+    ): Boolean
+
+    fun findByGranteeUserIsNullAndPermissionIn(
+        permissions: Collection<SharePermission>
+    ): List<ResourceShares>
 }

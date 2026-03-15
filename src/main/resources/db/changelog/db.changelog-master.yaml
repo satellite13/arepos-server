@@ -226,3 +226,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 026-add-public-resource-shares
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/026-add-public-resource-shares.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

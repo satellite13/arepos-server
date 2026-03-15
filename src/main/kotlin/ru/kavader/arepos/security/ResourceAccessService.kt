@@ -232,7 +232,10 @@ class ResourceAccessService(
 
     fun sharedResourceIds(resourceType: ShareResourceType): Set<UUID> {
         val userId = currentUserId()
-        return resourceSharesRepository.findByGranteeUserIdAndPermissionIn(userId, viewPermissions)
+        return (
+            resourceSharesRepository.findByGranteeUserIdAndPermissionIn(userId, viewPermissions) +
+                resourceSharesRepository.findByGranteeUserIsNullAndPermissionIn(viewPermissions)
+            )
             .asSequence()
             .filter { it.resourceType == resourceType }
             .map { it.resourceId }
@@ -245,6 +248,10 @@ class ResourceAccessService(
             resourceType = resourceType,
             resourceId = resourceId,
             granteeUserId = userId,
+            permissions = viewPermissions
+        ) || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermissionIn(
+            resourceType = resourceType,
+            resourceId = resourceId,
             permissions = viewPermissions
         )
     }
@@ -282,6 +289,10 @@ class ResourceAccessService(
             resourceId = resourceId,
             granteeUserId = userId,
             permission = SharePermission.EDIT
+        ) || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermission(
+            resourceType = resourceType,
+            resourceId = resourceId,
+            permission = SharePermission.EDIT
         )
     }
 
@@ -297,6 +308,10 @@ class ResourceAccessService(
             resourceType = resourceType,
             resourceId = resourceId,
             granteeUserId = userId,
+            permissions = viewPermissions
+        ) || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermissionIn(
+            resourceType = resourceType,
+            resourceId = resourceId,
             permissions = viewPermissions
         )
     }
@@ -316,6 +331,11 @@ class ResourceAccessService(
                 granteeUserId = userId,
                 permission = SharePermission.EDIT
             )
+                || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermission(
+                resourceType = resourceType,
+                resourceId = resourceId,
+                permission = SharePermission.EDIT
+            )
         ) {
             return "EDIT"
         }
@@ -324,6 +344,11 @@ class ResourceAccessService(
                 resourceType = resourceType,
                 resourceId = resourceId,
                 granteeUserId = userId,
+                permissions = viewPermissions
+            )
+                || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermissionIn(
+                resourceType = resourceType,
+                resourceId = resourceId,
                 permissions = viewPermissions
             )
         ) {

@@ -59,8 +59,8 @@ data class ResourceShares(
     val resourceId: UUID,
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "grantee_user_id", nullable = false)
-    val granteeUser: Users,
+    @JoinColumn(name = "grantee_user_id", nullable = true)
+    val granteeUser: Users?,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "granted_by_user_id", nullable = false)
