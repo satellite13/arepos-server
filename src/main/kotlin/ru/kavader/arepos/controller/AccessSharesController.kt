@@ -39,7 +39,15 @@ class AccessSharesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun grantShare(@RequestBody request: AccessShareRequest): AccessShareResponse {
-        val ownerId = resolveOwnerId(request.resourceType, request.resourceId)
+        val resourceType = request.resourceType ?: throw ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "resourceType is required"
+        )
+        val resourceId = request.resourceId ?: throw ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "resourceId is required"
+        )
+        val ownerId = resolveOwnerId(resourceType, resourceId)
         if (!accessService.canManageShares(ownerId)) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
@@ -58,14 +66,14 @@ class AccessSharesController(
         val requestedPermission = request.permission ?: SharePermission.VIEW
         val existing = if (request.granteeUserId != null) {
             resourceSharesRepository.findByResourceTypeAndResourceIdAndGranteeUserId(
-                resourceType = request.resourceType,
-                resourceId = request.resourceId,
+                resourceType = resourceType,
+                resourceId = resourceId,
                 granteeUserId = request.granteeUserId
             )
         } else {
             resourceSharesRepository.findByResourceTypeAndResourceIdAndGranteeUserIsNull(
-                resourceType = request.resourceType,
-                resourceId = request.resourceId
+                resourceType = resourceType,
+                resourceId = resourceId
             )
         }
         if (existing.isNotEmpty()) {
@@ -84,8 +92,8 @@ class AccessSharesController(
         val now = Instant.now()
         val saved = resourceSharesRepository.save(
             ResourceShares(
-                resourceType = request.resourceType,
-                resourceId = request.resourceId,
+                resourceType = resourceType,
+                resourceId = resourceId,
                 granteeUser = grantee,
                 grantedByUser = grantedBy,
                 permission = requestedPermission,
@@ -161,8 +169,8 @@ class AccessSharesController(
 }
 
 data class AccessShareRequest(
-    val resourceType: ShareResourceType,
-    val resourceId: UUID,
+    val resourceType: ShareResourceType? = null,
+    val resourceId: UUID? = null,
     val granteeUserId: UUID? = null,
     val permission: SharePermission? = null
 )
