@@ -236,3 +236,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 027-resource-shares-allow-node-shape
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/027-resource-shares-allow-node-shape.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
