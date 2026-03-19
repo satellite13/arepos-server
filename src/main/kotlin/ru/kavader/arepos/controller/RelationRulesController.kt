@@ -1,14 +1,13 @@
 package ru.kavader.arepos.controller
 
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.RelationRules
 import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.DiagramsRepository
+import ru.kavader.arepos.repository.RelationRuleListProjection
 import ru.kavader.arepos.repository.RelationRulesRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
@@ -25,7 +24,6 @@ class RelationRulesController(
     private val usersRepository: UsersRepository,
     private val relationsRepository: RelationsRepository,
     private val componentsRepository: ComponentsRepository,
-    private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService,
     private val mdFileLinkValidator: MdFileLinkValidator
 ) {
@@ -35,32 +33,27 @@ class RelationRulesController(
         pageable: Pageable,
         @RequestParam(required = false) relationId: UUID?,
         @RequestParam(required = false) ownerId: UUID?,
-        @RequestParam(required = false) notationId: UUID?
+        @RequestParam(required = false) notationId: UUID?,
+        @RequestParam(required = false, defaultValue = "true") includeAttrs: Boolean
     ): Page<RelationRuleResponse> {
         if (!CurrentUser.isAdmin()) {
-            val accessibleNotationIds = diagramsRepository.findAll(Pageable.unpaged()).content
-                .asSequence()
-                .filter { accessService.canViewDiagram(it) }
-                .mapNotNull { it.notation.id }
-                .toSet()
-            val filtered = relationRulesRepository
-                .findByFilters(relationId, ownerId, notationId, Pageable.unpaged())
-                .content
-                .asSequence()
-                .filter {
-                    accessService.canViewRelationRule(it) || accessibleNotationIds.contains(it.relation.notation.id)
-                }
-                .toList()
-            return filtered.toPage(pageable).map { it.toResponse() }
+            val currentUserId = CurrentUser.getId() ?: return Page.empty(pageable)
+            return relationRulesRepository.findProjectedByFiltersForUser(
+                relationId = relationId,
+                ownerId = ownerId,
+                notationId = notationId,
+                currentUserId = currentUserId,
+                pageable = pageable
+            ).map { it.toResponse(includeAttrs = includeAttrs) }
         }
 
-        val relationRules = relationRulesRepository.findByFilters(
+        val relationRules = relationRulesRepository.findProjectedByFilters(
             relationId = relationId,
             ownerId = ownerId,
             notationId = notationId,
             pageable = pageable
         )
-        return relationRules.map { it.toResponse() }
+        return relationRules.map { it.toResponse(includeAttrs = includeAttrs) }
     }
 
     @GetMapping("/{id}")
@@ -223,6 +216,17 @@ class RelationRulesController(
         toComponentId = toComponent.id!!,
         ownerId = owner.id!!,
         attrs = attrs,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+
+    private fun RelationRuleListProjection.toResponse(includeAttrs: Boolean) = RelationRuleResponse(
+        id = id,
+        relationId = relationId,
+        fromComponentId = fromComponentId,
+        toComponentId = toComponentId,
+        ownerId = ownerId,
+        attrs = if (includeAttrs) attrs else null,
         createdAt = createdAt,
         updatedAt = updatedAt
     )

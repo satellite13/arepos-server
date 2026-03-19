@@ -246,3 +246,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 028-add-relation-rules-query-indexes
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/028-add-relation-rules-query-indexes.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
