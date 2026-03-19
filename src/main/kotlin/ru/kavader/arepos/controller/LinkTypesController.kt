@@ -39,24 +39,23 @@ class LinkTypesController(
     fun listLinkTypes(
         pageable: Pageable,
         @RequestParam(required = false) ownerId: UUID?,
-        @RequestParam(required = false) notationId: UUID?,
+        @RequestParam(required = false) notationId: List<UUID>?,
         @RequestParam(required = false) modelId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<LinkTypeResponse> {
         if (!CurrentUser.isAdmin()) {
-            val notationContext = notationId?.let { requestedNotationId ->
+            val notationOwnerIds = mutableSetOf<UUID>()
+            val notationLinkTypeIds = mutableSetOf<UUID>()
+            notationId?.forEach { requestedNotationId ->
                 val notation = notationsRepository.findById(requestedNotationId).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $requestedNotationId not found")
                 }
                 accessService.requireCanViewNotation(notation)
-                val notationTypeIds = relationsRepository.findByNotation(notation, Pageable.unpaged()).content
-                    .asSequence()
+                relationsRepository.findByNotation(notation, Pageable.unpaged()).content
                     .mapNotNull { it.linkType.id }
-                    .toSet()
-                notation.owner.id to notationTypeIds
+                    .forEach { notationLinkTypeIds.add(it) }
+                notation.owner.id?.let { notationOwnerIds.add(it) }
             }
-            val notationOwnerId = notationContext?.first
-            val notationLinkTypeIds = notationContext?.second ?: emptySet()
             val modelLinkTypeIds = modelId?.let { requestedModelId ->
                 val model = modelsRepository.findById(requestedModelId).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Model $requestedModelId not found")
@@ -72,7 +71,7 @@ class LinkTypesController(
                 .filter {
                     accessService.canViewLinkType(it) ||
                         accessService.canUseLinkType(it) ||
-                        (notationOwnerId != null && it.owner.id == notationOwnerId) ||
+                        notationOwnerIds.contains(it.owner.id) ||
                         notationLinkTypeIds.contains(it.id) ||
                         modelLinkTypeIds.contains(it.id)
                 }
