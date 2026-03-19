@@ -38,6 +38,75 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
         @Param("modelId") modelId: UUID,
         pageable: Pageable
     ): Page<Nodes>
+
+    @Query(
+        value = """
+            SELECT *
+            FROM nodes n
+            WHERE (:modelId IS NULL OR n.model = :modelId)
+              AND (:ownerId IS NULL OR n.owner = :ownerId)
+              AND (:name IS NULL OR n.name ILIKE CONCAT('%', :name, '%'))
+              AND EXISTS (
+                  SELECT 1
+                  FROM models m
+                  WHERE m.id = n.model
+                    AND m.deleted = false
+                    AND (
+                        m.owner = :currentUserId
+                        OR EXISTS (
+                            SELECT 1
+                            FROM resource_shares rs
+                            WHERE rs.resource_type = 'MODEL'
+                              AND rs.resource_id = m.id
+                              AND rs.permission IN ('VIEW', 'EDIT')
+                              AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                        )
+                    )
+              )
+        """,
+        countQuery = """
+            SELECT COUNT(*)
+            FROM nodes n
+            WHERE (:modelId IS NULL OR n.model = :modelId)
+              AND (:ownerId IS NULL OR n.owner = :ownerId)
+              AND (:name IS NULL OR n.name ILIKE CONCAT('%', :name, '%'))
+              AND EXISTS (
+                  SELECT 1
+                  FROM models m
+                  WHERE m.id = n.model
+                    AND m.deleted = false
+                    AND (
+                        m.owner = :currentUserId
+                        OR EXISTS (
+                            SELECT 1
+                            FROM resource_shares rs
+                            WHERE rs.resource_type = 'MODEL'
+                              AND rs.resource_id = m.id
+                              AND rs.permission IN ('VIEW', 'EDIT')
+                              AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                        )
+                    )
+              )
+        """,
+        nativeQuery = true
+    )
+    fun findAccessibleByFiltersForUser(
+        @Param("modelId") modelId: UUID?,
+        @Param("ownerId") ownerId: UUID?,
+        @Param("name") name: String?,
+        @Param("currentUserId") currentUserId: UUID,
+        pageable: Pageable
+    ): Page<Nodes>
+
+    @Query(
+        value = """
+            SELECT DISTINCT n.node_type
+            FROM nodes n
+            WHERE n.model = :modelId
+        """,
+        nativeQuery = true
+    )
+    fun findDistinctNodeTypeIdsByModelId(@Param("modelId") modelId: UUID): List<UUID>
 }
 
 

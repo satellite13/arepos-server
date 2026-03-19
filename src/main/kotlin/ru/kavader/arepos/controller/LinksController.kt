@@ -44,16 +44,16 @@ class LinksController(
         @RequestParam(required = false) linkTypeId: UUID?
     ): Page<LinkResponse> {
         if (!CurrentUser.isAdmin()) {
-            val filtered = linksRepository.findAll(Pageable.unpaged()).content
-                .asSequence()
-                .filter { accessService.canViewLink(it) }
-                .filter { ownerId == null || it.owner.id == ownerId }
-                .filter { modelId == null || it.model.id == modelId }
-                .filter { sourceId == null || it.source.id == sourceId }
-                .filter { targetId == null || it.target.id == targetId }
-                .filter { linkTypeId == null || it.linkType.id == linkTypeId }
-                .toList()
-            return filtered.toPage(pageable).map { it.toResponse() }
+            val currentUserId = accessService.currentUserId()
+            return linksRepository.findAccessibleByFiltersForUser(
+                modelId = modelId,
+                ownerId = ownerId,
+                sourceId = sourceId,
+                targetId = targetId,
+                linkTypeId = linkTypeId,
+                currentUserId = currentUserId,
+                pageable = pageable
+            ).map { it.toResponse() }
         }
 
         val links = when {
@@ -295,19 +295,10 @@ class LinksController(
         linkTypeId: UUID,
         model: ru.kavader.arepos.model.Models
     ): Boolean {
-        val notationIds = diagramsRepository.findByFilters(
-            ownerId = null,
-            modelId = model.id,
-            nodeId = null,
-            notationId = null,
-            name = "",
-            pageable = Pageable.unpaged()
-        ).content.asSequence().mapNotNull { it.notation.id }.toSet()
+        val notationIds = diagramsRepository.findDistinctNotationIdsByModelId(requireNotNull(model.id)).toSet()
         if (notationIds.isEmpty()) return false
 
-        return relationsRepository.findAll(Pageable.unpaged()).content.any { relation ->
-            relation.linkType.id == linkTypeId && notationIds.contains(relation.notation.id)
-        }
+        return relationsRepository.existsByLinkType_IdAndNotation_IdIn(linkTypeId, notationIds)
     }
 }
 

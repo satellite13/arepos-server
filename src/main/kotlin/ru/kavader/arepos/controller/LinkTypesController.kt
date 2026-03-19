@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.LinkTypes
+import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.LinksRepository
 import ru.kavader.arepos.repository.ModelsRepository
@@ -34,6 +35,7 @@ class LinkTypesController(
     companion object {
         private val log = LoggerFactory.getLogger(LinkTypesController::class.java)
     }
+    private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
     @GetMapping
     fun listLinkTypes(
@@ -44,6 +46,18 @@ class LinkTypesController(
         @RequestParam(required = false) name: String?
     ): Page<LinkTypeResponse> {
         if (!CurrentUser.isAdmin()) {
+            val currentUserId = accessService.currentUserId()
+            val normalizedName = name?.trim().orEmpty()
+            if (notationId.isNullOrEmpty() && modelId == null) {
+                return linkTypesRepository.findAccessibleForUser(
+                    userId = currentUserId,
+                    ownerId = ownerId,
+                    name = normalizedName,
+                    viewPermissions = viewPermissions,
+                    pageable = pageable
+                ).map { it.toResponse() }
+            }
+
             val notationOwnerIds = mutableSetOf<UUID>()
             val notationLinkTypeIds = mutableSetOf<UUID>()
             notationId?.forEach { requestedNotationId ->
@@ -51,8 +65,7 @@ class LinkTypesController(
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $requestedNotationId not found")
                 }
                 accessService.requireCanViewNotation(notation)
-                relationsRepository.findByNotation(notation, Pageable.unpaged()).content
-                    .mapNotNull { it.linkType.id }
+                relationsRepository.findDistinctLinkTypeIdsByNotationId(requestedNotationId)
                     .forEach { notationLinkTypeIds.add(it) }
                 notation.owner.id?.let { notationOwnerIds.add(it) }
             }
@@ -61,22 +74,32 @@ class LinkTypesController(
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Model $requestedModelId not found")
                 }
                 accessService.requireCanViewModel(model)
-                linksRepository.findByModel(model, Pageable.unpaged()).content
-                    .asSequence()
-                    .mapNotNull { it.linkType.id }
+                linksRepository.findDistinctLinkTypeIdsByModelId(model.id!!)
                     .toSet()
             } ?: emptySet()
-            val filtered = linkTypesRepository.findAll(Pageable.unpaged()).content
+            val accessible = linkTypesRepository.findAccessibleForUser(
+                userId = currentUserId,
+                ownerId = ownerId,
+                name = normalizedName,
+                viewPermissions = viewPermissions,
+                pageable = Pageable.unpaged()
+            ).content
+            val ownerMatched = if (notationOwnerIds.isEmpty()) {
+                emptyList()
+            } else {
+                linkTypesRepository.findByOwnerIdIn(notationOwnerIds)
+            }
+            val idMatchedIds = notationLinkTypeIds + modelLinkTypeIds
+            val idMatched = if (idMatchedIds.isEmpty()) {
+                emptyList()
+            } else {
+                linkTypesRepository.findByIdIn(idMatchedIds)
+            }
+            val filtered = (accessible + ownerMatched + idMatched)
                 .asSequence()
-                .filter {
-                    accessService.canViewLinkType(it) ||
-                        accessService.canUseLinkType(it) ||
-                        notationOwnerIds.contains(it.owner.id) ||
-                        notationLinkTypeIds.contains(it.id) ||
-                        modelLinkTypeIds.contains(it.id)
-                }
+                .distinctBy { it.id }
                 .filter { ownerId == null || it.owner.id == ownerId }
-                .filter { name == null || it.name.contains(name, ignoreCase = true) }
+                .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
                 .toList()
             return filtered.toPage(pageable).map { it.toResponse() }
         }
@@ -211,9 +234,13 @@ class LinkTypesController(
         }
 
         if (ownerId != null && ownerId != currentUserId) {
-            val hasSharedFromOwner = linkTypesRepository.findAll(Pageable.unpaged()).content.any {
-                it.owner.id == ownerId && accessService.canViewLinkType(it)
-            }
+            val hasSharedFromOwner = linkTypesRepository.findAccessibleForUser(
+                userId = currentUserId,
+                ownerId = ownerId,
+                name = "",
+                viewPermissions = viewPermissions,
+                pageable = Pageable.ofSize(1)
+            ).hasContent()
             if (!hasSharedFromOwner) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
             }

@@ -49,16 +49,16 @@ class DiagramsController(
         @RequestParam(required = false) name: String?
     ): Page<DiagramResponse> {
         if (!CurrentUser.isAdmin()) {
-            val filtered = diagramsRepository.findAll(Pageable.unpaged()).content
-                .asSequence()
-                .filter { accessService.canViewDiagram(it) }
-                .filter { ownerId == null || it.owner.id == ownerId }
-                .filter { modelId == null || it.model.id == modelId }
-                .filter { nodeId == null || it.node?.id == nodeId }
-                .filter { notationId == null || it.notation.id == notationId }
-                .filter { name == null || it.name.contains(name, ignoreCase = true) }
-                .toList()
-            return filtered.toPage(pageable).map { it.toResponse() }
+            val currentUserId = accessService.currentUserId()
+            return diagramsRepository.findAccessibleByFiltersForUser(
+                ownerId = ownerId,
+                modelId = modelId,
+                nodeId = nodeId,
+                notationId = notationId,
+                name = name?.trim()?.takeIf { it.isNotEmpty() },
+                currentUserId = currentUserId,
+                pageable = pageable
+            ).map { it.toResponse() }
         }
 
         return diagramsRepository.findByFilters(

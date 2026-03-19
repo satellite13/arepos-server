@@ -46,6 +46,123 @@ interface ComponentsRepository : JpaRepository<Components, UUID> {
         @Param("tagsJson") tagsJson: String?,
         pageable: Pageable
     ): Page<Components>
+
+    @Query(
+        value = """
+            SELECT c.*
+            FROM components c
+            WHERE (:notationId IS NULL OR c.notation = :notationId)
+              AND (:ownerId IS NULL OR c.owner = :ownerId)
+              AND (:name IS NULL OR c.name ILIKE CONCAT('%', :name, '%'))
+              AND (:tagsJson IS NULL OR COALESCE(c.attrs -> 'tags', '[]'::jsonb) @> CAST(:tagsJson AS jsonb))
+              AND (
+                EXISTS (
+                    SELECT 1
+                    FROM notations n
+                    WHERE n.id = c.notation
+                      AND n.deleted = false
+                      AND (
+                        n.owner = :currentUserId
+                        OR EXISTS (
+                            SELECT 1
+                            FROM v_resource_grants rg
+                            WHERE rg.resource_type = 'NOTATION'
+                              AND rg.resource_id = n.id
+                              AND rg.permission IN ('VIEW', 'EDIT')
+                              AND (rg.grantee_user_id = :currentUserId OR rg.grantee_user_id IS NULL)
+                        )
+                      )
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM diagrams d
+                    JOIN models m ON m.id = d.model
+                    WHERE d.deleted = false
+                      AND m.deleted = false
+                      AND d.notation_id = c.notation
+                      AND (
+                        m.owner = :currentUserId
+                        OR EXISTS (
+                            SELECT 1
+                            FROM v_resource_grants rg
+                            WHERE rg.resource_type = 'MODEL'
+                              AND rg.resource_id = m.id
+                              AND rg.permission = 'EDIT'
+                              AND (rg.grantee_user_id = :currentUserId OR rg.grantee_user_id IS NULL)
+                        )
+                      )
+                )
+              )
+            ORDER BY c.name, c.id
+        """,
+        countQuery = """
+            SELECT COUNT(*)
+            FROM components c
+            WHERE (:notationId IS NULL OR c.notation = :notationId)
+              AND (:ownerId IS NULL OR c.owner = :ownerId)
+              AND (:name IS NULL OR c.name ILIKE CONCAT('%', :name, '%'))
+              AND (:tagsJson IS NULL OR COALESCE(c.attrs -> 'tags', '[]'::jsonb) @> CAST(:tagsJson AS jsonb))
+              AND (
+                EXISTS (
+                    SELECT 1
+                    FROM notations n
+                    WHERE n.id = c.notation
+                      AND n.deleted = false
+                      AND (
+                        n.owner = :currentUserId
+                        OR EXISTS (
+                            SELECT 1
+                            FROM v_resource_grants rg
+                            WHERE rg.resource_type = 'NOTATION'
+                              AND rg.resource_id = n.id
+                              AND rg.permission IN ('VIEW', 'EDIT')
+                              AND (rg.grantee_user_id = :currentUserId OR rg.grantee_user_id IS NULL)
+                        )
+                      )
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM diagrams d
+                    JOIN models m ON m.id = d.model
+                    WHERE d.deleted = false
+                      AND m.deleted = false
+                      AND d.notation_id = c.notation
+                      AND (
+                        m.owner = :currentUserId
+                        OR EXISTS (
+                            SELECT 1
+                            FROM v_resource_grants rg
+                            WHERE rg.resource_type = 'MODEL'
+                              AND rg.resource_id = m.id
+                              AND rg.permission = 'EDIT'
+                              AND (rg.grantee_user_id = :currentUserId OR rg.grantee_user_id IS NULL)
+                        )
+                      )
+                )
+              )
+        """,
+        nativeQuery = true
+    )
+    fun findAccessibleByFiltersForUser(
+        @Param("notationId") notationId: UUID?,
+        @Param("ownerId") ownerId: UUID?,
+        @Param("name") name: String?,
+        @Param("tagsJson") tagsJson: String?,
+        @Param("currentUserId") currentUserId: UUID,
+        pageable: Pageable
+    ): Page<Components>
+
+    @Query(
+        value = """
+            SELECT DISTINCT c.node_type
+            FROM components c
+            WHERE c.notation = :notationId
+        """,
+        nativeQuery = true
+    )
+    fun findDistinctNodeTypeIdsByNotationId(@Param("notationId") notationId: UUID): List<UUID>
+
+    fun existsByNodeType_IdAndNotation_IdIn(nodeTypeId: UUID, notationIds: Collection<UUID>): Boolean
 }
 
 

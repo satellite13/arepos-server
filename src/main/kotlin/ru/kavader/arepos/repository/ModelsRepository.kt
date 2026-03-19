@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.Models
+import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.Users
 import java.util.Optional
 import java.util.UUID
@@ -49,6 +50,85 @@ interface ModelsRepository : JpaRepository<Models, UUID> {
 
     @Query("SELECT m FROM Models m WHERE m.id = :id")
     fun findByIdIncludingDeleted(id: UUID): Optional<Models>
+
+    @Query(
+        """
+        SELECT m
+        FROM Models m
+        WHERE m.deleted = false
+          AND (:ownerId IS NULL OR m.owner.id = :ownerId)
+          AND (:name = '' OR LOWER(m.name) LIKE LOWER(CONCAT('%', :name, '%')))
+          AND (
+            m.owner.id = :userId
+            OR EXISTS (
+                SELECT rs.id
+                FROM ResourceShares rs
+                WHERE rs.resourceType = ru.kavader.arepos.model.ShareResourceType.MODEL
+                  AND rs.resourceId = m.id
+                  AND rs.permission IN :viewPermissions
+                  AND (rs.granteeUser.id = :userId OR rs.granteeUser IS NULL)
+            )
+          )
+        """
+    )
+    fun findAccessibleForUser(
+        userId: UUID,
+        ownerId: UUID?,
+        name: String,
+        viewPermissions: Collection<SharePermission>,
+        pageable: Pageable
+    ): Page<Models>
+
+    @Query(
+        """
+        SELECT COUNT(DISTINCT m.name)
+        FROM Models m
+        WHERE m.deleted = false
+          AND (
+            m.owner.id = :userId
+            OR EXISTS (
+                SELECT rs.id
+                FROM ResourceShares rs
+                WHERE rs.resourceType = ru.kavader.arepos.model.ShareResourceType.MODEL
+                  AND rs.resourceId = m.id
+                  AND rs.permission IN :viewPermissions
+                  AND (rs.granteeUser.id = :userId OR rs.granteeUser IS NULL)
+            )
+          )
+        """
+    )
+    fun countDistinctAccessibleNamesForUser(
+        userId: UUID,
+        viewPermissions: Collection<SharePermission>
+    ): Long
+
+    @Query("SELECT COUNT(DISTINCT m.name) FROM Models m WHERE m.deleted = false")
+    fun countDistinctNamesUndeleted(): Long
+
+    @Query(
+        """
+        SELECT CASE WHEN COUNT(m) > 0 THEN true ELSE false END
+        FROM Models m
+        WHERE m.deleted = false
+          AND m.owner.id = :ownerId
+          AND (
+            m.owner.id = :userId
+            OR EXISTS (
+                SELECT rs.id
+                FROM ResourceShares rs
+                WHERE rs.resourceType = ru.kavader.arepos.model.ShareResourceType.MODEL
+                  AND rs.resourceId = m.id
+                  AND rs.permission IN :viewPermissions
+                  AND (rs.granteeUser.id = :userId OR rs.granteeUser IS NULL)
+            )
+          )
+        """
+    )
+    fun existsAccessibleByOwnerForUser(
+        ownerId: UUID,
+        userId: UUID,
+        viewPermissions: Collection<SharePermission>
+    ): Boolean
 
     // Метод для мягкого удаления
     @Modifying

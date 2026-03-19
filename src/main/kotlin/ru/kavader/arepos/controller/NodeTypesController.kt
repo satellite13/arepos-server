@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.NodeTypes
+import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
@@ -34,6 +35,7 @@ class NodeTypesController(
     companion object {
         private val log = LoggerFactory.getLogger(NodeTypesController::class.java)
     }
+    private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
     @GetMapping
     fun listNodeTypes(
@@ -44,6 +46,18 @@ class NodeTypesController(
         @RequestParam(required = false) name: String?
     ): Page<NodeTypeResponse> {
         if (!CurrentUser.isAdmin()) {
+            val currentUserId = accessService.currentUserId()
+            val normalizedName = name?.trim().orEmpty()
+            if (notationId.isNullOrEmpty() && modelId == null) {
+                return nodeTypesRepository.findAccessibleForUser(
+                    userId = currentUserId,
+                    ownerId = ownerId,
+                    name = normalizedName,
+                    viewPermissions = viewPermissions,
+                    pageable = pageable
+                ).map { it.toResponse() }
+            }
+
             val notationOwnerIds = mutableSetOf<UUID>()
             val notationNodeTypeIds = mutableSetOf<UUID>()
             notationId?.forEach { requestedNotationId ->
@@ -51,8 +65,7 @@ class NodeTypesController(
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $requestedNotationId not found")
                 }
                 accessService.requireCanViewNotation(notation)
-                componentsRepository.findByNotation(notation, Pageable.unpaged()).content
-                    .mapNotNull { it.nodeType.id }
+                componentsRepository.findDistinctNodeTypeIdsByNotationId(requestedNotationId)
                     .forEach { notationNodeTypeIds.add(it) }
                 notation.owner.id?.let { notationOwnerIds.add(it) }
             }
@@ -61,22 +74,32 @@ class NodeTypesController(
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Model $requestedModelId not found")
                 }
                 accessService.requireCanViewModel(model)
-                nodesRepository.findByModelIdOrdered(model.id!!, Pageable.unpaged()).content
-                    .asSequence()
-                    .mapNotNull { it.nodeType.id }
+                nodesRepository.findDistinctNodeTypeIdsByModelId(model.id!!)
                     .toSet()
             } ?: emptySet()
-            val filtered = nodeTypesRepository.findAll(Pageable.unpaged()).content
+            val accessible = nodeTypesRepository.findAccessibleForUser(
+                userId = currentUserId,
+                ownerId = ownerId,
+                name = normalizedName,
+                viewPermissions = viewPermissions,
+                pageable = Pageable.unpaged()
+            ).content
+            val ownerMatched = if (notationOwnerIds.isEmpty()) {
+                emptyList()
+            } else {
+                nodeTypesRepository.findByOwnerIdIn(notationOwnerIds)
+            }
+            val idMatchedIds = notationNodeTypeIds + modelNodeTypeIds
+            val idMatched = if (idMatchedIds.isEmpty()) {
+                emptyList()
+            } else {
+                nodeTypesRepository.findByIdIn(idMatchedIds)
+            }
+            val filtered = (accessible + ownerMatched + idMatched)
                 .asSequence()
-                .filter {
-                    accessService.canViewNodeType(it) ||
-                        accessService.canUseNodeType(it) ||
-                        notationOwnerIds.contains(it.owner.id) ||
-                        notationNodeTypeIds.contains(it.id) ||
-                        modelNodeTypeIds.contains(it.id)
-                }
+                .distinctBy { it.id }
                 .filter { ownerId == null || it.owner.id == ownerId }
-                .filter { name == null || it.name.contains(name, ignoreCase = true) }
+                .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
                 .toList()
             return filtered.toPage(pageable).map { it.toResponse() }
         }
@@ -211,9 +234,13 @@ class NodeTypesController(
         }
 
         if (ownerId != null && ownerId != currentUserId) {
-            val hasSharedFromOwner = nodeTypesRepository.findAll(Pageable.unpaged()).content.any {
-                it.owner.id == ownerId && accessService.canViewNodeType(it)
-            }
+            val hasSharedFromOwner = nodeTypesRepository.findAccessibleForUser(
+                userId = currentUserId,
+                ownerId = ownerId,
+                name = "",
+                viewPermissions = viewPermissions,
+                pageable = Pageable.ofSize(1)
+            ).hasContent()
             if (!hasSharedFromOwner) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
             }

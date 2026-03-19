@@ -64,4 +64,154 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
     @Modifying
     @Query("UPDATE Diagrams d SET d.deleted = true WHERE d.id = :id")
     fun softDeleteById(id: UUID): Int
+
+    @Query(
+        value = """
+            SELECT d.*
+            FROM diagrams d
+            WHERE d.deleted = false
+              AND (:ownerId IS NULL OR d.owner = :ownerId)
+              AND (:modelId IS NULL OR d.model = :modelId)
+              AND (:nodeId IS NULL OR d.node_id = :nodeId)
+              AND (:notationId IS NULL OR d.notation_id = :notationId)
+              AND (:name IS NULL OR d.name ILIKE CONCAT('%', :name, '%'))
+              AND EXISTS (
+                  SELECT 1
+                  FROM models m
+                  WHERE m.id = d.model
+                    AND m.deleted = false
+                    AND (
+                        m.owner = :currentUserId
+                        OR EXISTS (
+                            SELECT 1
+                            FROM resource_shares rs
+                            WHERE rs.resource_type = 'MODEL'
+                              AND rs.resource_id = m.id
+                              AND rs.permission IN ('VIEW', 'EDIT')
+                              AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                        )
+                    )
+              )
+              AND (
+                  EXISTS (
+                      SELECT 1
+                      FROM notations n
+                      WHERE n.id = d.notation_id
+                        AND n.deleted = false
+                        AND (
+                            n.owner = :currentUserId
+                            OR EXISTS (
+                                SELECT 1
+                                FROM resource_shares rs
+                                WHERE rs.resource_type = 'NOTATION'
+                                  AND rs.resource_id = n.id
+                                  AND rs.permission IN ('VIEW', 'EDIT')
+                                  AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                            )
+                        )
+                  )
+                  OR EXISTS (
+                      SELECT 1
+                      FROM models m2
+                      WHERE m2.id = d.model
+                        AND m2.deleted = false
+                        AND (
+                            m2.owner = :currentUserId
+                            OR EXISTS (
+                                SELECT 1
+                                FROM resource_shares rs
+                                WHERE rs.resource_type = 'MODEL'
+                                  AND rs.resource_id = m2.id
+                                  AND rs.permission = 'EDIT'
+                                  AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                            )
+                        )
+                  )
+              )
+        """,
+        countQuery = """
+            SELECT COUNT(*)
+            FROM diagrams d
+            WHERE d.deleted = false
+              AND (:ownerId IS NULL OR d.owner = :ownerId)
+              AND (:modelId IS NULL OR d.model = :modelId)
+              AND (:nodeId IS NULL OR d.node_id = :nodeId)
+              AND (:notationId IS NULL OR d.notation_id = :notationId)
+              AND (:name IS NULL OR d.name ILIKE CONCAT('%', :name, '%'))
+              AND EXISTS (
+                  SELECT 1
+                  FROM models m
+                  WHERE m.id = d.model
+                    AND m.deleted = false
+                    AND (
+                        m.owner = :currentUserId
+                        OR EXISTS (
+                            SELECT 1
+                            FROM resource_shares rs
+                            WHERE rs.resource_type = 'MODEL'
+                              AND rs.resource_id = m.id
+                              AND rs.permission IN ('VIEW', 'EDIT')
+                              AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                        )
+                    )
+              )
+              AND (
+                  EXISTS (
+                      SELECT 1
+                      FROM notations n
+                      WHERE n.id = d.notation_id
+                        AND n.deleted = false
+                        AND (
+                            n.owner = :currentUserId
+                            OR EXISTS (
+                                SELECT 1
+                                FROM resource_shares rs
+                                WHERE rs.resource_type = 'NOTATION'
+                                  AND rs.resource_id = n.id
+                                  AND rs.permission IN ('VIEW', 'EDIT')
+                                  AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                            )
+                        )
+                  )
+                  OR EXISTS (
+                      SELECT 1
+                      FROM models m2
+                      WHERE m2.id = d.model
+                        AND m2.deleted = false
+                        AND (
+                            m2.owner = :currentUserId
+                            OR EXISTS (
+                                SELECT 1
+                                FROM resource_shares rs
+                                WHERE rs.resource_type = 'MODEL'
+                                  AND rs.resource_id = m2.id
+                                  AND rs.permission = 'EDIT'
+                                  AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                            )
+                        )
+                  )
+              )
+        """,
+        nativeQuery = true
+    )
+    fun findAccessibleByFiltersForUser(
+        ownerId: UUID?,
+        modelId: UUID?,
+        nodeId: UUID?,
+        notationId: UUID?,
+        name: String?,
+        currentUserId: UUID,
+        pageable: Pageable
+    ): Page<Diagrams>
+
+    @Query(
+        value = """
+            SELECT DISTINCT d.notation_id
+            FROM diagrams d
+            WHERE d.deleted = false
+              AND d.model = :modelId
+        """,
+        nativeQuery = true
+    )
+    fun findDistinctNotationIdsByModelId(modelId: UUID): List<UUID>
 }

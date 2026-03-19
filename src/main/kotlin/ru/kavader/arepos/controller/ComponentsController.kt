@@ -43,20 +43,15 @@ class ComponentsController(
         val tagsJson = if (tags.isEmpty()) null else tags.toJsonArray()
 
         if (!CurrentUser.isAdmin()) {
-            val accessibleNotationIds = diagramsRepository.findAll(Pageable.unpaged()).content
-                .asSequence()
-                .filter { accessService.canViewDiagram(it) }
-                .mapNotNull { it.notation.id }
-                .toSet()
-            val filtered = componentsRepository
-                .findByFilters(notationId, ownerId, normalizedName, tagsJson, Pageable.unpaged())
-                .content
-                .asSequence()
-                .filter {
-                    accessService.canViewComponent(it) || accessibleNotationIds.contains(it.notation.id)
-                }
-                .toList()
-            return filtered.toPage(pageable).map { it.toResponse() }
+            val currentUserId = accessService.currentUserId()
+            return componentsRepository.findAccessibleByFiltersForUser(
+                notationId = notationId,
+                ownerId = ownerId,
+                name = normalizedName,
+                tagsJson = tagsJson,
+                currentUserId = currentUserId,
+                pageable = pageable
+            ).map { it.toResponse() }
         }
 
         val components = componentsRepository.findByFilters(

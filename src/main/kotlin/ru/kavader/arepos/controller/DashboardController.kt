@@ -11,6 +11,7 @@ import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.model.SharePermission
 import java.time.Instant
 import java.util.UUID
 
@@ -24,34 +25,24 @@ class DashboardController(
     private val auditLogRepository: AuditLogRepository,
     private val accessService: ResourceAccessService
 ) {
+    private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
     @GetMapping("/stats")
     fun getStats(): DashboardStatsResponse {
         if (CurrentUser.isAdmin()) {
-            val uniqueModelNames = modelsRepository.findAll(Pageable.unpaged()).content
-                .map { it.name }
-                .distinct()
-                .size
-            val uniqueNotationNames = notationsRepository.findAll(Pageable.unpaged()).content
-                .map { it.name }
-                .distinct()
-                .size
             return DashboardStatsResponse(
-                models = uniqueModelNames,
-                notations = uniqueNotationNames,
+                models = modelsRepository.countDistinctNamesUndeleted().toInt(),
+                notations = notationsRepository.countDistinctNamesUndeleted().toInt(),
                 nodeTypes = nodeTypesRepository.count().toInt(),
                 linkTypes = linkTypesRepository.count().toInt()
             )
         }
 
-        val accessibleModels = modelsRepository.findAll(Pageable.unpaged()).content
-            .filter { accessService.canViewModel(it) }
-        val accessibleNotations = notationsRepository.findAll(Pageable.unpaged()).content
-            .filter { accessService.canViewNotation(it) }
+        val currentUserId = accessService.currentUserId()
 
         return DashboardStatsResponse(
-            models = accessibleModels.map { it.name }.distinct().size,
-            notations = accessibleNotations.map { it.name }.distinct().size,
+            models = modelsRepository.countDistinctAccessibleNamesForUser(currentUserId, viewPermissions).toInt(),
+            notations = notationsRepository.countDistinctAccessibleNamesForUser(currentUserId, viewPermissions).toInt(),
             nodeTypes = nodeTypesRepository.count().toInt(),
             linkTypes = linkTypesRepository.count().toInt()
         )
@@ -65,17 +56,25 @@ class DashboardController(
         val models = if (CurrentUser.isAdmin()) {
             modelsRepository.findAll(pageable).content
         } else {
-            modelsRepository.findAll(PageRequest.of(0, limit * 3, recentSort)).content
-                .filter { accessService.canViewModel(it) }
-                .take(limit)
+            modelsRepository.findAccessibleForUser(
+                userId = accessService.currentUserId(),
+                ownerId = null,
+                name = "",
+                viewPermissions = viewPermissions,
+                pageable = pageable
+            ).content
         }
 
         val notations = if (CurrentUser.isAdmin()) {
             notationsRepository.findAll(pageable).content
         } else {
-            notationsRepository.findAll(PageRequest.of(0, limit * 3, recentSort)).content
-                .filter { accessService.canViewNotation(it) }
-                .take(limit)
+            notationsRepository.findAccessibleForUser(
+                userId = accessService.currentUserId(),
+                ownerId = null,
+                name = "",
+                viewPermissions = viewPermissions,
+                pageable = pageable
+            ).content
         }
 
         val activityPageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "changedAt"))

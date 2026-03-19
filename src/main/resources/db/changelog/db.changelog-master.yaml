@@ -266,3 +266,23 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 030-add-access-and-search-indexes
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/030-add-access-and-search-indexes.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
+  - changeSet:
+      id: 031-add-resource-grants-view
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/031-add-resource-grants-view.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

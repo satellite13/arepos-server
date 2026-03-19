@@ -42,19 +42,14 @@ class NodesController(
         @RequestParam(required = false) name: String?
     ): Page<NodeResponse> {
         if (!CurrentUser.isAdmin()) {
-            val baseNodes = if (modelId != null) {
-                nodesRepository.findByModelIdOrdered(modelId, Pageable.unpaged()).content
-            } else {
-                nodesRepository.findAll(Pageable.unpaged()).content
-            }
-            val filtered = baseNodes
-                .asSequence()
-                .filter { accessService.canViewNode(it) }
-                .filter { modelId == null || it.model.id == modelId }
-                .filter { ownerId == null || it.owner.id == ownerId }
-                .filter { name == null || it.name.contains(name, ignoreCase = true) }
-                .toList()
-            return filtered.toPage(pageable).map { it.toResponse() }
+            val currentUserId = accessService.currentUserId()
+            return nodesRepository.findAccessibleByFiltersForUser(
+                modelId = modelId,
+                ownerId = ownerId,
+                name = name?.trim()?.takeIf { it.isNotEmpty() },
+                currentUserId = currentUserId,
+                pageable = pageable
+            ).map { it.toResponse() }
         }
 
         val nodes = when {
@@ -268,19 +263,10 @@ class NodesController(
         nodeTypeId: UUID,
         model: ru.kavader.arepos.model.Models
     ): Boolean {
-        val notationIds = diagramsRepository.findByFilters(
-            ownerId = null,
-            modelId = model.id,
-            nodeId = null,
-            notationId = null,
-            name = "",
-            pageable = Pageable.unpaged()
-        ).content.asSequence().mapNotNull { it.notation.id }.toSet()
+        val notationIds = diagramsRepository.findDistinctNotationIdsByModelId(requireNotNull(model.id)).toSet()
         if (notationIds.isEmpty()) return false
 
-        return componentsRepository.findAll(Pageable.unpaged()).content.any { component ->
-            component.nodeType.id == nodeTypeId && notationIds.contains(component.notation.id)
-        }
+        return componentsRepository.existsByNodeType_IdAndNotation_IdIn(nodeTypeId, notationIds)
     }
 
     private fun isSystemTreeRoot(node: Nodes): Boolean {

@@ -13,6 +13,7 @@ import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.model.NodeTypes
+import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.ShareResourceType
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.LinksRepository
@@ -39,6 +40,8 @@ class ModelsController(
     private val objectMapper: ObjectMapper,
     private val mdFileLinkValidator: MdFileLinkValidator
 ) {
+    private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
+
     companion object {
         private const val SYSTEM_ROOT_NODE_TYPE_NAME = "Directory"
         private const val SYSTEM_ROOT_NODE_NAME = "Root"
@@ -51,13 +54,14 @@ class ModelsController(
         @RequestParam(required = false) name: String?
     ): Page<ModelResponse> {
         if (!CurrentUser.isAdmin()) {
-            val filtered = modelsRepository.findAll(Pageable.unpaged()).content
-                .asSequence()
-                .filter { accessService.canViewModel(it) }
-                .filter { ownerId == null || it.owner.id == ownerId }
-                .filter { name == null || it.name.contains(name, ignoreCase = true) }
-                .toList()
-            return filtered.toPage(pageable).map { it.toResponse() }
+            val currentUserId = accessService.currentUserId()
+            return modelsRepository.findAccessibleForUser(
+                userId = currentUserId,
+                ownerId = ownerId,
+                name = name?.trim().orEmpty(),
+                viewPermissions = viewPermissions,
+                pageable = pageable
+            ).map { it.toResponse() }
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -99,8 +103,13 @@ class ModelsController(
     @GetMapping("/grouped")
     fun listModelsGrouped(): GroupedEntityResponse<ModelResponse> {
         val allModels = if (!CurrentUser.isAdmin()) {
-            modelsRepository.findAll(Pageable.unpaged()).content
-                .filter { accessService.canViewModel(it) }
+            modelsRepository.findAccessibleForUser(
+                userId = accessService.currentUserId(),
+                ownerId = null,
+                name = "",
+                viewPermissions = viewPermissions,
+                pageable = Pageable.unpaged()
+            ).content
         } else {
             modelsRepository.findAll(Pageable.unpaged()).content
         }
@@ -489,10 +498,11 @@ class ModelsController(
         }
 
         if (ownerId != null && ownerId != currentUserId) {
-            // Non-admin users can filter by owner only if they have shared access from that owner.
-            val hasSharedFromOwner = modelsRepository.findAll(Pageable.unpaged()).content.any {
-                it.owner.id == ownerId && accessService.canViewModel(it)
-            }
+            val hasSharedFromOwner = modelsRepository.existsAccessibleByOwnerForUser(
+                ownerId = ownerId,
+                userId = currentUserId,
+                viewPermissions = viewPermissions
+            )
             if (!hasSharedFromOwner) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
             }

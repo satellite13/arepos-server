@@ -10,6 +10,7 @@ import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.RelationRules
 import ru.kavader.arepos.model.Relations
+import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.NotationsRepository
@@ -34,6 +35,7 @@ class NotationsController(
     private val accessService: ResourceAccessService,
     private val mdFileLinkValidator: MdFileLinkValidator
 ) {
+    private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
     @GetMapping
     fun listNotations(
@@ -42,13 +44,14 @@ class NotationsController(
         @RequestParam(required = false) name: String?
     ): Page<NotationResponse> {
         if (!CurrentUser.isAdmin()) {
-            val filtered = notationsRepository.findAll(Pageable.unpaged()).content
-                .asSequence()
-                .filter { accessService.canViewNotation(it) }
-                .filter { ownerId == null || it.owner.id == ownerId }
-                .filter { name == null || it.name.contains(name, ignoreCase = true) }
-                .toList()
-            return filtered.toPage(pageable).map { it.toResponse() }
+            val currentUserId = accessService.currentUserId()
+            return notationsRepository.findAccessibleForUser(
+                userId = currentUserId,
+                ownerId = ownerId,
+                name = name?.trim().orEmpty(),
+                viewPermissions = viewPermissions,
+                pageable = pageable
+            ).map { it.toResponse() }
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -90,8 +93,13 @@ class NotationsController(
     @GetMapping("/grouped")
     fun listNotationsGrouped(): GroupedEntityResponse<NotationResponse> {
         val allNotations = if (!CurrentUser.isAdmin()) {
-            notationsRepository.findAll(Pageable.unpaged()).content
-                .filter { accessService.canViewNotation(it) }
+            notationsRepository.findAccessibleForUser(
+                userId = accessService.currentUserId(),
+                ownerId = null,
+                name = "",
+                viewPermissions = viewPermissions,
+                pageable = Pageable.unpaged()
+            ).content
         } else {
             notationsRepository.findAll(Pageable.unpaged()).content
         }
@@ -393,9 +401,11 @@ class NotationsController(
         }
 
         if (ownerId != null && ownerId != currentUserId) {
-            val hasSharedFromOwner = notationsRepository.findAll(Pageable.unpaged()).content.any {
-                it.owner.id == ownerId && accessService.canViewNotation(it)
-            }
+            val hasSharedFromOwner = notationsRepository.existsAccessibleByOwnerForUser(
+                ownerId = ownerId,
+                userId = currentUserId,
+                viewPermissions = viewPermissions
+            )
             if (!hasSharedFromOwner) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
             }
