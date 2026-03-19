@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.RelationRules
+import ru.kavader.arepos.repository.RelationRuleListLightProjection
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.RelationRuleListProjection
 import ru.kavader.arepos.repository.RelationRulesRepository
@@ -38,22 +39,42 @@ class RelationRulesController(
     ): Page<RelationRuleResponse> {
         if (!CurrentUser.isAdmin()) {
             val currentUserId = CurrentUser.getId() ?: return Page.empty(pageable)
-            return relationRulesRepository.findProjectedByFiltersForUser(
+            return if (includeAttrs) {
+                relationRulesRepository.findProjectedByFiltersForUser(
+                    relationId = relationId,
+                    ownerId = ownerId,
+                    notationId = notationId,
+                    currentUserId = currentUserId,
+                    pageable = pageable
+                ).map { it.toResponse(includeAttrs = true) }
+            } else {
+                relationRulesRepository.findProjectedLightByFiltersForUser(
+                    relationId = relationId,
+                    ownerId = ownerId,
+                    notationId = notationId,
+                    currentUserId = currentUserId,
+                    pageable = pageable
+                ).map { it.toResponse() }
+            }
+        }
+
+        return if (includeAttrs) {
+            val relationRules = relationRulesRepository.findProjectedByFilters(
                 relationId = relationId,
                 ownerId = ownerId,
                 notationId = notationId,
-                currentUserId = currentUserId,
                 pageable = pageable
-            ).map { it.toResponse(includeAttrs = includeAttrs) }
+            )
+            relationRules.map { it.toResponse(includeAttrs = true) }
+        } else {
+            val relationRules = relationRulesRepository.findProjectedLightByFilters(
+                relationId = relationId,
+                ownerId = ownerId,
+                notationId = notationId,
+                pageable = pageable
+            )
+            relationRules.map { it.toResponse() }
         }
-
-        val relationRules = relationRulesRepository.findProjectedByFilters(
-            relationId = relationId,
-            ownerId = ownerId,
-            notationId = notationId,
-            pageable = pageable
-        )
-        return relationRules.map { it.toResponse(includeAttrs = includeAttrs) }
     }
 
     @GetMapping("/{id}")
@@ -227,6 +248,17 @@ class RelationRulesController(
         toComponentId = toComponentId,
         ownerId = ownerId,
         attrs = if (includeAttrs) attrs else null,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+
+    private fun RelationRuleListLightProjection.toResponse() = RelationRuleResponse(
+        id = id,
+        relationId = relationId,
+        fromComponentId = fromComponentId,
+        toComponentId = toComponentId,
+        ownerId = ownerId,
+        attrs = null,
         createdAt = createdAt,
         updatedAt = updatedAt
     )
