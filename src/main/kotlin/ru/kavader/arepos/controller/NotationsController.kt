@@ -87,6 +87,29 @@ class NotationsController(
         notationsRepository.delete(notation)
     }
 
+    @GetMapping("/grouped")
+    fun listNotationsGrouped(): GroupedEntityResponse<NotationResponse> {
+        val allNotations = if (!CurrentUser.isAdmin()) {
+            notationsRepository.findAll(Pageable.unpaged()).content
+                .filter { accessService.canViewNotation(it) }
+        } else {
+            notationsRepository.findAll(Pageable.unpaged()).content
+        }
+
+        val groups = allNotations
+            .groupBy { it.name.trim().lowercase() }
+            .map { (_, notations) ->
+                val sorted = notations.sortedWith(compareNotationsByVersionDesc)
+                EntityGroupResponse(
+                    name = sorted.first().name.trim(),
+                    versions = sorted.map { it.toResponse() }
+                )
+            }
+            .sortedBy { it.name.lowercase() }
+
+        return GroupedEntityResponse(groups)
+    }
+
     @GetMapping("/{id}")
     fun getNotation(@PathVariable id: UUID): NotationResponse =
         notationsRepository.findById(id)
@@ -332,6 +355,22 @@ class NotationsController(
         if (deletedCount == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
         }
+    }
+
+    private val compareNotationsByVersionDesc: Comparator<Notations> =
+        compareBy<Notations> { parseSemver(it.version) == null }
+            .thenByDescending { parseSemver(it.version)?.first ?: 0 }
+            .thenByDescending { parseSemver(it.version)?.second ?: 0 }
+            .thenByDescending { parseSemver(it.version)?.third ?: 0 }
+            .thenByDescending { it.version }
+
+    private fun parseSemver(version: String): Triple<Int, Int, Int>? {
+        val parts = version.trim().split(".")
+        if (parts.size != 3) return null
+        val major = parts[0].toIntOrNull() ?: return null
+        val minor = parts[1].toIntOrNull() ?: return null
+        val patch = parts[2].toIntOrNull() ?: return null
+        return Triple(major, minor, patch)
     }
 
     private fun checkOwnerOrRole(ownerId: UUID) {

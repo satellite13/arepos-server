@@ -96,6 +96,29 @@ class ModelsController(
         modelsRepository.delete(model)
     }
 
+    @GetMapping("/grouped")
+    fun listModelsGrouped(): GroupedEntityResponse<ModelResponse> {
+        val allModels = if (!CurrentUser.isAdmin()) {
+            modelsRepository.findAll(Pageable.unpaged()).content
+                .filter { accessService.canViewModel(it) }
+        } else {
+            modelsRepository.findAll(Pageable.unpaged()).content
+        }
+
+        val groups = allModels
+            .groupBy { it.name.trim().lowercase() }
+            .map { (_, models) ->
+                val sorted = models.sortedWith(compareModelsByVersionDesc)
+                EntityGroupResponse(
+                    name = sorted.first().name.trim(),
+                    versions = sorted.map { it.toResponse() }
+                )
+            }
+            .sortedBy { it.name.lowercase() }
+
+        return GroupedEntityResponse(groups)
+    }
+
     @GetMapping("/{id}")
     fun getModel(@PathVariable id: UUID): ModelResponse =
         modelsRepository.findById(id)
@@ -550,3 +573,6 @@ data class ModelResponse(
     val updatedAt: Instant?,
     val sourceId: UUID? = null
 )
+
+data class GroupedEntityResponse<T>(val groups: List<EntityGroupResponse<T>>)
+data class EntityGroupResponse<T>(val name: String, val versions: List<T>)

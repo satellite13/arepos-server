@@ -81,6 +81,15 @@ class UsersController(
             .map { it.toPublicResponse() }
     }
 
+    @PostMapping("/public/batch")
+    @PreAuthorize("isAuthenticated()")
+    fun getUsersBatch(@RequestBody request: BatchUserPublicRequest): Map<UUID, UserPublicResponse> {
+        if (request.ids.isEmpty()) return emptyMap()
+        val ids = request.ids.distinct().take(100)
+        return usersRepository.findAllById(ids)
+            .associate { requireNotNull(it.id) to it.toPublicResponse() }
+    }
+
     @GetMapping("/me/profile")
     @PreAuthorize("isAuthenticated()")
     fun getCurrentUserProfile(): UserPublicResponse {
@@ -270,3 +279,5 @@ data class UserPublicResponse(
     val middleName: String?,
     val position: String?
 )
+
+data class BatchUserPublicRequest(val ids: List<UUID>)

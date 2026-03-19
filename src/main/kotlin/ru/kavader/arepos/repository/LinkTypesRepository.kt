@@ -13,6 +13,7 @@ interface LinkTypesRepository : JpaRepository<LinkTypes, UUID> {
     fun findByOwner(owner: Users, pageable: Pageable): Page<LinkTypes>
     fun findByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<LinkTypes>
     fun findByOwnerAndNameContainingIgnoreCase(owner: Users, name: String, pageable: Pageable): Page<LinkTypes>
+    fun findByNameIgnoreCase(name: String): LinkTypes?
 }
 
 
