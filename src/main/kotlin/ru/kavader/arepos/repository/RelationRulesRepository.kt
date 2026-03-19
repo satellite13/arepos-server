@@ -162,7 +162,7 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
                     )
                 )
                 OR r.notation IN (
-                  SELECT DISTINCT d.notation
+                  SELECT DISTINCT d.notation_id
                   FROM diagrams d
                   JOIN models m ON d.model = m.id
                   WHERE
@@ -210,7 +210,7 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
                     )
                 )
                 OR r.notation IN (
-                  SELECT DISTINCT d.notation
+                  SELECT DISTINCT d.notation_id
                   FROM diagrams d
                   JOIN models m ON d.model = m.id
                   WHERE
