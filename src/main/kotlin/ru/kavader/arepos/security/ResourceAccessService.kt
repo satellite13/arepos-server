@@ -96,8 +96,8 @@ class ResourceAccessService(
     fun canViewFile(file: Files): Boolean {
         val legacyDecision = CurrentUser.isAdmin() || file.owner.id == CurrentUser.getId()
         return applyCerbosDecision(
-            resourceKind = "file",
-            action = "view",
+            resourceKind = CerbosResourceKind.FILE,
+            action = CerbosAction.VIEW,
             resourceId = file.id!!,
             ownerId = file.owner.id,
             legacyDecision = legacyDecision
@@ -279,8 +279,8 @@ class ResourceAccessService(
         val legacyDecision = CurrentUser.isAdmin() || userId == ownerId
         // AccessShares is owner/admin controlled; use owner UUID as resource id.
         return applyCerbosDecision(
-            resourceKind = "share",
-            action = "manage",
+            resourceKind = CerbosResourceKind.SHARE,
+            action = CerbosAction.MANAGE,
             resourceId = ownerId,
             ownerId = ownerId,
             legacyDecision = legacyDecision
@@ -324,8 +324,8 @@ class ResourceAccessService(
         }
 
         return applyCerbosDecision(
-            resourceKind = resourceType.name.lowercase(),
-            action = "edit",
+            resourceKind = CerbosMappers.fromShareResourceType(resourceType),
+            action = CerbosAction.EDIT,
             resourceId = resourceId,
             ownerId = ownerId,
             legacyDecision = legacyDecision
@@ -354,8 +354,8 @@ class ResourceAccessService(
         }
 
         return applyCerbosDecision(
-            resourceKind = resourceType.name.lowercase(),
-            action = "view",
+            resourceKind = CerbosMappers.fromShareResourceType(resourceType),
+            action = CerbosAction.VIEW,
             resourceId = resourceId,
             ownerId = ownerId,
             legacyDecision = legacyDecision
@@ -363,16 +363,21 @@ class ResourceAccessService(
     }
 
     private fun applyCerbosDecision(
-        resourceKind: String,
-        action: String,
+        resourceKind: CerbosResourceKind,
+        action: CerbosAction,
         resourceId: UUID,
         ownerId: UUID?,
         legacyDecision: Boolean
     ): Boolean {
-        authzObservabilityService.recordLegacyDecision(resourceKind, action, legacyDecision)
+        authzObservabilityService.recordLegacyDecision(resourceKind.policyValue, action.policyValue, legacyDecision)
 
         if (!cerbosProperties.enabled || cerbosProperties.mode == CerbosMode.DISABLED) {
-            authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_disabled", legacyDecision)
+            authzObservabilityService.recordFinalDecision(
+                resourceKind.policyValue,
+                action.policyValue,
+                "legacy_disabled",
+                legacyDecision
+            )
             return legacyDecision
         }
 
@@ -387,31 +392,56 @@ class ResourceAccessService(
                 )
             )
         } catch (ex: Exception) {
-            authzObservabilityService.recordCerbosRequest(resourceKind, action, "error", System.nanoTime() - startNanos)
+            authzObservabilityService.recordCerbosRequest(
+                resourceKind.policyValue,
+                action.policyValue,
+                "error",
+                System.nanoTime() - startNanos
+            )
             if (cerbosProperties.failOpen) {
                 log.warn("Cerbos check failed, fail-open active. resourceKind={}, action={}, resourceId={}", resourceKind, action, resourceId, ex)
-                authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_fail_open", legacyDecision)
+                authzObservabilityService.recordFinalDecision(
+                    resourceKind.policyValue,
+                    action.policyValue,
+                    "legacy_fail_open",
+                    legacyDecision
+                )
                 return legacyDecision
             }
             log.warn("Cerbos check failed, fail-open disabled. Falling back to legacy decision to preserve current behavior. resourceKind={}, action={}, resourceId={}", resourceKind, action, resourceId, ex)
-            authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_fail_closed_fallback", legacyDecision)
+            authzObservabilityService.recordFinalDecision(
+                resourceKind.policyValue,
+                action.policyValue,
+                "legacy_fail_closed_fallback",
+                legacyDecision
+            )
             return legacyDecision
         }
 
         authzObservabilityService.recordCerbosRequest(
-            resourceKind = resourceKind,
-            action = action,
+            resourceKind = resourceKind.policyValue,
+            action = action.policyValue,
             outcome = if (cerbosDecision == null) "not_implemented" else "ok",
             durationNanos = System.nanoTime() - startNanos
         )
 
         if (cerbosDecision == null) {
-            authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_no_cerbos_decision", legacyDecision)
+            authzObservabilityService.recordFinalDecision(
+                resourceKind.policyValue,
+                action.policyValue,
+                "legacy_no_cerbos_decision",
+                legacyDecision
+            )
             return legacyDecision
         }
 
         if (cerbosProperties.shadowEnabled || cerbosProperties.mode == CerbosMode.SHADOW) {
-            authzObservabilityService.recordShadowComparison(resourceKind, action, legacyDecision, cerbosDecision)
+            authzObservabilityService.recordShadowComparison(
+                resourceKind.policyValue,
+                action.policyValue,
+                legacyDecision,
+                cerbosDecision
+            )
             if (legacyDecision != cerbosDecision) {
                 log.debug(
                     "Cerbos shadow mismatch: resourceKind={}, action={}, resourceId={}, legacy={}, cerbos={}",
@@ -422,7 +452,12 @@ class ResourceAccessService(
                     cerbosDecision
                 )
             }
-            authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_shadow", legacyDecision)
+            authzObservabilityService.recordFinalDecision(
+                resourceKind.policyValue,
+                action.policyValue,
+                "legacy_shadow",
+                legacyDecision
+            )
             return legacyDecision
         }
 
@@ -437,11 +472,21 @@ class ResourceAccessService(
                     cerbosDecision
                 )
             }
-            authzObservabilityService.recordFinalDecision(resourceKind, action, "cerbos_enforce", cerbosDecision)
+            authzObservabilityService.recordFinalDecision(
+                resourceKind.policyValue,
+                action.policyValue,
+                "cerbos_enforce",
+                cerbosDecision
+            )
             return cerbosDecision
         }
 
-        authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_mode_fallback", legacyDecision)
+        authzObservabilityService.recordFinalDecision(
+            resourceKind.policyValue,
+            action.policyValue,
+            "legacy_mode_fallback",
+            legacyDecision
+        )
         return legacyDecision
     }
 
