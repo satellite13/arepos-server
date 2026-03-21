@@ -15,9 +15,11 @@ import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.model.NodeShapes
 import ru.kavader.arepos.model.NodeTypes
+import ru.kavader.arepos.model.Files
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.LinkTypesRepository
+import ru.kavader.arepos.repository.FilesRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeShapesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
@@ -50,6 +52,9 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
     @Autowired
     lateinit var linkTypesRepository: LinkTypesRepository
 
+    @Autowired
+    lateinit var filesRepository: FilesRepository
+
     private lateinit var owner: Users
     private lateinit var outsider: Users
     private lateinit var admin: Users
@@ -57,6 +62,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
     private lateinit var shape: NodeShapes
     private lateinit var nodeType: NodeTypes
     private lateinit var linkType: LinkTypes
+    private lateinit var file: Files
 
     @BeforeEach
     fun setUp() {
@@ -109,6 +115,17 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
             LinkTypes(
                 name = "permissions-link-type-${UUID.randomUUID()}",
                 owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        file = filesRepository.save(
+            Files(
+                id = UUID.randomUUID(),
+                owner = owner,
+                filename = "permissions-file-${UUID.randomUUID()}.txt",
+                contentType = "text/plain",
+                size = 12L,
+                objectKey = "permissions/file-${UUID.randomUUID()}.txt",
                 createdAt = Instant.now()
             )
         )
@@ -176,6 +193,42 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
         val payload = mapOf(
             "resourceType" to "NODE_SHAPE",
             "resourceId" to shape.id.toString(),
+            "actions" to listOf("VIEW")
+        )
+
+        mockMvc.perform(
+            post("/api/v1/permissions/check")
+                .withAuth(outsider.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.decisions.VIEW").value(false))
+    }
+
+    @Test
+    fun `returns true for owner file view`() {
+        val payload = mapOf(
+            "resourceType" to "FILE",
+            "resourceId" to file.id.toString(),
+            "actions" to listOf("VIEW")
+        )
+
+        mockMvc.perform(
+            post("/api/v1/permissions/check")
+                .withAuth(owner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.decisions.VIEW").value(true))
+    }
+
+    @Test
+    fun `returns false for outsider file view`() {
+        val payload = mapOf(
+            "resourceType" to "FILE",
+            "resourceId" to file.id.toString(),
             "actions" to listOf("VIEW")
         )
 

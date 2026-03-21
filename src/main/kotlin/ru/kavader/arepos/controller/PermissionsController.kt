@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.repository.DiagramsRepository
+import ru.kavader.arepos.repository.FilesRepository
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeShapesRepository
@@ -23,6 +24,7 @@ enum class PermissionResourceType {
     NODE_TYPE,
     LINK_TYPE,
     NODE_SHAPE,
+    FILE,
     ADMIN_PANEL
 }
 
@@ -53,6 +55,7 @@ class PermissionsController(
     private val nodeTypesRepository: NodeTypesRepository,
     private val linkTypesRepository: LinkTypesRepository,
     private val nodeShapesRepository: NodeShapesRepository,
+    private val filesRepository: FilesRepository,
     private val accessService: ResourceAccessService
 ) {
     @PostMapping("/check")
@@ -150,6 +153,17 @@ class PermissionsController(
                     PermissionAction.VIEW -> accessService.canViewNodeShape(shape)
                     PermissionAction.EDIT -> accessService.canEditNodeShape(shape)
                     PermissionAction.MANAGE -> accessService.canManageShares(shape.owner.id!!)
+                }
+            }
+
+            PermissionResourceType.FILE -> {
+                val file = filesRepository.findById(resourceId).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "File $resourceId not found")
+                }
+                when (action) {
+                    PermissionAction.VIEW -> accessService.canViewFile(file)
+                    PermissionAction.EDIT -> false
+                    PermissionAction.MANAGE -> false
                 }
             }
 
