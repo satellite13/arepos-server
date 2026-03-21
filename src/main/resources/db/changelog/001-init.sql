@@ -1,4 +1,11 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+DO $$
+BEGIN
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+EXCEPTION
+    WHEN insufficient_privilege THEN
+        RAISE NOTICE 'Skipping pgcrypto extension: insufficient privileges';
+END
+$$;
 
 DROP TYPE IF EXISTS version_type;
 CREATE DOMAIN version_type AS TEXT CHECK (VALUE ~ '^\d+\.\d+\.\d+(-[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?$');
