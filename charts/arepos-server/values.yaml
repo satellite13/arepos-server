@@ -249,3 +249,18 @@ minio:
 env: []
 # - name: SPRING_PROFILES_ACTIVE
 #   value: "production"
+
+# Cerbos authorization configuration
+cerbos:
+  enabled: false
+  host: "cerbos"
+  port: 3592
+  mode: "DISABLED" # DISABLED | SHADOW | ENFORCE
+  timeoutMs: 200
+  bundleVersion: ""
+
+# Authorization feature flags
+authz:
+  cerbosShadowEnabled: false
+  cerbosEnforceEnabled: false
+  cerbosFailOpen: false

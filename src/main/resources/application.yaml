@@ -46,6 +46,16 @@ arepos:
     access-expiration: ${JWT_ACCESS_EXPIRATION:PT30M}
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:P7D}
   admin-secret: ${ADMIN_SECRET:}
+  authz:
+    cerbos:
+      enabled: ${CERBOS_ENABLED:false}
+      mode: ${CERBOS_MODE:DISABLED}
+      endpoint: ${CERBOS_ENDPOINT:http://localhost:3592}
+      request-timeout: ${CERBOS_REQUEST_TIMEOUT:PT0.2S}
+      fail-open: ${CERBOS_FAIL_OPEN:false}
+      shadow-enabled: ${CERBOS_SHADOW_ENABLED:false}
+      enforce-enabled: ${CERBOS_ENFORCE_ENABLED:false}
+      bundle-version: ${CERBOS_BUNDLE_VERSION:}
   files:
     storage: ${FILE_STORAGE:minio}
     minio:
