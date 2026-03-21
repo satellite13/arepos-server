@@ -134,6 +134,6 @@
 
 ## Важно
 
-- Текущий baseline покрывает `model`, `notation`, `diagram`, `node_type`, `link_type`, `node_shape`, `share`.
+- Текущий baseline покрывает `model`, `notation`, `diagram`, `node_type`, `link_type`, `node_shape`, `file`, `share`.
 - Для `model`/`notation`/`diagram`/`node_type`/`link_type`/`node_shape` используются правила owner/admin/shared(view|edit).
 - Перед расширением `enforce` на новые endpoint-группы обязательно прогоняйте shadow-gate и parity-check.
