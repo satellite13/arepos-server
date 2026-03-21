@@ -9,6 +9,7 @@ import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.model.SharePermission
@@ -23,6 +24,7 @@ class DashboardController(
     private val nodeTypesRepository: NodeTypesRepository,
     private val linkTypesRepository: LinkTypesRepository,
     private val auditLogRepository: AuditLogRepository,
+    private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService
 ) {
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
@@ -78,7 +80,12 @@ class DashboardController(
         }
 
         val activityPageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "changedAt"))
-        val activity = auditLogRepository.findAll(activityPageable).content
+        val activity = if (CurrentUser.isEditorOrAdmin()) {
+            auditLogRepository.findAll(activityPageable).content
+        } else {
+            val currentUser = usersRepository.findById(accessService.currentUserId()).orElseThrow()
+            auditLogRepository.findByChangedBy(currentUser, activityPageable).content
+        }
 
         return DashboardRecentResponse(
             models = models.map { it.toRecentItem() },
