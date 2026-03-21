@@ -284,7 +284,7 @@ class DiagramsController(
                     }
                 accessService.requireCanViewModel(model)
                 val allByName = diagramsRepository.findByModel_IdAndNameAndDeletedFalse(model.id!!, request.diagramName)
-                    .filter { accessService.canViewDiagram(it) }
+                    .let { accessService.filterViewableDiagrams(it) }
                 allByName.maxWithOrNull(::compareDiagramVersions)
                     ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No diagram named '${request.diagramName}' found")
                 val existing = diagramPreviewLinksRepository.findByModelAndDiagramName(model, request.diagramName)

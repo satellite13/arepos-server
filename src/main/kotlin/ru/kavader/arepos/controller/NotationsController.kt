@@ -141,7 +141,7 @@ class NotationsController(
                     notationId = id,
                     name = "",
                     pageable = Pageable.unpaged()
-                ).content.any { diagram -> accessService.canViewDiagram(diagram) }
+                ).content.let { diagrams -> accessService.filterViewableDiagrams(diagrams).isNotEmpty() }
 
                 if (!canViewDirectly && !hasVisibleDiagramWithNotation) {
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")

@@ -99,6 +99,46 @@ class ResourceAccessService(
         return notations.filter { notation -> notation.id?.let { decisions[it] } == true }
     }
 
+    fun canViewDiagrams(diagrams: Collection<Diagrams>): Map<UUID, Boolean> {
+        if (diagrams.isEmpty()) {
+            return emptyMap()
+        }
+        if (CurrentUser.isAdmin()) {
+            return diagrams.mapNotNull { diagram -> diagram.id?.let { it to true } }.toMap()
+        }
+
+        val models = diagrams.map { it.model }.distinctBy { it.id }
+        val notations = diagrams.map { it.notation }.distinctBy { it.id }
+        val modelView = canViewModels(models)
+        val modelEdit = evaluateTopLevelBatch(
+            entries = models.mapNotNull { model ->
+                model.id?.let { id ->
+                    Triple(model.owner.id!!, ShareResourceType.MODEL, id)
+                }
+            },
+            action = CerbosAction.EDIT
+        )
+        val notationView = canViewNotations(notations)
+
+        return diagrams.mapNotNull { diagram ->
+            val diagramId = diagram.id ?: return@mapNotNull null
+            val modelId = diagram.model.id ?: return@mapNotNull diagramId to false
+            val notationId = diagram.notation.id ?: return@mapNotNull diagramId to false
+            val canViewModel = modelView[modelId] == true
+            val canViewNotation = notationView[notationId] == true
+            val canEditModel = modelEdit[modelId] == true
+            diagramId to (canViewModel && (canViewNotation || canEditModel))
+        }.toMap()
+    }
+
+    fun filterViewableDiagrams(diagrams: Collection<Diagrams>): List<Diagrams> {
+        if (CurrentUser.isAdmin()) {
+            return diagrams.toList()
+        }
+        val decisions = canViewDiagrams(diagrams)
+        return diagrams.filter { diagram -> diagram.id?.let { decisions[it] } == true }
+    }
+
     fun canEditNotation(notation: Notations): Boolean =
         canEditTopLevel(notation.owner.id!!, ShareResourceType.NOTATION, notation.id!!)
 
