@@ -55,3 +55,17 @@ env:
         name: arepos-server-auth-secret
         key: admin-secret
 
+# Cerbos defaults for local deploy.sh.
+# Keep this block aligned with infra values to avoid rollout drift.
+cerbos:
+  deploy: true
+  enabled: true
+  mode: SHADOW
+  timeoutMs: 1000
+  failOpen: false
+  bundleVersion: ""
+
+authz:
+  cerbosShadowEnabled: true
+  cerbosEnforceEnabled: false
+

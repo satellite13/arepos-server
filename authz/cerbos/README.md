@@ -104,6 +104,20 @@ Preflight перед promote можно запускать одной коман
 
 `INFRA_VALUES_FILE=<infra-values.yaml> ./scripts/cerbos-promote-precheck.sh`
 
+Быстрый rollback-командогенератор для двух контуров:
+
+`./scripts/cerbos-rollback.sh`
+
+Полезные варианты:
+
+- local shadow rollback c предыдущим bundle:
+  - `TARGET=local MODE=shadow BUNDLE_VERSION=policy-<prev-sha> ./scripts/cerbos-rollback.sh`
+- local аварийное отключение Cerbos:
+  - `TARGET=local MODE=off ./scripts/cerbos-rollback.sh`
+- infra rollback (сначала посмотреть команду, затем применить):
+  - `TARGET=infra MODE=shadow BUNDLE_VERSION=policy-<prev-sha> VALUES_FILE=<infra-values.yaml> ./scripts/cerbos-rollback.sh`
+  - `TARGET=infra MODE=shadow BUNDLE_VERSION=policy-<prev-sha> VALUES_FILE=<infra-values.yaml> APPLY=true ./scripts/cerbos-rollback.sh`
+
 ## Rollout / rollback runbook (две среды)
 
 ### 1) Local (`deploy.sh`) -> shadow

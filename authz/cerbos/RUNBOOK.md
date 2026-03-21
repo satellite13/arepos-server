@@ -107,10 +107,22 @@ CERBOS_BUNDLE_VERSION=policy-<prev-sha> \
 ./deploy.sh
 ```
 
+Или через helper-скрипт:
+
+```bash
+TARGET=local MODE=shadow BUNDLE_VERSION=policy-<prev-sha> ./scripts/cerbos-rollback.sh
+```
+
 Полный аварийный откат на legacy:
 
 ```bash
 CERBOS_OFF=true ./deploy.sh
+```
+
+Или через helper-скрипт:
+
+```bash
+TARGET=local MODE=off ./scripts/cerbos-rollback.sh
 ```
 
 ### 5.2 Production rollback (infra)
@@ -120,6 +132,13 @@ CERBOS_OFF=true ./deploy.sh
 2. откатить bundle до `policy-<prev-sha>`;
 3. применить infra rollout;
 4. проверить recovery (403/5xx/latency, shadow metrics).
+
+Генерация/применение rollback-команды:
+
+```bash
+TARGET=infra MODE=shadow BUNDLE_VERSION=policy-<prev-sha> VALUES_FILE=<infra-values.yaml> ./scripts/cerbos-rollback.sh
+TARGET=infra MODE=shadow BUNDLE_VERSION=policy-<prev-sha> VALUES_FILE=<infra-values.yaml> APPLY=true ./scripts/cerbos-rollback.sh
+```
 
 ## 6) Incident checklist
 
