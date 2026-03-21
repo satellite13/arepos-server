@@ -217,7 +217,8 @@ class RelationsController(
     ) {
         if (accessService.canUseLinkType(linkType)) return
         if (CurrentUser.isAdmin()) return
-        if (accessService.canEditNotation(notation) && linkType.owner.id == notation.owner.id) return
+        val canEditNotation = accessService.canEditNotation(notation)
+        if (canEditNotation && linkType.owner.id == notation.owner.id) return
         throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
     }
 }

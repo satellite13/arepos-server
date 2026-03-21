@@ -249,9 +249,10 @@ class NodesController(
     ) {
         if (accessService.canUseNodeType(nodeType)) return
         if (CurrentUser.isAdmin()) return
-        if (accessService.canEditModel(model) && nodeType.owner.id == model.owner.id) return
+        val canEditModel = accessService.canEditModel(model)
+        if (canEditModel && nodeType.owner.id == model.owner.id) return
         if (
-            accessService.canEditModel(model) &&
+            canEditModel &&
                 isNodeTypeUsedInModelDiagramNotations(requireNotNull(nodeType.id), model)
         ) {
             return

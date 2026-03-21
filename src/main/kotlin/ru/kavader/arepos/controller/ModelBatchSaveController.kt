@@ -23,6 +23,8 @@ class ModelBatchSaveController(
     private val nodeTypesRepository: NodeTypesRepository,
     private val linkTypesRepository: LinkTypesRepository,
     private val notationsRepository: NotationsRepository,
+    private val componentsRepository: ComponentsRepository,
+    private val relationsRepository: RelationsRepository,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
     private val objectMapper: ObjectMapper
@@ -94,6 +96,7 @@ class ModelBatchSaveController(
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Node ${upd.id} not found") }
             val nodeType = nodeTypesRepository.findById(upd.nodeTypeId)
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${upd.nodeTypeId} not found") }
+            requireCanUseNodeTypeForModel(nodeType, model)
             val parentNode = resolveParentNode(upd.parentNodeId, emptyMap())
             nodesRepository.save(
                 node.copy(
@@ -144,6 +147,7 @@ class ModelBatchSaveController(
                     .orElseThrow {
                         ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${item.nodeTypeId} not found")
                     }
+                requireCanUseNodeTypeForModel(nodeType, model)
                 val saved = nodesRepository.save(
                     Nodes(
                         stableId = UUID.randomUUID(),
@@ -202,6 +206,7 @@ class ModelBatchSaveController(
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Target node ${item.targetId} not found") }
             val linkType = linkTypesRepository.findById(item.linkTypeId)
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${item.linkTypeId} not found") }
+            requireCanUseLinkTypeForModel(linkType, model)
             val saved = linksRepository.save(
                 Links(
                     stableId = UUID.randomUUID(),
@@ -238,6 +243,7 @@ class ModelBatchSaveController(
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Target node ${upd.targetId} not found") }
             val linkType = linkTypesRepository.findById(upd.linkTypeId)
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${upd.linkTypeId} not found") }
+            requireCanUseLinkTypeForModel(linkType, model)
             linksRepository.save(
                 link.copy(
                     source = source,
@@ -277,6 +283,7 @@ class ModelBatchSaveController(
                 .orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${item.notationId} not found")
                 }
+            accessService.requireCanEditNotation(notation)
             val node = item.nodeId?.let { ref ->
                 val nodeUuid = resolveRef(ref, nodeIdMap, "diagram node")
                 nodesRepository.findById(nodeUuid)
@@ -315,6 +322,7 @@ class ModelBatchSaveController(
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram ${upd.id} not found") }
             val notation = notationsRepository.findById(upd.notationId)
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${upd.notationId} not found") }
+            accessService.requireCanEditNotation(notation)
             val node = upd.nodeId?.let { ref ->
                 val nodeUuid = resolveRef(ref, nodeIdMap, "diagram node")
                 nodesRepository.findById(nodeUuid)
@@ -410,6 +418,58 @@ class ModelBatchSaveController(
         val mapped = idMap[value] ?: return false
         obj.put(field, mapped.toString())
         return true
+    }
+
+    private fun requireCanUseNodeTypeForModel(
+        nodeType: NodeTypes,
+        model: Models
+    ) {
+        if (accessService.canUseNodeType(nodeType)) return
+        if (CurrentUser.isAdmin()) return
+        val canEditModel = accessService.canEditModel(model)
+        if (canEditModel && nodeType.owner.id == model.owner.id) return
+        if (
+            canEditModel &&
+                isNodeTypeUsedInModelDiagramNotations(requireNotNull(nodeType.id), model)
+        ) {
+            return
+        }
+        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+    }
+
+    private fun requireCanUseLinkTypeForModel(
+        linkType: LinkTypes,
+        model: Models
+    ) {
+        if (accessService.canUseLinkType(linkType)) return
+        if (CurrentUser.isAdmin()) return
+        val canEditModel = accessService.canEditModel(model)
+        if (canEditModel && linkType.owner.id == model.owner.id) return
+        if (
+            canEditModel &&
+                isLinkTypeUsedInModelDiagramNotations(requireNotNull(linkType.id), model)
+        ) {
+            return
+        }
+        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+    }
+
+    private fun isNodeTypeUsedInModelDiagramNotations(
+        nodeTypeId: UUID,
+        model: Models
+    ): Boolean {
+        val notationIds = diagramsRepository.findDistinctNotationIdsByModelId(requireNotNull(model.id)).toSet()
+        if (notationIds.isEmpty()) return false
+        return componentsRepository.existsByNodeType_IdAndNotation_IdIn(nodeTypeId, notationIds)
+    }
+
+    private fun isLinkTypeUsedInModelDiagramNotations(
+        linkTypeId: UUID,
+        model: Models
+    ): Boolean {
+        val notationIds = diagramsRepository.findDistinctNotationIdsByModelId(requireNotNull(model.id)).toSet()
+        if (notationIds.isEmpty()) return false
+        return relationsRepository.existsByLinkType_IdAndNotation_IdIn(linkTypeId, notationIds)
     }
 }
 

@@ -281,9 +281,10 @@ class LinksController(
     ) {
         if (accessService.canUseLinkType(linkType)) return
         if (CurrentUser.isAdmin()) return
-        if (accessService.canEditModel(model) && linkType.owner.id == model.owner.id) return
+        val canEditModel = accessService.canEditModel(model)
+        if (canEditModel && linkType.owner.id == model.owner.id) return
         if (
-            accessService.canEditModel(model) &&
+            canEditModel &&
                 isLinkTypeUsedInModelDiagramNotations(requireNotNull(linkType.id), model)
         ) {
             return

@@ -217,7 +217,8 @@ class ComponentsController(
     ) {
         if (accessService.canUseNodeType(nodeType)) return
         if (CurrentUser.isAdmin()) return
-        if (accessService.canEditNotation(notation) && nodeType.owner.id == notation.owner.id) return
+        val canEditNotation = accessService.canEditNotation(notation)
+        if (canEditNotation && nodeType.owner.id == notation.owner.id) return
         throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
     }
 }
