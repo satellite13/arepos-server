@@ -166,6 +166,8 @@ class FileStorageService(
         return file to InputStreamResource(stream)
     }
 
+    fun getFileMetadata(id: UUID): Files? = filesRepository.findById(id).orElse(null)
+
     fun getFileVersion(id: UUID, versionNumber: Int): Pair<Files, Resource>? {
         val file = filesRepository.findById(id).orElse(null) ?: return null
         val version = fileVersionsRepository.findByFileAndVersionNumber(file, versionNumber) ?: return null

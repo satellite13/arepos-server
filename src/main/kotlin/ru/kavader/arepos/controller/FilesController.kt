@@ -88,6 +88,9 @@ class FilesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
             }
+        val file = fileStorageService.getFileMetadata(id)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
+        accessService.requireCanViewFile(file)
         val updated = fileStorageService.updateMarkdown(id, request.content, owner)
         val url = "/api/v1/files/${updated.id}"
         return FileUploadResponse(
@@ -101,9 +104,12 @@ class FilesController(
 
     @GetMapping("/{id}")
     fun getFile(@PathVariable id: UUID): ResponseEntity<org.springframework.core.io.Resource> {
+        val fileMetadata = fileStorageService.getFileMetadata(id)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
+        accessService.requireCanViewFile(fileMetadata)
+
         val (file, resource) = fileStorageService.getFile(id)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
-        accessService.requireCanViewFile(file)
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(file.contentType))
             .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"${file.filename}\"")
@@ -113,6 +119,9 @@ class FilesController(
 
     @GetMapping("/{id}/versions")
     fun listVersions(@PathVariable id: UUID): List<FileVersionResponse> {
+        val file = fileStorageService.getFileMetadata(id)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
+        accessService.requireCanViewFile(file)
         val versions = fileStorageService.listVersions(id)
         return versions.map { version ->
             FileVersionResponse(
@@ -129,9 +138,12 @@ class FilesController(
         @PathVariable id: UUID,
         @PathVariable versionNumber: Int
     ): ResponseEntity<org.springframework.core.io.Resource> {
+        val fileMetadata = fileStorageService.getFileMetadata(id)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File or version not found")
+        accessService.requireCanViewFile(fileMetadata)
+
         val (file, resource) = fileStorageService.getFileVersion(id, versionNumber)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File or version not found")
-        accessService.requireCanViewFile(file)
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(file.contentType))
             .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"${file.filename}\"")
