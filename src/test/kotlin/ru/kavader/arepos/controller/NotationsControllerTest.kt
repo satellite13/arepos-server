@@ -11,8 +11,12 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.ResourceShares
 import ru.kavader.arepos.model.Role
+import ru.kavader.arepos.model.SharePermission
+import ru.kavader.arepos.model.ShareResourceType
 import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.repository.ResourceSharesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import kotlin.test.assertEquals
@@ -32,6 +36,9 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var notationsRepository: NotationsRepository
+
+    @Autowired
+    lateinit var resourceSharesRepository: ResourceSharesRepository
 
     @Test
     fun `creates notation via REST`() {
@@ -171,5 +178,62 @@ class NotationsControllerTest : ControllerIntegrationTest() {
                 .withAuth(userA.id!!, Role.USER)
         )
             .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `shared user can create notation version from source copy`() {
+        val now = Instant.now()
+        val owner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "notation-owner-copy@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val viewer = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "notation-viewer-copy@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val source = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "shared-notation-copy",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.NOTATION,
+                resourceId = source.id!!,
+                granteeUser = viewer,
+                grantedByUser = owner,
+                permission = SharePermission.EDIT,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        val payload = NotationRequest(
+            name = source.name,
+            version = "1.1.0",
+            ownerId = viewer.id
+        )
+
+        mockMvc.perform(
+            post("/api/v1/notations/${source.id}/copy")
+                .withAuth(viewer.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.name").value("shared-notation-copy"))
+            .andExpect(jsonPath("$.version").value("1.1.0"))
+            .andExpect(jsonPath("$.ownerId").value(viewer.id.toString()))
     }
 }

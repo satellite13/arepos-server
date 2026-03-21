@@ -250,7 +250,8 @@ class NotationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Source notation $sourceId not found")
             }
-        accessService.requireCanEditNotation(source)
+        // Копирование создает новую нотацию и не изменяет исходник, достаточно прав на чтение источника.
+        accessService.requireCanViewNotation(source)
         // Конфликт только с неудалёнными: версия, занятая удалённой нотацией, допустима
         if (notationsRepository.existsByNameAndVersion(request.name, request.version)) {
             throw ResponseStatusException(
