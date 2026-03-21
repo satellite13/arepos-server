@@ -25,6 +25,7 @@ enum class PermissionResourceType {
     LINK_TYPE,
     NODE_SHAPE,
     FILE,
+    SHARE,
     ADMIN_PANEL
 }
 
@@ -164,6 +165,14 @@ class PermissionsController(
                     PermissionAction.VIEW -> accessService.canViewFile(file)
                     PermissionAction.EDIT -> false
                     PermissionAction.MANAGE -> false
+                }
+            }
+
+            PermissionResourceType.SHARE -> {
+                when (action) {
+                    PermissionAction.VIEW -> accessService.canManageShares(resourceId)
+                    PermissionAction.EDIT -> accessService.canManageShares(resourceId)
+                    PermissionAction.MANAGE -> accessService.canManageShares(resourceId)
                 }
             }
 

@@ -243,6 +243,42 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `returns true for share manage when resource id is own user id`() {
+        val payload = mapOf(
+            "resourceType" to "SHARE",
+            "resourceId" to owner.id.toString(),
+            "actions" to listOf("MANAGE")
+        )
+
+        mockMvc.perform(
+            post("/api/v1/permissions/check")
+                .withAuth(owner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.decisions.MANAGE").value(true))
+    }
+
+    @Test
+    fun `returns false for share manage when resource id is another user id`() {
+        val payload = mapOf(
+            "resourceType" to "SHARE",
+            "resourceId" to owner.id.toString(),
+            "actions" to listOf("MANAGE")
+        )
+
+        mockMvc.perform(
+            post("/api/v1/permissions/check")
+                .withAuth(outsider.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.decisions.MANAGE").value(false))
+    }
+
+    @Test
     fun `returns true for owner node-type edit`() {
         val payload = mapOf(
             "resourceType" to "NODE_TYPE",
