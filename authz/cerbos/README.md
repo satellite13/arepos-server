@@ -66,6 +66,72 @@
 
 - `SHADOW_GATE_WARN_ONLY=true` — при непройденном gate деплой не блокируется.
 
+## Parity check для local vs infra
+
+Чтобы перед `enforce` убедиться, что ключевые Cerbos-параметры совпадают в обоих контурах:
+
+`INFRA_VALUES_FILE=infra/arepos-server-values.yaml ./scripts/check-cerbos-config-parity.sh`
+
+Проверяемые параметры:
+
+- `AREPOS_AUTHZ_CERBOS_MODE`
+- `AREPOS_AUTHZ_CERBOS_REQUEST_TIMEOUT`
+- `AREPOS_AUTHZ_CERBOS_BUNDLE_VERSION`
+- `AREPOS_AUTHZ_CERBOS_SHADOW_ENABLED`
+- `AREPOS_AUTHZ_CERBOS_ENFORCE_ENABLED`
+- `AREPOS_AUTHZ_CERBOS_FAIL_OPEN`
+- `AREPOS_AUTHZ_CERBOS_ENABLED`
+
+Опционально можно включить сравнение endpoint:
+
+`INCLUDE_ENDPOINT=true INFRA_VALUES_FILE=infra/arepos-server-values.yaml ./scripts/check-cerbos-config-parity.sh`
+
+Интеграция в `deploy.sh`:
+
+`CHECK_CERBOS_PARITY=true CERBOS_INFRA_VALUES_FILE=infra/arepos-server-values.yaml ./deploy.sh`
+
+Для мягкого режима:
+
+- `CERBOS_PARITY_WARN_ONLY=true` — не блокировать деплой при несовпадениях.
+
+## Rollout / rollback runbook (две среды)
+
+### 1) Local (`deploy.sh`) -> shadow
+
+1. Выпустить bundle:
+   - `./scripts/release-cerbos-policies.sh`
+2. Задать baseline:
+   - `WRITE_BASELINE=true ./scripts/check-cerbos-shadow.sh`
+3. Прогнать shadow-трафик и gate:
+   - `MODE=baseline ./scripts/check-cerbos-shadow.sh`
+
+### 2) Local -> enforce (canary)
+
+`CHECK_SHADOW_GATE=true SHADOW_GATE_MODE=baseline CERBOS_ENFORCE=true CERBOS_BUNDLE_VERSION=policy-<sha> ./deploy.sh`
+
+### 3) Parity перед production (`infra`)
+
+`INFRA_VALUES_FILE=<infra-values.yaml> ./scripts/check-cerbos-config-parity.sh`
+
+Рекомендуемый вариант (единый шаг через deploy):
+
+`CHECK_CERBOS_PARITY=true CERBOS_INFRA_VALUES_FILE=<infra-values.yaml> CERBOS_ENFORCE=true CERBOS_BUNDLE_VERSION=policy-<sha> ./deploy.sh`
+
+### 4) Production (`infra`) rollout
+
+- В `infra` используем тот же `policy-<sha>`.
+- Сначала включаем `SHADOW`, затем после окна наблюдения переводим в `ENFORCE`.
+- Перед переключением в `ENFORCE` повторно проверяем parity и shadow-метрики.
+
+### 5) Быстрый rollback
+
+- На локальном контуре:
+  - вернуть bundle: `CERBOS_BUNDLE_VERSION=policy-<prev-sha>`
+  - выключить enforce: `CERBOS_SHADOW=true` или `CERBOS_OFF=true`
+- На production (`infra`):
+  - реверт `bundleVersion` и `cerbos.mode` в `SHADOW` (или `DISABLED` при инциденте),
+  - затем `helm upgrade`/infra rollout.
+
 ## Важно
 
 - Текущий baseline покрывает только owner/admin для ресурсов `model`, `notation`, `diagram`.

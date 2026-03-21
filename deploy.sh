@@ -33,6 +33,10 @@ SHADOW_GATE_MAX_ERRORS="${SHADOW_GATE_MAX_ERRORS:-0}"
 SHADOW_GATE_MIN_MATCH_RATE="${SHADOW_GATE_MIN_MATCH_RATE:-99.9}"
 SHADOW_GATE_ON_ANY_DEPLOY="${SHADOW_GATE_ON_ANY_DEPLOY:-false}"
 SHADOW_GATE_WARN_ONLY="${SHADOW_GATE_WARN_ONLY:-false}"
+CHECK_CERBOS_PARITY="${CHECK_CERBOS_PARITY:-false}"
+CERBOS_PARITY_SCRIPT="${CERBOS_PARITY_SCRIPT:-./scripts/check-cerbos-config-parity.sh}"
+CERBOS_INFRA_VALUES_FILE="${CERBOS_INFRA_VALUES_FILE:-}"
+CERBOS_PARITY_WARN_ONLY="${CERBOS_PARITY_WARN_ONLY:-false}"
 CERBOS_SHADOW="${CERBOS_SHADOW:-false}"
 CERBOS_ENFORCE="${CERBOS_ENFORCE:-false}"
 CERBOS_OFF="${CERBOS_OFF:-false}"
@@ -234,6 +238,30 @@ if should_run_shadow_gate; then
             log_warn "Shadow gate не пройден, но включен SHADOW_GATE_WARN_ONLY=true. Продолжаем деплой."
         else
             log_error "Shadow gate не пройден. Деплой прерван."
+            exit 1
+        fi
+    fi
+fi
+
+if [ "$CHECK_CERBOS_PARITY" = "true" ]; then
+    log_info "Проверка parity Cerbos-конфига между local и infra..."
+    if [ ! -x "$CERBOS_PARITY_SCRIPT" ]; then
+        log_error "Скрипт parity-check не найден или не исполняемый: $CERBOS_PARITY_SCRIPT"
+        exit 1
+    fi
+    if [ -z "$CERBOS_INFRA_VALUES_FILE" ]; then
+        log_error "Для parity-check укажите CERBOS_INFRA_VALUES_FILE=<path-to-infra-values.yaml>"
+        exit 1
+    fi
+    if ! LOCAL_VALUES_FILE="$VALUES_FILE" \
+         INFRA_VALUES_FILE="$CERBOS_INFRA_VALUES_FILE" \
+         CHART_PATH="$CHART_PATH" \
+         NAMESPACE="$NAMESPACE" \
+         "$CERBOS_PARITY_SCRIPT"; then
+        if [ "$CERBOS_PARITY_WARN_ONLY" = "true" ]; then
+            log_warn "Parity-check не пройден, но включен CERBOS_PARITY_WARN_ONLY=true. Продолжаем деплой."
+        else
+            log_error "Parity-check не пройден. Деплой прерван."
             exit 1
         fi
     fi
