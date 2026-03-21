@@ -248,7 +248,6 @@ class NodesController(
         model: ru.kavader.arepos.model.Models
     ) {
         if (accessService.canUseNodeType(nodeType)) return
-        if (CurrentUser.isAdmin()) return
         val canEditModel = accessService.canEditModel(model)
         if (canEditModel && nodeType.owner.id == model.owner.id) return
         if (

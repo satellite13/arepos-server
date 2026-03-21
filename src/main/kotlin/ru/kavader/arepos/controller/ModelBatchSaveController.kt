@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.*
-import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
@@ -425,7 +424,6 @@ class ModelBatchSaveController(
         model: Models
     ) {
         if (accessService.canUseNodeType(nodeType)) return
-        if (CurrentUser.isAdmin()) return
         val canEditModel = accessService.canEditModel(model)
         if (canEditModel && nodeType.owner.id == model.owner.id) return
         if (
@@ -442,7 +440,6 @@ class ModelBatchSaveController(
         model: Models
     ) {
         if (accessService.canUseLinkType(linkType)) return
-        if (CurrentUser.isAdmin()) return
         val canEditModel = accessService.canEditModel(model)
         if (canEditModel && linkType.owner.id == model.owner.id) return
         if (

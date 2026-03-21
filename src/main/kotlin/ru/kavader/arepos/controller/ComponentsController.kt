@@ -216,7 +216,6 @@ class ComponentsController(
         notation: ru.kavader.arepos.model.Notations
     ) {
         if (accessService.canUseNodeType(nodeType)) return
-        if (CurrentUser.isAdmin()) return
         val canEditNotation = accessService.canEditNotation(notation)
         if (canEditNotation && nodeType.owner.id == notation.owner.id) return
         throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")

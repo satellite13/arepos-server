@@ -216,7 +216,6 @@ class RelationsController(
         notation: ru.kavader.arepos.model.Notations
     ) {
         if (accessService.canUseLinkType(linkType)) return
-        if (CurrentUser.isAdmin()) return
         val canEditNotation = accessService.canEditNotation(notation)
         if (canEditNotation && linkType.owner.id == notation.owner.id) return
         throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")

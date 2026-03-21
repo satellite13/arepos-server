@@ -280,7 +280,6 @@ class LinksController(
         model: ru.kavader.arepos.model.Models
     ) {
         if (accessService.canUseLinkType(linkType)) return
-        if (CurrentUser.isAdmin()) return
         val canEditModel = accessService.canEditModel(model)
         if (canEditModel && linkType.owner.id == model.owner.id) return
         if (
