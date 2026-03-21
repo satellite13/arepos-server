@@ -253,11 +253,24 @@ env: []
 # Cerbos authorization configuration
 cerbos:
   enabled: false
+  deploy: false
   host: "cerbos"
   port: 3592
   mode: "DISABLED" # DISABLED | SHADOW | ENFORCE
-  timeoutMs: 200
+  timeoutMs: 1000
   bundleVersion: ""
+  image:
+    repository: ghcr.io/cerbos/cerbos
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "300m"
+      memory: "256Mi"
+  healthPath: "/_cerbos/health"
 
 # Authorization feature flags
 authz:

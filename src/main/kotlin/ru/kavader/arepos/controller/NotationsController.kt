@@ -166,8 +166,7 @@ class NotationsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
             }
         )
-        return notationsRepository.findBySourceId(id)
-            .filter { accessService.canViewNotation(it) }
+        return accessService.filterViewableNotations(notationsRepository.findBySourceId(id))
             .map { it.toResponse() }
     }
 

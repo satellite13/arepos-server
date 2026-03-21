@@ -74,3 +74,23 @@ MinIO resource names.
 {{- define "arepos-server.minio.fullname" -}}
 {{- printf "%s-minio" (include "arepos-server.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
+
+{{/*
+Cerbos resource names.
+*/}}
+{{- define "arepos-server.cerbos.fullname" -}}
+{{- printf "%s-cerbos" (include "arepos-server.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "arepos-server.cerbos.config.fullname" -}}
+{{- printf "%s-cerbos-config" (include "arepos-server.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "arepos-server.cerbos.policies.fullname" -}}
+{{- printf "%s-cerbos-policies" (include "arepos-server.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "arepos-server.cerbos.selectorLabels" -}}
+app.kubernetes.io/name: cerbos
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

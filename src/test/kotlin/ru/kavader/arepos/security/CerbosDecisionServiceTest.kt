@@ -12,8 +12,11 @@ import ru.kavader.arepos.config.CerbosProperties
 import java.net.InetSocketAddress
 import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class CerbosDecisionServiceTest {
     @AfterEach
@@ -93,6 +96,91 @@ class CerbosDecisionServiceTest {
         }
     }
 
+    @Test
+    fun `includes extra resource attributes in request payload`() {
+        val capturedBody = AtomicReference<String>("")
+        withServer(
+            body = """{"results":[{"actions":{"view":"EFFECT_ALLOW"}}]}""",
+            onRequest = { payload -> capturedBody.set(payload) }
+        ) { endpoint ->
+            val service = CerbosDecisionService(
+                cerbosProperties = CerbosProperties(
+                    enabled = true,
+                    mode = CerbosMode.SHADOW,
+                    endpoint = endpoint,
+                    requestTimeout = Duration.ofSeconds(1)
+                ),
+                objectMapper = jacksonObjectMapper()
+            )
+
+            setCurrentUser(role = "USER")
+            service.check(
+                CerbosAccessRequest(
+                    resourceKind = CerbosResourceKind.MODEL,
+                    action = CerbosAction.VIEW,
+                    resourceId = UUID.randomUUID(),
+                    ownerId = UUID.randomUUID(),
+                    resourceAttributes = mapOf(
+                        "isOwner" to false,
+                        "hasShareView" to true,
+                        "hasShareEdit" to false
+                    )
+                )
+            )
+        }
+
+        val payload = capturedBody.get()
+        assertTrue(payload.contains("\"hasShareView\":true"))
+        assertTrue(payload.contains("\"hasShareEdit\":false"))
+        assertTrue(payload.contains("\"isOwner\":false"))
+    }
+
+    @Test
+    fun `supports batch decisions in single request`() {
+        val capturedBody = AtomicReference<String>("")
+        withServer(
+            body = """{"results":[{"resource":{"id":"11111111-1111-1111-1111-111111111111"},"actions":{"view":"EFFECT_ALLOW"}},{"resource":{"id":"22222222-2222-2222-2222-222222222222"},"actions":{"view":"EFFECT_DENY"}}]}""",
+            onRequest = { payload -> capturedBody.set(payload) }
+        ) { endpoint ->
+            val service = CerbosDecisionService(
+                cerbosProperties = CerbosProperties(
+                    enabled = true,
+                    mode = CerbosMode.ENFORCE,
+                    endpoint = endpoint,
+                    requestTimeout = Duration.ofSeconds(1)
+                ),
+                objectMapper = jacksonObjectMapper()
+            )
+
+            setCurrentUser(role = "USER")
+            val allowId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+            val denyId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+            val decisions = service.checkBatch(
+                listOf(
+                    CerbosBatchAccessRequest(
+                        resourceKind = CerbosResourceKind.MODEL,
+                        action = CerbosAction.VIEW,
+                        resourceId = allowId
+                    ),
+                    CerbosBatchAccessRequest(
+                        resourceKind = CerbosResourceKind.MODEL,
+                        action = CerbosAction.VIEW,
+                        resourceId = denyId
+                    )
+                )
+            )
+
+            assertEquals(true, decisions[allowId])
+            assertEquals(false, decisions[denyId])
+        }
+
+        val payload = capturedBody.get()
+        assertTrue(payload.contains("\"resources\":["))
+        assertTrue(payload.contains("11111111-1111-1111-1111-111111111111"))
+        assertTrue(payload.contains("22222222-2222-2222-2222-222222222222"))
+        assertFalse(payload.contains("\"resources\":[]"))
+    }
+
     private fun setCurrentUser(role: String) {
         val auth = UsernamePasswordAuthenticationToken(
             UUID.randomUUID(),
@@ -102,9 +190,15 @@ class CerbosDecisionServiceTest {
         SecurityContextHolder.getContext().authentication = auth
     }
 
-    private fun withServer(body: String, block: (endpoint: String) -> Unit) {
+    private fun withServer(
+        body: String,
+        onRequest: ((payload: String) -> Unit)? = null,
+        block: (endpoint: String) -> Unit
+    ) {
         val server = HttpServer.create(InetSocketAddress(0), 0)
         server.createContext("/api/check/resources") { exchange ->
+            val payload = exchange.requestBody.bufferedReader().use { it.readText() }
+            onRequest?.invoke(payload)
             val bytes = body.toByteArray(Charsets.UTF_8)
             exchange.sendResponseHeaders(200, bytes.size.toLong())
             exchange.responseBody.use { it.write(bytes) }

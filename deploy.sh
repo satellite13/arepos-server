@@ -23,6 +23,22 @@ CHART_PATH="${CHART_PATH:-charts/arepos-server}"
 BLUE_GREEN="${BLUE_GREEN:-false}"
 BG_SWITCH="${BG_SWITCH:-true}"
 SERVICE_NAME="${SERVICE_NAME:-$RELEASE_NAME}"
+HELM_EXTRA_ARGS="${HELM_EXTRA_ARGS:-}"
+CHECK_SHADOW_GATE="${CHECK_SHADOW_GATE:-false}"
+SHADOW_GATE_SCRIPT="${SHADOW_GATE_SCRIPT:-./scripts/check-cerbos-shadow.sh}"
+SHADOW_GATE_MODE="${SHADOW_GATE_MODE:-baseline}"
+SHADOW_GATE_BASELINE_FILE="${SHADOW_GATE_BASELINE_FILE:-.cerbos-shadow-baseline.env}"
+SHADOW_GATE_MAX_MISMATCH="${SHADOW_GATE_MAX_MISMATCH:-0}"
+SHADOW_GATE_MAX_ERRORS="${SHADOW_GATE_MAX_ERRORS:-0}"
+SHADOW_GATE_MIN_MATCH_RATE="${SHADOW_GATE_MIN_MATCH_RATE:-99.9}"
+SHADOW_GATE_ON_ANY_DEPLOY="${SHADOW_GATE_ON_ANY_DEPLOY:-false}"
+SHADOW_GATE_WARN_ONLY="${SHADOW_GATE_WARN_ONLY:-false}"
+CERBOS_SHADOW="${CERBOS_SHADOW:-false}"
+CERBOS_ENFORCE="${CERBOS_ENFORCE:-false}"
+CERBOS_OFF="${CERBOS_OFF:-false}"
+CERBOS_DEPLOY="${CERBOS_DEPLOY:-true}"
+CERBOS_BUNDLE_VERSION="${CERBOS_BUNDLE_VERSION:-policy-$(git rev-parse --short HEAD 2>/dev/null || echo latest)}"
+CERBOS_FAIL_OPEN="${CERBOS_FAIL_OPEN:-true}"
 
 # Функции
 log_info() {
@@ -54,6 +70,80 @@ check_command() {
         log_error "$1 не установлен"
         exit 1
     fi
+}
+
+append_helm_extra_arg() {
+    if [ -n "$HELM_EXTRA_ARGS" ]; then
+        HELM_EXTRA_ARGS="$HELM_EXTRA_ARGS $1"
+    else
+        HELM_EXTRA_ARGS="$1"
+    fi
+}
+
+configure_cerbos_shorthand() {
+    if [ "$CERBOS_OFF" = "true" ] && { [ "$CERBOS_SHADOW" = "true" ] || [ "$CERBOS_ENFORCE" = "true" ]; }; then
+        log_error "CERBOS_OFF=true нельзя совмещать с CERBOS_SHADOW=true или CERBOS_ENFORCE=true"
+        exit 1
+    fi
+
+    if [ "$CERBOS_SHADOW" = "true" ] && [ "$CERBOS_ENFORCE" = "true" ]; then
+        log_error "Нельзя одновременно включать CERBOS_SHADOW=true и CERBOS_ENFORCE=true"
+        exit 1
+    fi
+
+    if [ "$CERBOS_OFF" = "true" ]; then
+        append_helm_extra_arg "--set cerbos.enabled=false"
+        append_helm_extra_arg "--set cerbos.deploy=false"
+        append_helm_extra_arg "--set-string cerbos.mode=DISABLED"
+        append_helm_extra_arg "--set authz.cerbosShadowEnabled=false"
+        append_helm_extra_arg "--set authz.cerbosEnforceEnabled=false"
+        log_info "Включен shorthand режим CERBOS_OFF=true"
+        return
+    fi
+
+    if [ "$CERBOS_SHADOW" != "true" ] && [ "$CERBOS_ENFORCE" != "true" ]; then
+        return
+    fi
+
+    append_helm_extra_arg "--set cerbos.enabled=true"
+    append_helm_extra_arg "--set cerbos.deploy=${CERBOS_DEPLOY}"
+    append_helm_extra_arg "--set-string cerbos.bundleVersion=${CERBOS_BUNDLE_VERSION}"
+    append_helm_extra_arg "--set authz.cerbosFailOpen=${CERBOS_FAIL_OPEN}"
+
+    if [ "$CERBOS_SHADOW" = "true" ]; then
+        append_helm_extra_arg "--set-string cerbos.mode=SHADOW"
+        append_helm_extra_arg "--set authz.cerbosShadowEnabled=true"
+        append_helm_extra_arg "--set authz.cerbosEnforceEnabled=false"
+        log_info "Включен shorthand режим CERBOS_SHADOW=true"
+        return
+    fi
+
+    if [ "$CERBOS_ENFORCE" = "true" ]; then
+        append_helm_extra_arg "--set-string cerbos.mode=ENFORCE"
+        append_helm_extra_arg "--set authz.cerbosShadowEnabled=false"
+        append_helm_extra_arg "--set authz.cerbosEnforceEnabled=true"
+        log_info "Включен shorthand режим CERBOS_ENFORCE=true"
+    fi
+}
+
+should_run_shadow_gate() {
+    if [ "$CHECK_SHADOW_GATE" != "true" ]; then
+        return 1
+    fi
+    if [ "$SHADOW_GATE_ON_ANY_DEPLOY" = "true" ]; then
+        return 0
+    fi
+    if [ "$CERBOS_ENFORCE" = "true" ]; then
+        return 0
+    fi
+    case "$HELM_EXTRA_ARGS" in
+        *"cerbosEnforceEnabled=true"*|*"cerbos.mode=ENFORCE"*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 # Проверка необходимых команд
@@ -124,6 +214,31 @@ log_info "Тег образа: ${IMAGE_TAG}"
 log_info "Build ID деплоя: ${DEPLOY_BUILD_ID}"
 log_info "Image pull policy: ${DEPLOY_IMAGE_PULL_POLICY}"
 
+configure_cerbos_shorthand
+
+if should_run_shadow_gate; then
+    log_info "Проверка Cerbos shadow gate перед deploy..."
+    if [ ! -x "$SHADOW_GATE_SCRIPT" ]; then
+        log_error "Скрипт shadow gate не найден или не исполняемый: $SHADOW_GATE_SCRIPT"
+        exit 1
+    fi
+    if ! MODE="$SHADOW_GATE_MODE" \
+         BASELINE_FILE="$SHADOW_GATE_BASELINE_FILE" \
+         MAX_MISMATCH="$SHADOW_GATE_MAX_MISMATCH" \
+         MAX_ERRORS="$SHADOW_GATE_MAX_ERRORS" \
+         MIN_MATCH_RATE="$SHADOW_GATE_MIN_MATCH_RATE" \
+         NAMESPACE="$NAMESPACE" \
+         SERVICE_NAME="$SERVICE_NAME" \
+         "$SHADOW_GATE_SCRIPT"; then
+        if [ "$SHADOW_GATE_WARN_ONLY" = "true" ]; then
+            log_warn "Shadow gate не пройден, но включен SHADOW_GATE_WARN_ONLY=true. Продолжаем деплой."
+        else
+            log_error "Shadow gate не пройден. Деплой прерван."
+            exit 1
+        fi
+    fi
+fi
+
 # Сборка Docker образа
 if [ "$BUILD_IMAGE" = "true" ]; then
     log_info "Сборка Docker образа..."
@@ -174,6 +289,9 @@ if [ "$BLUE_GREEN" = "true" ]; then
     HELM_CMD="$HELM_CMD --set-string blueGreen.image.${TARGET_COLOR}Tag=$IMAGE_TAG"
     HELM_CMD="$HELM_CMD --set image.pullPolicy=$DEPLOY_IMAGE_PULL_POLICY"
     HELM_CMD="$HELM_CMD --set-string deployMetadata.buildId=$DEPLOY_BUILD_ID"
+    if [ -n "$HELM_EXTRA_ARGS" ]; then
+        HELM_CMD="$HELM_CMD $HELM_EXTRA_ARGS"
+    fi
 
     eval $HELM_CMD
 
@@ -192,6 +310,9 @@ if [ "$BLUE_GREEN" = "true" ]; then
     if [ "$BG_SWITCH" = "true" ]; then
         log_info "Переключение трафика на цвет '$TARGET_COLOR'..."
         HELM_SWITCH_CMD="helm upgrade --install $RELEASE_NAME $CHART_PATH -n $NAMESPACE --reuse-values --set blueGreen.enabled=true --set blueGreen.activeColor=$TARGET_COLOR --set-string deployMetadata.buildId=${DEPLOY_BUILD_ID}-switch"
+        if [ -n "$HELM_EXTRA_ARGS" ]; then
+            HELM_SWITCH_CMD="$HELM_SWITCH_CMD $HELM_EXTRA_ARGS"
+        fi
         eval $HELM_SWITCH_CMD
         log_info "Трафик переключен на '$TARGET_COLOR'"
     else
@@ -245,6 +366,9 @@ else
     HELM_CMD="$HELM_CMD --set-string image.tag=$IMAGE_TAG"
     HELM_CMD="$HELM_CMD --set image.pullPolicy=$DEPLOY_IMAGE_PULL_POLICY"
     HELM_CMD="$HELM_CMD --set-string deployMetadata.buildId=$DEPLOY_BUILD_ID"
+    if [ -n "$HELM_EXTRA_ARGS" ]; then
+        HELM_CMD="$HELM_CMD $HELM_EXTRA_ARGS"
+    fi
 
     eval $HELM_CMD
 

@@ -1,0 +1,126 @@
+{{- if .Values.cerbos.deploy }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "arepos-server.cerbos.config.fullname" . }}
+  labels:
+    {{- include "arepos-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cerbos
+data:
+  config.yaml: |
+    apiVersion: api.cerbos.dev/v1
+    storage:
+      driver: disk
+      disk:
+        directory: /policies
+    server:
+      httpListenAddr: ":3592"
+      grpcListenAddr: ":3593"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "arepos-server.cerbos.policies.fullname" . }}
+  labels:
+    {{- include "arepos-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cerbos
+data:
+{{- $policyFiles := .Files.Glob "cerbos/policies/*.yaml" }}
+{{- if $policyFiles }}
+{{- range $path, $_ := $policyFiles }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | nindent 4 }}
+{{- end }}
+{{- else }}
+  .keep: |
+    # Cerbos policy files are expected under charts/arepos-server/cerbos/policies/*.yaml
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arepos-server.cerbos.fullname" . }}
+  labels:
+    {{- include "arepos-server.labels" . | nindent 4 }}
+    {{- include "arepos-server.cerbos.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: cerbos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "arepos-server.cerbos.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: cerbos
+  template:
+    metadata:
+      annotations:
+        checksum/policies: {{ (.Files.Glob "cerbos/policies/*.yaml").AsConfig | sha256sum }}
+      labels:
+        {{- include "arepos-server.cerbos.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: cerbos
+    spec:
+      containers:
+        - name: cerbos
+          image: "{{ .Values.cerbos.image.repository }}:{{ .Values.cerbos.image.tag }}"
+          imagePullPolicy: {{ .Values.cerbos.image.pullPolicy }}
+          args:
+            - "server"
+            - "--config=/config/config.yaml"
+          ports:
+            - name: http
+              containerPort: 3592
+              protocol: TCP
+            - name: grpc
+              containerPort: 3593
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.cerbos.healthPath | quote }}
+              port: 3592
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.cerbos.healthPath | quote }}
+              port: 3592
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.cerbos.resources | nindent 12 }}
+          volumeMounts:
+            - name: cerbos-config
+              mountPath: /config
+              readOnly: true
+            - name: cerbos-policies
+              mountPath: /policies
+              readOnly: true
+      volumes:
+        - name: cerbos-config
+          configMap:
+            name: {{ include "arepos-server.cerbos.config.fullname" . }}
+        - name: cerbos-policies
+          configMap:
+            name: {{ include "arepos-server.cerbos.policies.fullname" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "arepos-server.cerbos.fullname" . }}
+  labels:
+    {{- include "arepos-server.labels" . | nindent 4 }}
+    {{- include "arepos-server.cerbos.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: cerbos
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "arepos-server.cerbos.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: cerbos
+  ports:
+    - name: http
+      port: 3592
+      targetPort: 3592
+      protocol: TCP
+    - name: grpc
+      port: 3593
+      targetPort: 3593
+      protocol: TCP
+{{- end }}

@@ -151,21 +151,25 @@ template:
           - name: MINIO_BUCKET
             value: {{ $ctx.Values.minio.bucket | default "arepos-files" | quote }}
           {{- end }}
-          - name: CERBOS_ENABLED
+          - name: AREPOS_AUTHZ_CERBOS_ENABLED
             value: {{ $ctx.Values.cerbos.enabled | quote }}
-          - name: CERBOS_MODE
+          - name: AREPOS_AUTHZ_CERBOS_MODE
             value: {{ $ctx.Values.cerbos.mode | quote }}
-          - name: CERBOS_ENDPOINT
+          - name: AREPOS_AUTHZ_CERBOS_ENDPOINT
+            {{- if $ctx.Values.cerbos.deploy }}
+            value: "http://{{ include "arepos-server.cerbos.fullname" $ctx }}:{{ $ctx.Values.cerbos.port }}"
+            {{- else }}
             value: "http://{{ $ctx.Values.cerbos.host }}:{{ $ctx.Values.cerbos.port }}"
-          - name: CERBOS_REQUEST_TIMEOUT
-            value: "PT{{ $ctx.Values.cerbos.timeoutMs }}MS"
-          - name: CERBOS_BUNDLE_VERSION
+            {{- end }}
+          - name: AREPOS_AUTHZ_CERBOS_REQUEST_TIMEOUT
+            value: "{{ $ctx.Values.cerbos.timeoutMs }}ms"
+          - name: AREPOS_AUTHZ_CERBOS_BUNDLE_VERSION
             value: {{ $ctx.Values.cerbos.bundleVersion | quote }}
-          - name: CERBOS_SHADOW_ENABLED
+          - name: AREPOS_AUTHZ_CERBOS_SHADOW_ENABLED
             value: {{ $ctx.Values.authz.cerbosShadowEnabled | quote }}
-          - name: CERBOS_ENFORCE_ENABLED
+          - name: AREPOS_AUTHZ_CERBOS_ENFORCE_ENABLED
             value: {{ $ctx.Values.authz.cerbosEnforceEnabled | quote }}
-          - name: CERBOS_FAIL_OPEN
+          - name: AREPOS_AUTHZ_CERBOS_FAIL_OPEN
             value: {{ $ctx.Values.authz.cerbosFailOpen | quote }}
           {{- with $ctx.Values.env }}
           {{- toYaml . | nindent 10 }}

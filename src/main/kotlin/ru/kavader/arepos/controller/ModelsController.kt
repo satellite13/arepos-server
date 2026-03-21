@@ -153,7 +153,7 @@ class ModelsController(
         val filtered = if (CurrentUser.isAdmin()) {
             combined
         } else {
-            combined.filter { accessService.canViewModel(it) }
+            accessService.filterViewableModels(combined)
         }
         return filtered
             .sortedWith(compareModelsByVersionDesc)
