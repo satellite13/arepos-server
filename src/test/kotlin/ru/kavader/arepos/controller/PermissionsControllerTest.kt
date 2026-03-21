@@ -172,6 +172,24 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `returns false for outsider node-shape view`() {
+        val payload = mapOf(
+            "resourceType" to "NODE_SHAPE",
+            "resourceId" to shape.id.toString(),
+            "actions" to listOf("VIEW")
+        )
+
+        mockMvc.perform(
+            post("/api/v1/permissions/check")
+                .withAuth(outsider.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.decisions.VIEW").value(false))
+    }
+
+    @Test
     fun `returns true for owner node-type edit`() {
         val payload = mapOf(
             "resourceType" to "NODE_TYPE",

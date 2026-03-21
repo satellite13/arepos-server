@@ -147,7 +147,7 @@ class PermissionsController(
                     ResponseStatusException(HttpStatus.NOT_FOUND, "NodeShape $resourceId not found")
                 }
                 when (action) {
-                    PermissionAction.VIEW -> true
+                    PermissionAction.VIEW -> accessService.canViewNodeShape(shape)
                     PermissionAction.EDIT -> accessService.canEditNodeShape(shape)
                     PermissionAction.MANAGE -> accessService.canManageShares(shape.owner.id!!)
                 }

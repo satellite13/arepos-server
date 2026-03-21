@@ -160,6 +160,27 @@ class ResourceAccessService(
     fun canEditNodeShape(shape: NodeShapes): Boolean =
         canEditTopLevel(shape.owner.id!!, ShareResourceType.NODE_SHAPE, shape.id!!)
 
+    fun canViewNodeShape(shape: NodeShapes): Boolean =
+        canViewTopLevel(shape.owner.id!!, ShareResourceType.NODE_SHAPE, shape.id!!)
+
+    fun canViewNodeShapes(shapes: Collection<NodeShapes>): Map<UUID, Boolean> =
+        evaluateTopLevelBatch(
+            entries = shapes.mapNotNull { shape ->
+                shape.id?.let { id ->
+                    Triple(shape.owner.id!!, ShareResourceType.NODE_SHAPE, id)
+                }
+            },
+            action = CerbosAction.VIEW
+        )
+
+    fun filterViewableNodeShapes(shapes: Collection<NodeShapes>): List<NodeShapes> {
+        if (CurrentUser.isAdmin()) {
+            return shapes.toList()
+        }
+        val decisions = canViewNodeShapes(shapes)
+        return shapes.filter { shape -> shape.id?.let { decisions[it] } == true }
+    }
+
     fun canUseNodeType(nodeType: NodeTypes): Boolean = canViewNodeType(nodeType) || isCommonType(nodeType.owner)
 
     fun canUseLinkType(linkType: LinkTypes): Boolean = canViewLinkType(linkType) || isCommonType(linkType.owner)
@@ -250,6 +271,12 @@ class ResourceAccessService(
 
     fun requireCanEditNodeShape(shape: NodeShapes) {
         if (!canEditNodeShape(shape)) {
+            deny()
+        }
+    }
+
+    fun requireCanViewNodeShape(shape: NodeShapes) {
+        if (!canViewNodeShape(shape)) {
             deny()
         }
     }

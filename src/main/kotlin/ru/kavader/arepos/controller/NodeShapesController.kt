@@ -36,16 +36,21 @@ class NodeShapesController(
         @RequestParam(required = false) name: String?
     ): Page<NodeShapeResponse> {
         accessService.currentUserId() // require authenticated
-        val page = when {
+        val allShapes = when {
             ownerId != null -> {
                 val owner = usersRepository.findById(ownerId).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $ownerId not found")
                 }
-                nodeShapesRepository.findByOwner(owner, pageable)
+                nodeShapesRepository.findByOwner(owner, Pageable.unpaged()).content
             }
-            else -> nodeShapesRepository.findAll(pageable)
+            else -> nodeShapesRepository.findAll(Pageable.unpaged()).content
         }
-        return page.map { it.toResponse() }
+        val normalizedName = name?.trim().orEmpty()
+        val visibleShapes = accessService.filterViewableNodeShapes(allShapes)
+            .asSequence()
+            .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
+            .toList()
+        return visibleShapes.toPage(pageable).map { it.toResponse() }
     }
 
     @GetMapping("/{id}")
@@ -54,6 +59,7 @@ class NodeShapesController(
         val shape = nodeShapesRepository.findById(id).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "NodeShape $id not found")
         }
+        accessService.requireCanViewNodeShape(shape)
         return shape.toResponse()
     }
 
