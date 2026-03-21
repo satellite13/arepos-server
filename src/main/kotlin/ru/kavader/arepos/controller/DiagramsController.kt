@@ -460,13 +460,6 @@ class DiagramsController(
         return Triple(major, minor, patch)
     }
 
-    private fun checkOwnerOrRole(ownerId: UUID) {
-        val currentUserId = CurrentUser.getId() ?: return
-        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-        }
-    }
-
     private fun Diagrams.toResponse() = DiagramResponse(
         id = requireNotNull(id),
         name = name,

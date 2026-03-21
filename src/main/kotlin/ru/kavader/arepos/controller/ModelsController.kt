@@ -478,13 +478,6 @@ class ModelsController(
         }
     }
 
-    private fun checkOwnerOrRole(ownerId: UUID) {
-        val currentUserId = CurrentUser.getId() ?: return
-        if (currentUserId != ownerId && !CurrentUser.isAdmin()) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-        }
-    }
-
     private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? {
         val currentUserId = CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")

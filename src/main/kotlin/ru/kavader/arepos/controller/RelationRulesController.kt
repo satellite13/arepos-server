@@ -217,13 +217,6 @@ class RelationRulesController(
         relationRulesRepository.deleteById(id)
     }
 
-    private fun checkOwnerOrRole(ownerId: UUID) {
-        val currentUserId = CurrentUser.getId() ?: return
-        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-        }
-    }
-
     private fun getCurrentUser() = CurrentUser.getId()?.let {
         usersRepository.findById(it).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $it not found")

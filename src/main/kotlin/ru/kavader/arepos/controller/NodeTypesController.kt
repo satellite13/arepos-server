@@ -208,19 +208,6 @@ class NodeTypesController(
         nodeTypesRepository.deleteById(id)
     }
 
-    private fun checkOwnerOrRole(ownerId: UUID) {
-        val currentUserId = CurrentUser.getId() ?: return
-        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
-            log.warn(
-                "NodeTypes access denied: currentUserId={}, role={}, ownerId={}",
-                currentUserId,
-                CurrentUser.getRole(),
-                ownerId
-            )
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-        }
-    }
-
     private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? {
         val currentUserId = CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")

@@ -380,13 +380,6 @@ class NotationsController(
         return Triple(major, minor, patch)
     }
 
-    private fun checkOwnerOrRole(ownerId: UUID) {
-        val currentUserId = CurrentUser.getId() ?: return
-        if (currentUserId != ownerId && !CurrentUser.isEditorOrAdmin()) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-        }
-    }
-
     private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? {
         val currentUserId = CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
