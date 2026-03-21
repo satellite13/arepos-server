@@ -1,8 +1,11 @@
 package ru.kavader.arepos.security
 
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.config.CerbosMode
+import ru.kavader.arepos.config.CerbosProperties
 import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.model.Files
 import ru.kavader.arepos.model.Diagrams
@@ -22,8 +25,15 @@ import java.util.UUID
 
 @Service
 class ResourceAccessService(
-    private val resourceSharesRepository: ResourceSharesRepository
+    private val resourceSharesRepository: ResourceSharesRepository,
+    private val cerbosProperties: CerbosProperties,
+    private val cerbosDecisionService: CerbosDecisionService,
+    private val authzObservabilityService: AuthzObservabilityService
 ) {
+    companion object {
+        private val log = LoggerFactory.getLogger(ResourceAccessService::class.java)
+    }
+
     private val viewPermissions = setOf(SharePermission.VIEW, SharePermission.EDIT)
 
     fun currentUserId(): UUID = CurrentUser.getId()
@@ -83,8 +93,16 @@ class ResourceAccessService(
     fun canViewDiagram(diagram: Diagrams): Boolean =
         canViewModel(diagram.model) && (canViewNotation(diagram.notation) || canEditModel(diagram.model))
 
-    fun canViewFile(file: Files): Boolean =
-        CurrentUser.isAdmin() || file.owner.id == CurrentUser.getId()
+    fun canViewFile(file: Files): Boolean {
+        val legacyDecision = CurrentUser.isAdmin() || file.owner.id == CurrentUser.getId()
+        return applyCerbosDecision(
+            resourceKind = "file",
+            action = "view",
+            resourceId = file.id!!,
+            ownerId = file.owner.id,
+            legacyDecision = legacyDecision
+        )
+    }
 
     fun requireCanViewFile(file: Files) {
         if (!canViewFile(file)) {
@@ -258,7 +276,15 @@ class ResourceAccessService(
 
     fun canManageShares(ownerId: UUID): Boolean {
         val userId = CurrentUser.getId()
-        return CurrentUser.isAdmin() || userId == ownerId
+        val legacyDecision = CurrentUser.isAdmin() || userId == ownerId
+        // AccessShares is owner/admin controlled; use owner UUID as resource id.
+        return applyCerbosDecision(
+            resourceKind = "share",
+            action = "manage",
+            resourceId = ownerId,
+            ownerId = ownerId,
+            legacyDecision = legacyDecision
+        )
     }
 
     fun modelAccessPermission(model: Models): String? =
@@ -277,14 +303,14 @@ class ResourceAccessService(
         topLevelAccessPermission(shape.owner.id!!, ShareResourceType.NODE_SHAPE, shape.id!!)
 
     private fun canEditTopLevel(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): Boolean {
-        if (CurrentUser.isAdmin()) {
-            return true
-        }
-        val userId = CurrentUser.getId() ?: return false
-        if (ownerId == userId) {
-            return true
-        }
-        return resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermission(
+        val legacyDecision = if (CurrentUser.isAdmin()) {
+            true
+        } else {
+            val userId = CurrentUser.getId() ?: return false
+            if (ownerId == userId) {
+                true
+            } else {
+                resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermission(
             resourceType = resourceType,
             resourceId = resourceId,
             granteeUserId = userId,
@@ -294,17 +320,27 @@ class ResourceAccessService(
             resourceId = resourceId,
             permission = SharePermission.EDIT
         )
+            }
+        }
+
+        return applyCerbosDecision(
+            resourceKind = resourceType.name.lowercase(),
+            action = "edit",
+            resourceId = resourceId,
+            ownerId = ownerId,
+            legacyDecision = legacyDecision
+        )
     }
 
     private fun canViewTopLevel(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): Boolean {
-        if (CurrentUser.isAdmin()) {
-            return true
-        }
-        val userId = CurrentUser.getId() ?: return false
-        if (ownerId == userId) {
-            return true
-        }
-        return resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermissionIn(
+        val legacyDecision = if (CurrentUser.isAdmin()) {
+            true
+        } else {
+            val userId = CurrentUser.getId() ?: return false
+            if (ownerId == userId) {
+                true
+            } else {
+                resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermissionIn(
             resourceType = resourceType,
             resourceId = resourceId,
             granteeUserId = userId,
@@ -314,6 +350,99 @@ class ResourceAccessService(
             resourceId = resourceId,
             permissions = viewPermissions
         )
+            }
+        }
+
+        return applyCerbosDecision(
+            resourceKind = resourceType.name.lowercase(),
+            action = "view",
+            resourceId = resourceId,
+            ownerId = ownerId,
+            legacyDecision = legacyDecision
+        )
+    }
+
+    private fun applyCerbosDecision(
+        resourceKind: String,
+        action: String,
+        resourceId: UUID,
+        ownerId: UUID?,
+        legacyDecision: Boolean
+    ): Boolean {
+        authzObservabilityService.recordLegacyDecision(resourceKind, action, legacyDecision)
+
+        if (!cerbosProperties.enabled || cerbosProperties.mode == CerbosMode.DISABLED) {
+            authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_disabled", legacyDecision)
+            return legacyDecision
+        }
+
+        val startNanos = System.nanoTime()
+        val cerbosDecision = try {
+            cerbosDecisionService.check(
+                CerbosAccessRequest(
+                    resourceKind = resourceKind,
+                    action = action,
+                    resourceId = resourceId,
+                    ownerId = ownerId
+                )
+            )
+        } catch (ex: Exception) {
+            authzObservabilityService.recordCerbosRequest(resourceKind, action, "error", System.nanoTime() - startNanos)
+            if (cerbosProperties.failOpen) {
+                log.warn("Cerbos check failed, fail-open active. resourceKind={}, action={}, resourceId={}", resourceKind, action, resourceId, ex)
+                authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_fail_open", legacyDecision)
+                return legacyDecision
+            }
+            log.warn("Cerbos check failed, fail-open disabled. Falling back to legacy decision to preserve current behavior. resourceKind={}, action={}, resourceId={}", resourceKind, action, resourceId, ex)
+            authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_fail_closed_fallback", legacyDecision)
+            return legacyDecision
+        }
+
+        authzObservabilityService.recordCerbosRequest(
+            resourceKind = resourceKind,
+            action = action,
+            outcome = if (cerbosDecision == null) "not_implemented" else "ok",
+            durationNanos = System.nanoTime() - startNanos
+        )
+
+        if (cerbosDecision == null) {
+            authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_no_cerbos_decision", legacyDecision)
+            return legacyDecision
+        }
+
+        if (cerbosProperties.shadowEnabled || cerbosProperties.mode == CerbosMode.SHADOW) {
+            authzObservabilityService.recordShadowComparison(resourceKind, action, legacyDecision, cerbosDecision)
+            if (legacyDecision != cerbosDecision) {
+                log.debug(
+                    "Cerbos shadow mismatch: resourceKind={}, action={}, resourceId={}, legacy={}, cerbos={}",
+                    resourceKind,
+                    action,
+                    resourceId,
+                    legacyDecision,
+                    cerbosDecision
+                )
+            }
+            authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_shadow", legacyDecision)
+            return legacyDecision
+        }
+
+        if (cerbosProperties.enforceEnabled || cerbosProperties.mode == CerbosMode.ENFORCE) {
+            if (legacyDecision != cerbosDecision) {
+                log.info(
+                    "Cerbos enforce override: resourceKind={}, action={}, resourceId={}, legacy={}, cerbos={}",
+                    resourceKind,
+                    action,
+                    resourceId,
+                    legacyDecision,
+                    cerbosDecision
+                )
+            }
+            authzObservabilityService.recordFinalDecision(resourceKind, action, "cerbos_enforce", cerbosDecision)
+            return cerbosDecision
+        }
+
+        authzObservabilityService.recordFinalDecision(resourceKind, action, "legacy_mode_fallback", legacyDecision)
+        return legacyDecision
     }
 
     private fun topLevelAccessPermission(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): String? {
