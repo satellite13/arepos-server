@@ -7,8 +7,10 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.repository.DiagramsRepository
+import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeShapesRepository
+import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
@@ -18,6 +20,8 @@ enum class PermissionResourceType {
     MODEL,
     NOTATION,
     DIAGRAM,
+    NODE_TYPE,
+    LINK_TYPE,
     NODE_SHAPE,
     ADMIN_PANEL
 }
@@ -46,6 +50,8 @@ class PermissionsController(
     private val modelsRepository: ModelsRepository,
     private val notationsRepository: NotationsRepository,
     private val diagramsRepository: DiagramsRepository,
+    private val nodeTypesRepository: NodeTypesRepository,
+    private val linkTypesRepository: LinkTypesRepository,
     private val nodeShapesRepository: NodeShapesRepository,
     private val accessService: ResourceAccessService
 ) {
@@ -111,6 +117,28 @@ class PermissionsController(
                     PermissionAction.VIEW -> accessService.canViewDiagram(diagram)
                     PermissionAction.EDIT -> accessService.canEditDiagram(diagram)
                     PermissionAction.MANAGE -> accessService.canEditDiagram(diagram)
+                }
+            }
+
+            PermissionResourceType.NODE_TYPE -> {
+                val nodeType = nodeTypesRepository.findById(resourceId).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $resourceId not found")
+                }
+                when (action) {
+                    PermissionAction.VIEW -> accessService.canViewNodeType(nodeType)
+                    PermissionAction.EDIT -> accessService.canEditNodeType(nodeType)
+                    PermissionAction.MANAGE -> accessService.canManageShares(nodeType.owner.id!!)
+                }
+            }
+
+            PermissionResourceType.LINK_TYPE -> {
+                val linkType = linkTypesRepository.findById(resourceId).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $resourceId not found")
+                }
+                when (action) {
+                    PermissionAction.VIEW -> accessService.canViewLinkType(linkType)
+                    PermissionAction.EDIT -> accessService.canEditLinkType(linkType)
+                    PermissionAction.MANAGE -> accessService.canManageShares(linkType.owner.id!!)
                 }
             }
 

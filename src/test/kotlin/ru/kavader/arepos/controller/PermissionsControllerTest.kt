@@ -12,11 +12,15 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.model.Models
+import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.model.NodeShapes
+import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeShapesRepository
+import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import java.util.UUID
@@ -40,11 +44,19 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
     @Autowired
     lateinit var nodeShapesRepository: NodeShapesRepository
 
+    @Autowired
+    lateinit var nodeTypesRepository: NodeTypesRepository
+
+    @Autowired
+    lateinit var linkTypesRepository: LinkTypesRepository
+
     private lateinit var owner: Users
     private lateinit var outsider: Users
     private lateinit var admin: Users
     private lateinit var model: Models
     private lateinit var shape: NodeShapes
+    private lateinit var nodeType: NodeTypes
+    private lateinit var linkType: LinkTypes
 
     @BeforeEach
     fun setUp() {
@@ -83,6 +95,20 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
                 name = "permissions-shape-${UUID.randomUUID()}",
                 owner = owner,
                 outline = """[{"type":"M","x":0,"y":0}]""",
+                createdAt = Instant.now()
+            )
+        )
+        nodeType = nodeTypesRepository.save(
+            NodeTypes(
+                name = "permissions-node-type-${UUID.randomUUID()}",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        linkType = linkTypesRepository.save(
+            LinkTypes(
+                name = "permissions-link-type-${UUID.randomUUID()}",
+                owner = owner,
                 createdAt = Instant.now()
             )
         )
@@ -143,6 +169,42 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.resourceType").value("NODE_SHAPE"))
             .andExpect(jsonPath("$.decisions.MANAGE").value(true))
+    }
+
+    @Test
+    fun `returns true for owner node-type edit`() {
+        val payload = mapOf(
+            "resourceType" to "NODE_TYPE",
+            "resourceId" to nodeType.id.toString(),
+            "actions" to listOf("EDIT")
+        )
+
+        mockMvc.perform(
+            post("/api/v1/permissions/check")
+                .withAuth(owner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.decisions.EDIT").value(true))
+    }
+
+    @Test
+    fun `returns false for outsider link-type edit`() {
+        val payload = mapOf(
+            "resourceType" to "LINK_TYPE",
+            "resourceId" to linkType.id.toString(),
+            "actions" to listOf("EDIT")
+        )
+
+        mockMvc.perform(
+            post("/api/v1/permissions/check")
+                .withAuth(outsider.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.decisions.EDIT").value(false))
     }
 
     @Test
