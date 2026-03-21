@@ -94,6 +94,12 @@
 
 - `CERBOS_PARITY_WARN_ONLY=true` — не блокировать деплой при несовпадениях.
 
+## Операционный runbook
+
+Подробные пошаговые процедуры rollout/rollback вынесены в:
+
+- `authz/cerbos/RUNBOOK.md`
+
 ## Rollout / rollback runbook (две среды)
 
 ### 1) Local (`deploy.sh`) -> shadow
