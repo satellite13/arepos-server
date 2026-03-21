@@ -74,6 +74,13 @@ INFRA_VALUES_FILE=<path-to-infra-values.yaml> \
 - fail-open;
 - cerbos enabled.
 
+Для удобства можно выполнить combined precheck:
+
+```bash
+INFRA_VALUES_FILE=<path-to-infra-values.yaml> \
+./scripts/cerbos-promote-precheck.sh
+```
+
 ## 4) Production rollout (infra)
 
 Рекомендуемый порядок:

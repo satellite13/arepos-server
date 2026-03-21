@@ -100,6 +100,10 @@
 
 - `authz/cerbos/RUNBOOK.md`
 
+Preflight перед promote можно запускать одной командой:
+
+`INFRA_VALUES_FILE=<infra-values.yaml> ./scripts/cerbos-promote-precheck.sh`
+
 ## Rollout / rollback runbook (две среды)
 
 ### 1) Local (`deploy.sh`) -> shadow
