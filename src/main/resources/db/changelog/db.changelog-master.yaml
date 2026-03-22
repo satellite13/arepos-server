@@ -286,3 +286,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 032-diagram-edit-locks
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/032-diagram-edit-locks.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
