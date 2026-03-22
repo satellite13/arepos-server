@@ -2,11 +2,14 @@ package ru.kavader.arepos.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.hamcrest.Matchers.greaterThan
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.mock.mockito.SpyBean
 import org.springframework.http.MediaType
+import org.mockito.Mockito.doAnswer
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
@@ -14,6 +17,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 
 @SpringBootTest
@@ -28,6 +33,16 @@ class AuditLogControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var usersRepository: UsersRepository
+
+    @SpyBean
+    lateinit var accessService: ResourceAccessService
+
+    @BeforeEach
+    fun setupCerbosMock() {
+        doAnswer { CurrentUser.getRole() == "ADMIN" }
+            .`when`(accessService)
+            .canViewAdminPanel()
+    }
 
     @Test
     fun `lists audit log entries`() {

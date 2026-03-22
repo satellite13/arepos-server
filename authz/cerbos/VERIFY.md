@@ -17,6 +17,10 @@ bash ./scripts/verify-cerbos-only.sh
 - компиляцию backend;
 - smoke-тесты Cerbos (`CerbosAuthzModelTest`, `CerbosDecisionServiceTest`).
 
+Важно: проверка bypass относится к ресурсной бизнес-авторизации. Self-service/auth endpoint-ы
+(`AuthController`, `/users/me/profile`, `/users/public/*`) могут использовать identity/authenticated
+проверки и документируются как осознанные границы в `authz/cerbos/COVERAGE.md`.
+
 ## 2) Ручная верификация фронта (warchi)
 
 Запуск из корня `warchi`:
@@ -41,3 +45,7 @@ npm run build
 1. добавить/обновить policy `resource/action`;
 2. подключить проверку через `ResourceAccessService`;
 3. обновить `COVERAGE.md`.
+
+Перед merge проверь, что классификация endpoint-а корректна:
+- resource/business access -> через Cerbos (`ResourceAccessService`);
+- auth/self-service/public profile flow -> в разделе "Осознанные границы Cerbos" в `COVERAGE.md`.

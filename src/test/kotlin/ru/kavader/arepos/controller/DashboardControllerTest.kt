@@ -1,10 +1,13 @@
 package ru.kavader.arepos.controller
 
 import org.hamcrest.Matchers.hasItems
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.mock.mockito.SpyBean
+import org.mockito.Mockito.doAnswer
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -14,6 +17,8 @@ import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.AuditLogRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 
@@ -29,6 +34,16 @@ class DashboardControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var auditLogRepository: AuditLogRepository
+
+    @SpyBean
+    lateinit var accessService: ResourceAccessService
+
+    @BeforeEach
+    fun setupCerbosMock() {
+        doAnswer { CurrentUser.getRole() == "ADMIN" }
+            .`when`(accessService)
+            .canViewAdminPanel()
+    }
 
     @Test
     fun `recent activity returns only current user entries for non-admin`() {

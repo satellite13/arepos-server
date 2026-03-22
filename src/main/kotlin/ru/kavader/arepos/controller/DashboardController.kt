@@ -10,7 +10,6 @@ import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.model.SharePermission
 import java.time.Instant
@@ -80,7 +79,7 @@ class DashboardController(
         }
 
         val activityPageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "changedAt"))
-        val activity = if (CurrentUser.isEditorOrAdmin()) {
+        val activity = if (accessService.canViewAdminPanel()) {
             auditLogRepository.findAll(activityPageable).content
         } else {
             val currentUser = usersRepository.findById(accessService.currentUserId()).orElseThrow()

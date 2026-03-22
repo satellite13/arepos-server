@@ -9,14 +9,15 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.AuditLog
 import ru.kavader.arepos.repository.AuditLogRepository
 import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/audit-log")
 class AuditLogController(
     private val auditLogRepository: AuditLogRepository,
-    private val usersRepository: UsersRepository
+    private val usersRepository: UsersRepository,
+    private val accessService: ResourceAccessService
 ) {
 
     @GetMapping
@@ -27,9 +28,8 @@ class AuditLogController(
         @RequestParam(required = false) changedById: UUID?,
         @RequestParam(required = false) rowId: UUID?
     ): Page<AuditLogResponse> {
-        if (!CurrentUser.isEditorOrAdmin()) {
-            val currentUserId = CurrentUser.getId()
-                ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        if (!accessService.canViewAdminPanel()) {
+            val currentUserId = accessService.currentUserId()
             if (changedById != null && changedById != currentUserId) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
             }
@@ -97,9 +97,8 @@ class AuditLogController(
             }
 
     private fun checkAuditLogReadable(auditLog: AuditLog) {
-        if (CurrentUser.isEditorOrAdmin()) return
-        val currentUserId = CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        if (accessService.canViewAdminPanel()) return
+        val currentUserId = accessService.currentUserId()
         if (auditLog.changedBy?.id != currentUserId) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }

@@ -4,7 +4,6 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
-import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
@@ -52,7 +51,10 @@ class UsersController(
     @PreAuthorize("isAuthenticated()")
     fun getUserPublic(@PathVariable id: UUID): UserPublicResponse =
         usersRepository.findById(id)
-            .map { it.toPublicResponse() }
+            .map {
+                requirePublicUserVisible(it)
+                it.toPublicResponse()
+            }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
             }
@@ -65,9 +67,10 @@ class UsersController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required")
         }
 
-        return usersRepository.findByEmailIgnoreCase(normalizedEmail)
-            ?.toPublicResponse()
+        val user = usersRepository.findByEmailIgnoreCase(normalizedEmail)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User with email $normalizedEmail not found")
+        requirePublicUserVisible(user)
+        return user.toPublicResponse()
     }
 
     @GetMapping("/public/search")
@@ -91,14 +94,14 @@ class UsersController(
         if (request.ids.isEmpty()) return emptyMap()
         val ids = request.ids.distinct().take(100)
         return usersRepository.findAllById(ids)
+            .filter { it.role != Role.ADMIN }
             .associate { requireNotNull(it.id) to it.toPublicResponse() }
     }
 
     @GetMapping("/me/profile")
     @PreAuthorize("isAuthenticated()")
     fun getCurrentUserProfile(): UserPublicResponse {
-        val currentUserId = SecurityContextHolder.getContext().authentication?.principal as? UUID
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
 
         return usersRepository.findById(currentUserId)
             .map { it.toPublicResponse() }
@@ -174,8 +177,7 @@ class UsersController(
     @PutMapping("/me/profile")
     @PreAuthorize("isAuthenticated()")
     fun updateMyProfile(@RequestBody request: UserProfileUpdateRequest): UserPublicResponse {
-        val currentUserId = SecurityContextHolder.getContext().authentication?.principal as? UUID
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val currentUserId = accessService.currentUserId()
 
         val user = usersRepository.findById(currentUserId)
             .orElseThrow {
@@ -236,6 +238,12 @@ class UsersController(
             middleName = profile.middleName,
             position = profile.position
         )
+    }
+
+    private fun requirePublicUserVisible(user: Users) {
+        if (user.role == Role.ADMIN) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "User ${user.id} not found")
+        }
     }
 }
 

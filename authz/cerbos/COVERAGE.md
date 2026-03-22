@@ -50,7 +50,7 @@ Policy-файлы: `authz/cerbos/policies/resource.*.yaml`.
 - Нотации/типы/правила: `NotationsController`, `ComponentsController`, `RelationsController`, `RelationRulesController`, `RelationRulesSyncController`, `NotationImportController`
 - Диаграммы/файлы/документы: `DiagramsController`, `FilesController`, `DocumentsController`
 - Каталоги: `NodeTypesController`, `LinkTypesController`, `NodeShapesController`
-- Доступ/шаринг/дашборд: `PermissionsController`, `AccessSharesController`, `DashboardController`
+- Доступ/шаринг/дашборд: `PermissionsController`, `AccessSharesController`, `DashboardController`, `AuditLogController`
 - Platform admin: `UsersController`
 
 Публичные и auth-only контроллеры (не ресурсная Cerbos-авторизация):
@@ -58,14 +58,33 @@ Policy-файлы: `authz/cerbos/policies/resource.*.yaml`.
 - `AuthController` (login/register/refresh)
 - `RootController`
 - `SystemController`
-- `AuditLogController` (доступ регулируется общими security правилами и бизнес-контекстом endpoint)
+- `UsersController` только для endpoint self-service/public:
+  - `GET /api/v1/users/{id}/public`
+  - `GET /api/v1/users/public/by-email`
+  - `GET /api/v1/users/public/search`
+  - `POST /api/v1/users/public/batch`
+  - `GET /api/v1/users/me/profile`
+  - `PUT /api/v1/users/me/profile`
+
+## Осознанные границы Cerbos
+
+Ниже случаи, которые **осознанно** остаются вне ресурсной policy-авторизации Cerbos:
+
+- Authentication/identity поток (`AuthController`): проверка credentials, refresh-token, `adminSecret`, `isActive`.
+- Доступность endpoint-ов на уровне Spring Security (`authenticated()/permitAll()` в `SecurityConfig`).
+- Self-service операции профиля текущего пользователя (`/users/me/profile`) по `currentUserId`.
+- Публичные карточки пользователей (`/users/public/*`) для аутентифицированных пользователей с фильтрацией `ADMIN`.
+
+Это не fail-open bypass; это границы между:
+1) авторизацией доступа к доменным ресурсам (Cerbos), и  
+2) базовой аутентификацией/идентичностью и публичным read-only функционалом.
 
 ## Верификация (audit commands)
 
 Проверка отсутствия role bypass в контроллерах:
 
 ```bash
-rg "CurrentUser\\.isAdmin\\(|hasRole\\('ADMIN'\\)" src/main/kotlin/ru/kavader/arepos/controller
+rg "CurrentUser\\.isAdmin\\(|CurrentUser\\.isEditorOrAdmin\\(|hasRole\\('ADMIN'\\)" src/main/kotlin/ru/kavader/arepos/controller
 ```
 
 Проверка, что проверки доступа идут через `accessService`:

@@ -1,11 +1,14 @@
 package ru.kavader.arepos.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.mock.mockito.SpyBean
 import org.springframework.http.MediaType
+import org.mockito.Mockito.doAnswer
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
@@ -13,6 +16,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -33,6 +38,16 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var passwordEncoder: PasswordEncoder
+
+    @SpyBean
+    lateinit var accessService: ResourceAccessService
+
+    @BeforeEach
+    fun setupAuthzStubs() {
+        doAnswer { CurrentUser.getRole() == "ADMIN" }
+            .`when`(accessService)
+            .canManageUsers()
+    }
 
     @Test
     fun `creates user via REST`() {
@@ -222,6 +237,69 @@ class UsersControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.firstName").value("Анна"))
             .andExpect(jsonPath("$.lastName").value("Смирнова"))
             .andExpect(jsonPath("$.position").value("Архитектор"))
+    }
+
+    @Test
+    fun `does not expose admin user in public endpoint`() {
+        val requester = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "requester@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val adminTarget = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "hidden-admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/users/${adminTarget.id}/public")
+                .withAuth(requester.id!!, Role.USER)
+        )
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `public batch does not include admins`() {
+        val requester = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "requester-batch@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val regularUser = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "regular-batch@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val adminUser = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin-batch@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+
+        val payload = BatchUserPublicRequest(
+            ids = listOf(requireNotNull(regularUser.id), requireNotNull(adminUser.id))
+        )
+
+        mockMvc.perform(
+            post("/api/v1/users/public/batch")
+                .withAuth(requester.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.*.email").value(org.hamcrest.Matchers.hasItem("regular-batch@test.com")))
+            .andExpect(jsonPath("$.*.email").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("admin-batch@test.com"))))
     }
 
     @Test
