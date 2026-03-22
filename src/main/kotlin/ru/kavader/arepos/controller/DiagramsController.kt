@@ -104,7 +104,7 @@ class DiagramsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${request.notationId} not found")
             }
-        accessService.requireCanEditNotation(notation)
+        accessService.requireCanViewNotation(notation)
         val node = request.nodeId?.let {
             nodesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $it not found")
@@ -172,7 +172,7 @@ class DiagramsController(
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")
                 }
             }?.also { newNotation ->
-                accessService.requireCanEditNotation(newNotation)
+                accessService.requireCanViewNotation(newNotation)
             } ?: diagram.notation
         } else {
             request.notationId?.let {

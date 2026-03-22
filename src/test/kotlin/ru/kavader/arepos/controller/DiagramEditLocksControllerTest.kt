@@ -143,7 +143,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `second user gets 409 with LOCKED_BY_OTHER`() {
+    fun `second user gets 200 with LOCKED_BY_OTHER`() {
         val s = createDiagramFixture()
         mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))
             .andExpect(status().isOk)
@@ -169,7 +169,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         )
 
         mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(other.id!!, Role.USER))
-            .andExpect(status().isConflict)
+            .andExpect(status().isOk)
             .andExpect(jsonPath("$.reason").value("LOCKED_BY_OTHER"))
             .andExpect(jsonPath("$.lockedByUserId").value(s.ownerId.toString()))
     }

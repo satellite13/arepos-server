@@ -1,7 +1,6 @@
 package ru.kavader.arepos.controller
 
 import org.springframework.http.HttpStatus
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -20,12 +19,16 @@ class DiagramEditLocksController(
     private val diagramEditLockService: DiagramEditLockService
 ) {
 
+    /**
+     * Всегда 200 + JSON: при конфликте `reason: LOCKED_BY_OTHER` (без 409), чтобы fetch в браузере
+     * не засорял консоль ожидаемым сценарием «диаграмма занята».
+     */
     @PostMapping("/{diagramId}/acquire")
-    fun acquire(@PathVariable diagramId: UUID): ResponseEntity<DiagramLockStatusResponse> {
+    fun acquire(@PathVariable diagramId: UUID): DiagramLockStatusResponse {
         return try {
-            ResponseEntity.ok(diagramEditLockService.acquire(diagramId))
+            diagramEditLockService.acquire(diagramId)
         } catch (ex: DiagramEditLockConflictException) {
-            ResponseEntity.status(HttpStatus.CONFLICT).body(ex.body)
+            ex.body
         }
     }
 
