@@ -454,7 +454,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(2))
-            .andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.page.totalElements").value(2))
 
         mockMvc.perform(
             get("/api/v1/diagrams?nodeId=${node1.id}&page=0&size=10")

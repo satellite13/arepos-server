@@ -127,7 +127,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
                 .withAuth(owner.id!!)
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.page.totalElements").value(2))
     }
 
     @Test

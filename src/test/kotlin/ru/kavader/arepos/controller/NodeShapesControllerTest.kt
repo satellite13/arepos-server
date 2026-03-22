@@ -98,7 +98,7 @@ class NodeShapesControllerTest : ControllerIntegrationTest() {
                 .contentType(MediaType.APPLICATION_JSON)
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.page.totalElements").value(1))
             .andExpect(jsonPath("$.content[0].id").value(outsiderShape.id.toString()))
     }
 }

@@ -104,7 +104,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
 
         val json = objectMapper.readTree(response)
         val ids = contentIds(json)
-        assertEquals(2, json.path("totalElements").asInt())
+        assertEquals(2, json.path("page").path("totalElements").asInt())
         assertTrue(ids.contains(ownModel.id.toString()))
         assertTrue(ids.contains(sharedModel.id.toString()))
     }
@@ -141,7 +141,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect { result ->
                 val body = objectMapper.readTree(result.response.contentAsString)
-                assertEquals(1, body.path("totalElements").asInt())
+                assertEquals(1, body.path("page").path("totalElements").asInt())
                 val ids = contentIds(body)
                 assertTrue(ids.contains(sharedNotation.id.toString()))
             }
@@ -247,7 +247,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
             .contentAsString
 
         val json = objectMapper.readTree(response)
-        assertEquals(1, json.path("totalElements").asInt())
+        assertEquals(1, json.path("page").path("totalElements").asInt())
         val ids = contentIds(json)
         assertTrue(ids.contains(sharedLinkType.id.toString()))
     }

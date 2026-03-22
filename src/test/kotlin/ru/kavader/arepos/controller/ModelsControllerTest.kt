@@ -128,7 +128,7 @@ class ModelsControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(2))
-            .andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.page.totalElements").value(2))
     }
 
     @Test

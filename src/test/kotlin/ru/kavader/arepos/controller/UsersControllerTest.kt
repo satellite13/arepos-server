@@ -105,7 +105,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(3))
-            .andExpect(jsonPath("$.totalElements").value(3))
+            .andExpect(jsonPath("$.page.totalElements").value(3))
     }
 
     @Test
