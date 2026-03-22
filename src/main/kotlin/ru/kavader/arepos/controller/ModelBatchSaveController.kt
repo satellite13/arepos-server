@@ -389,6 +389,31 @@ class ModelBatchSaveController(
         var changed = false
         val rootObj = root as ObjectNode
 
+        // warchi: { "instances": { "nodes": [...], "edges": [...] } }
+        val instances = rootObj.get("instances")
+        if (instances != null && instances.isObject) {
+            val instObj = instances as ObjectNode
+            val inNodes = instObj.get("nodes")
+            if (inNodes != null && inNodes.isArray) {
+                for (element in inNodes) {
+                    if (element is ObjectNode) {
+                        changed = remapField(element, "modelNodeId", nodeIdMap) || changed
+                    }
+                }
+            }
+            val inEdges = instObj.get("edges")
+            if (inEdges != null && inEdges.isArray) {
+                for (element in inEdges) {
+                    if (element is ObjectNode) {
+                        changed = remapField(element, "modelLinkId", linkIdMap) || changed
+                        changed = remapField(element, "sourceModelNodeId", nodeIdMap) || changed
+                        changed = remapField(element, "targetModelNodeId", nodeIdMap) || changed
+                    }
+                }
+            }
+        }
+
+        // legacy / другие клиенты: nodes и edges на корне JSON
         val nodesArray = rootObj.get("nodes")
         if (nodesArray != null && nodesArray.isArray) {
             for (element in nodesArray) {
