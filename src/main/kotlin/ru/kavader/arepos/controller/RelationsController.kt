@@ -42,7 +42,7 @@ class RelationsController(
         val tags = parseTags(tagsAll)
         val tagsJson = if (tags.isEmpty()) null else tags.toJsonArray()
 
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
             return relationsRepository.findAccessibleByFiltersForUser(
                 notationId = notationId,
@@ -79,7 +79,7 @@ class RelationsController(
     @ResponseStatus(HttpStatus.CREATED)
     fun createRelation(@RequestBody request: RelationRequest): RelationResponse {
         val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
             request.ownerId ?: currentUserId
         } else {
             currentUserId
@@ -126,7 +126,7 @@ class RelationsController(
             }
         accessService.requireCanEditRelation(relation)
 
-        val owner = if (CurrentUser.isAdmin()) {
+        val owner = if (accessService.canViewAdminPanel()) {
             request.ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")

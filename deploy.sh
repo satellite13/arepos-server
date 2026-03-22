@@ -24,25 +24,12 @@ BLUE_GREEN="${BLUE_GREEN:-false}"
 BG_SWITCH="${BG_SWITCH:-true}"
 SERVICE_NAME="${SERVICE_NAME:-$RELEASE_NAME}"
 HELM_EXTRA_ARGS="${HELM_EXTRA_ARGS:-}"
-CHECK_SHADOW_GATE="${CHECK_SHADOW_GATE:-false}"
-SHADOW_GATE_SCRIPT="${SHADOW_GATE_SCRIPT:-./scripts/check-cerbos-shadow.sh}"
-SHADOW_GATE_MODE="${SHADOW_GATE_MODE:-baseline}"
-SHADOW_GATE_BASELINE_FILE="${SHADOW_GATE_BASELINE_FILE:-.cerbos-shadow-baseline.env}"
-SHADOW_GATE_MAX_MISMATCH="${SHADOW_GATE_MAX_MISMATCH:-0}"
-SHADOW_GATE_MAX_ERRORS="${SHADOW_GATE_MAX_ERRORS:-0}"
-SHADOW_GATE_MIN_MATCH_RATE="${SHADOW_GATE_MIN_MATCH_RATE:-99.9}"
-SHADOW_GATE_ON_ANY_DEPLOY="${SHADOW_GATE_ON_ANY_DEPLOY:-false}"
-SHADOW_GATE_WARN_ONLY="${SHADOW_GATE_WARN_ONLY:-false}"
 CHECK_CERBOS_PARITY="${CHECK_CERBOS_PARITY:-false}"
 CERBOS_PARITY_SCRIPT="${CERBOS_PARITY_SCRIPT:-./scripts/check-cerbos-config-parity.sh}"
 CERBOS_INFRA_VALUES_FILE="${CERBOS_INFRA_VALUES_FILE:-}"
 CERBOS_PARITY_WARN_ONLY="${CERBOS_PARITY_WARN_ONLY:-false}"
-CERBOS_SHADOW="${CERBOS_SHADOW:-false}"
-CERBOS_ENFORCE="${CERBOS_ENFORCE:-false}"
-CERBOS_OFF="${CERBOS_OFF:-false}"
 CERBOS_DEPLOY="${CERBOS_DEPLOY:-true}"
 CERBOS_BUNDLE_VERSION="${CERBOS_BUNDLE_VERSION:-policy-$(git rev-parse --short HEAD 2>/dev/null || echo latest)}"
-CERBOS_FAIL_OPEN="${CERBOS_FAIL_OPEN:-true}"
 
 # Функции
 log_info() {
@@ -85,69 +72,11 @@ append_helm_extra_arg() {
 }
 
 configure_cerbos_shorthand() {
-    if [ "$CERBOS_OFF" = "true" ] && { [ "$CERBOS_SHADOW" = "true" ] || [ "$CERBOS_ENFORCE" = "true" ]; }; then
-        log_error "CERBOS_OFF=true нельзя совмещать с CERBOS_SHADOW=true или CERBOS_ENFORCE=true"
-        exit 1
-    fi
-
-    if [ "$CERBOS_SHADOW" = "true" ] && [ "$CERBOS_ENFORCE" = "true" ]; then
-        log_error "Нельзя одновременно включать CERBOS_SHADOW=true и CERBOS_ENFORCE=true"
-        exit 1
-    fi
-
-    if [ "$CERBOS_OFF" = "true" ]; then
-        append_helm_extra_arg "--set cerbos.enabled=false"
-        append_helm_extra_arg "--set cerbos.deploy=false"
-        append_helm_extra_arg "--set-string cerbos.mode=DISABLED"
-        append_helm_extra_arg "--set authz.cerbosShadowEnabled=false"
-        append_helm_extra_arg "--set authz.cerbosEnforceEnabled=false"
-        log_info "Включен shorthand режим CERBOS_OFF=true"
-        return
-    fi
-
-    if [ "$CERBOS_SHADOW" != "true" ] && [ "$CERBOS_ENFORCE" != "true" ]; then
-        return
-    fi
-
+    # Cerbos обязателен для arepos-server: всегда деплоим в одном профиле.
     append_helm_extra_arg "--set cerbos.enabled=true"
     append_helm_extra_arg "--set cerbos.deploy=${CERBOS_DEPLOY}"
     append_helm_extra_arg "--set-string cerbos.bundleVersion=${CERBOS_BUNDLE_VERSION}"
-    append_helm_extra_arg "--set authz.cerbosFailOpen=${CERBOS_FAIL_OPEN}"
-
-    if [ "$CERBOS_SHADOW" = "true" ]; then
-        append_helm_extra_arg "--set-string cerbos.mode=SHADOW"
-        append_helm_extra_arg "--set authz.cerbosShadowEnabled=true"
-        append_helm_extra_arg "--set authz.cerbosEnforceEnabled=false"
-        log_info "Включен shorthand режим CERBOS_SHADOW=true"
-        return
-    fi
-
-    if [ "$CERBOS_ENFORCE" = "true" ]; then
-        append_helm_extra_arg "--set-string cerbos.mode=ENFORCE"
-        append_helm_extra_arg "--set authz.cerbosShadowEnabled=false"
-        append_helm_extra_arg "--set authz.cerbosEnforceEnabled=true"
-        log_info "Включен shorthand режим CERBOS_ENFORCE=true"
-    fi
-}
-
-should_run_shadow_gate() {
-    if [ "$CHECK_SHADOW_GATE" != "true" ]; then
-        return 1
-    fi
-    if [ "$SHADOW_GATE_ON_ANY_DEPLOY" = "true" ]; then
-        return 0
-    fi
-    if [ "$CERBOS_ENFORCE" = "true" ]; then
-        return 0
-    fi
-    case "$HELM_EXTRA_ARGS" in
-        *"cerbosEnforceEnabled=true"*|*"cerbos.mode=ENFORCE"*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
+    log_info "Cerbos-конфигурация применена (enabled=true, deploy=${CERBOS_DEPLOY}, bundle=${CERBOS_BUNDLE_VERSION})"
 }
 
 # Проверка необходимых команд
@@ -219,29 +148,6 @@ log_info "Build ID деплоя: ${DEPLOY_BUILD_ID}"
 log_info "Image pull policy: ${DEPLOY_IMAGE_PULL_POLICY}"
 
 configure_cerbos_shorthand
-
-if should_run_shadow_gate; then
-    log_info "Проверка Cerbos shadow gate перед deploy..."
-    if [ ! -x "$SHADOW_GATE_SCRIPT" ]; then
-        log_error "Скрипт shadow gate не найден или не исполняемый: $SHADOW_GATE_SCRIPT"
-        exit 1
-    fi
-    if ! MODE="$SHADOW_GATE_MODE" \
-         BASELINE_FILE="$SHADOW_GATE_BASELINE_FILE" \
-         MAX_MISMATCH="$SHADOW_GATE_MAX_MISMATCH" \
-         MAX_ERRORS="$SHADOW_GATE_MAX_ERRORS" \
-         MIN_MATCH_RATE="$SHADOW_GATE_MIN_MATCH_RATE" \
-         NAMESPACE="$NAMESPACE" \
-         SERVICE_NAME="$SERVICE_NAME" \
-         "$SHADOW_GATE_SCRIPT"; then
-        if [ "$SHADOW_GATE_WARN_ONLY" = "true" ]; then
-            log_warn "Shadow gate не пройден, но включен SHADOW_GATE_WARN_ONLY=true. Продолжаем деплой."
-        else
-            log_error "Shadow gate не пройден. Деплой прерван."
-            exit 1
-        fi
-    fi
-fi
 
 if [ "$CHECK_CERBOS_PARITY" = "true" ]; then
     log_info "Проверка parity Cerbos-конфига между local и infra..."

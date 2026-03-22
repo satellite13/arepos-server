@@ -53,7 +53,7 @@ class ModelsController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<ModelResponse> {
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
             return modelsRepository.findAccessibleForUser(
                 userId = currentUserId,
@@ -80,7 +80,7 @@ class ModelsController(
 
     @GetMapping("/deleted")
     fun listDeletedModels(pageable: Pageable): Page<ModelResponse> {
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
         }
         return modelsRepository.findByDeletedTrue(pageable).map { it.toResponse() }
@@ -90,7 +90,7 @@ class ModelsController(
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
     fun permanentDeleteModel(@PathVariable id: UUID) {
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
         }
         val model = modelsRepository.findByIdIncludingDeleted(id)
@@ -102,7 +102,7 @@ class ModelsController(
 
     @GetMapping("/grouped")
     fun listModelsGrouped(): GroupedEntityResponse<ModelResponse> {
-        val allModels = if (!CurrentUser.isAdmin()) {
+        val allModels = if (!accessService.canViewAdminPanel()) {
             modelsRepository.findAccessibleForUser(
                 userId = accessService.currentUserId(),
                 ownerId = null,
@@ -150,7 +150,7 @@ class ModelsController(
         val withSource = model.source?.let { listOf(it) } ?: emptyList()
         val derived = modelsRepository.findBySourceIdAndDeletedFalse(id)
         val combined = (byName + withSource + derived).distinctBy { it.id }
-        val filtered = if (CurrentUser.isAdmin()) {
+        val filtered = if (accessService.canViewAdminPanel()) {
             combined
         } else {
             accessService.filterViewableModels(combined)
@@ -185,7 +185,7 @@ class ModelsController(
             )
         }
         val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
             request.ownerId ?: currentUserId
         } else {
             currentUserId
@@ -246,7 +246,7 @@ class ModelsController(
                 "Model with name '$newName' and version '$newVersion' already exists"
             )
         }
-        val owner = if (CurrentUser.isAdmin()) {
+        val owner = if (accessService.canViewAdminPanel()) {
             request.ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
@@ -302,7 +302,7 @@ class ModelsController(
             )
         }
         val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
             request.ownerId ?: currentUserId
         } else {
             currentUserId
@@ -482,7 +482,7 @@ class ModelsController(
         val currentUserId = CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
-        if (CurrentUser.isAdmin()) {
+        if (accessService.canViewAdminPanel()) {
             return ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")

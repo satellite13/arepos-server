@@ -37,7 +37,7 @@ class RelationRulesController(
         @RequestParam(required = false) notationId: UUID?,
         @RequestParam(required = false, defaultValue = "true") includeAttrs: Boolean
     ): Page<RelationRuleResponse> {
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             val currentUserId = CurrentUser.getId() ?: return Page.empty(pageable)
             return if (includeAttrs) {
                 relationRulesRepository.findProjectedByFiltersForUser(
@@ -92,7 +92,7 @@ class RelationRulesController(
     @ResponseStatus(HttpStatus.CREATED)
     fun createRelationRule(@RequestBody request: RelationRuleRequest): RelationRuleResponse {
         val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
             request.ownerId ?: currentUserId
         } else {
             currentUserId
@@ -149,7 +149,7 @@ class RelationRulesController(
             }
         accessService.requireCanEditRelationRule(relationRule)
 
-        val owner = if (CurrentUser.isAdmin()) {
+        val owner = if (accessService.canViewAdminPanel()) {
             request.ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")

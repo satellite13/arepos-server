@@ -13,7 +13,6 @@ import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeShapesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import java.util.UUID
 
@@ -178,9 +177,9 @@ class PermissionsController(
 
             PermissionResourceType.ADMIN_PANEL -> {
                 when (action) {
-                    PermissionAction.VIEW -> CurrentUser.isAdmin()
-                    PermissionAction.EDIT -> CurrentUser.isAdmin()
-                    PermissionAction.MANAGE -> CurrentUser.isAdmin()
+                    PermissionAction.VIEW -> accessService.canViewAdminPanel()
+                    PermissionAction.EDIT -> accessService.canViewAdminPanel()
+                    PermissionAction.MANAGE -> accessService.canViewAdminPanel()
                 }
             }
         }

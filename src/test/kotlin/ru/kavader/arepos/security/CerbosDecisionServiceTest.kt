@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
-import ru.kavader.arepos.config.CerbosMode
 import ru.kavader.arepos.config.CerbosProperties
 import java.net.InetSocketAddress
 import java.time.Duration
@@ -15,7 +14,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNull
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class CerbosDecisionServiceTest {
@@ -25,22 +24,21 @@ class CerbosDecisionServiceTest {
     }
 
     @Test
-    fun `returns null when cerbos disabled`() {
+    fun `fails when no authenticated principal`() {
         val service = CerbosDecisionService(
-            cerbosProperties = CerbosProperties(enabled = false),
+            cerbosProperties = CerbosProperties(),
             objectMapper = jacksonObjectMapper()
         )
 
-        setCurrentUser(role = "USER")
-        val decision = service.check(
+        assertFailsWith<IllegalStateException> {
+            service.check(
             CerbosAccessRequest(
                 resourceKind = CerbosResourceKind.MODEL,
                 action = CerbosAction.VIEW,
                 resourceId = UUID.randomUUID()
             )
         )
-
-        assertNull(decision)
+        }
     }
 
     @Test
@@ -48,8 +46,6 @@ class CerbosDecisionServiceTest {
         withServer("""{"results":[{"actions":{"view":"EFFECT_ALLOW"}}]}""") { endpoint ->
             val service = CerbosDecisionService(
                 cerbosProperties = CerbosProperties(
-                    enabled = true,
-                    mode = CerbosMode.SHADOW,
                     endpoint = endpoint,
                     requestTimeout = Duration.ofSeconds(1)
                 ),
@@ -74,8 +70,6 @@ class CerbosDecisionServiceTest {
         withServer("""{"results":[{"actions":{"edit":"EFFECT_DENY"}}]}""") { endpoint ->
             val service = CerbosDecisionService(
                 cerbosProperties = CerbosProperties(
-                    enabled = true,
-                    mode = CerbosMode.ENFORCE,
                     endpoint = endpoint,
                     requestTimeout = Duration.ofSeconds(1)
                 ),
@@ -105,8 +99,6 @@ class CerbosDecisionServiceTest {
         ) { endpoint ->
             val service = CerbosDecisionService(
                 cerbosProperties = CerbosProperties(
-                    enabled = true,
-                    mode = CerbosMode.SHADOW,
                     endpoint = endpoint,
                     requestTimeout = Duration.ofSeconds(1)
                 ),
@@ -144,8 +136,6 @@ class CerbosDecisionServiceTest {
         ) { endpoint ->
             val service = CerbosDecisionService(
                 cerbosProperties = CerbosProperties(
-                    enabled = true,
-                    mode = CerbosMode.ENFORCE,
                     endpoint = endpoint,
                     requestTimeout = Duration.ofSeconds(1)
                 ),

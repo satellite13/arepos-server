@@ -252,11 +252,10 @@ env: []
 
 # Cerbos authorization configuration
 cerbos:
-  enabled: false
+  enabled: true
   deploy: false
   host: "cerbos"
   port: 3592
-  mode: "DISABLED" # DISABLED | SHADOW | ENFORCE
   timeoutMs: 1000
   bundleVersion: ""
   image:
@@ -272,8 +271,3 @@ cerbos:
       memory: "256Mi"
   healthPath: "/_cerbos/health"
 
-# Authorization feature flags
-authz:
-  cerbosShadowEnabled: false
-  cerbosEnforceEnabled: false
-  cerbosFailOpen: false

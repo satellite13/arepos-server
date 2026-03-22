@@ -48,7 +48,7 @@ class DiagramsController(
         @RequestParam(required = false) notationId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<DiagramResponse> {
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
             return diagramsRepository.findAccessibleByFiltersForUser(
                 ownerId = ownerId,
@@ -86,7 +86,7 @@ class DiagramsController(
     @ResponseStatus(HttpStatus.CREATED)
     fun createDiagram(@RequestBody request: DiagramRequest): DiagramResponse {
         val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
             request.ownerId ?: currentUserId
         } else {
             currentUserId
@@ -150,7 +150,7 @@ class DiagramsController(
         accessService.requireCanEditDiagram(diagram)
         requireLatestDiagramVersion(diagram, "updated")
 
-        val owner = if (CurrentUser.isAdmin()) {
+        val owner = if (accessService.canViewAdminPanel()) {
             request.ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
@@ -166,7 +166,7 @@ class DiagramsController(
         }?.also { newModel ->
             accessService.requireCanEditModel(newModel)
         } ?: diagram.model
-        val notation = if (CurrentUser.isAdmin()) {
+        val notation = if (accessService.canViewAdminPanel()) {
             request.notationId?.let {
                 notationsRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")

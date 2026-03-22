@@ -4,23 +4,24 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
-import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/users")
-@PreAuthorize("hasRole('ADMIN')")
 class UsersController(
     private val usersRepository: UsersRepository,
     private val passwordEncoder: PasswordEncoder,
-    private val userProfileAttrsService: UserProfileAttrsService
+    private val userProfileAttrsService: UserProfileAttrsService,
+    private val accessService: ResourceAccessService
 ) {
 
     @GetMapping
@@ -28,6 +29,7 @@ class UsersController(
         pageable: Pageable,
         @RequestParam(required = false) email: String?
     ): Page<UserResponse> {
+        accessService.requireCanManageUsers()
         val users = if (email != null) {
             usersRepository.findByEmailContainingIgnoreCase(email, pageable)
         } else {
@@ -37,12 +39,14 @@ class UsersController(
     }
 
     @GetMapping("/{id}")
-    fun getUser(@PathVariable id: UUID): UserResponse =
-        usersRepository.findById(id)
+    fun getUser(@PathVariable id: UUID): UserResponse {
+        accessService.requireCanManageUsers()
+        return usersRepository.findById(id)
             .map { it.toResponse() }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
             }
+    }
 
     @GetMapping("/{id}/public")
     @PreAuthorize("isAuthenticated()")
@@ -106,6 +110,7 @@ class UsersController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createUser(@RequestBody request: UserRequest): UserResponse {
+        accessService.requireCanManageUsers()
         if (usersRepository.existsByEmail(request.email)) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "User with email ${request.email} already exists")
         }
@@ -127,6 +132,7 @@ class UsersController(
         @PathVariable id: UUID,
         @RequestBody request: UserUpdateRequest
     ): UserResponse {
+        accessService.requireCanManageUsers()
         val user = usersRepository.findById(id)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
@@ -196,6 +202,7 @@ class UsersController(
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteUser(@PathVariable id: UUID) {
+        accessService.requireCanManageUsers()
         if (!usersRepository.existsById(id)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
         }

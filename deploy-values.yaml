@@ -60,12 +60,6 @@ env:
 cerbos:
   deploy: true
   enabled: true
-  mode: SHADOW
   timeoutMs: 1000
-  failOpen: false
   bundleVersion: ""
-
-authz:
-  cerbosShadowEnabled: true
-  cerbosEnforceEnabled: false
 

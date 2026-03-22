@@ -45,7 +45,7 @@ class NodeTypesController(
         @RequestParam(required = false) modelId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<NodeTypeResponse> {
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
             val normalizedName = name?.trim().orEmpty()
             if (notationId.isNullOrEmpty() && modelId == null) {
@@ -135,10 +135,10 @@ class NodeTypesController(
     @ResponseStatus(HttpStatus.CREATED)
     fun createNodeType(@RequestBody request: NodeTypeRequest): NodeTypeResponse {
         val currentUserId = accessService.currentUserId()
-        if (!CurrentUser.isAdmin() && request.ownerId != null && request.ownerId != currentUserId) {
+        if (!accessService.canViewAdminPanel() && request.ownerId != null && request.ownerId != currentUserId) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot create node type for another user")
         }
-        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
             request.ownerId ?: currentUserId
         } else {
             currentUserId
@@ -178,7 +178,7 @@ class NodeTypesController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
             }
         accessService.requireCanEditNodeType(nodeType)
-        val owner = if (CurrentUser.isAdmin()) {
+        val owner = if (accessService.canViewAdminPanel()) {
             request.ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
@@ -212,7 +212,7 @@ class NodeTypesController(
         val currentUserId = CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
-        if (CurrentUser.isAdmin()) {
+        if (accessService.canViewAdminPanel()) {
             return ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")

@@ -31,7 +31,7 @@ class DashboardController(
 
     @GetMapping("/stats")
     fun getStats(): DashboardStatsResponse {
-        if (CurrentUser.isAdmin()) {
+        if (accessService.canViewAdminPanel()) {
             return DashboardStatsResponse(
                 models = modelsRepository.countDistinctNamesUndeleted().toInt(),
                 notations = notationsRepository.countDistinctNamesUndeleted().toInt(),
@@ -55,7 +55,7 @@ class DashboardController(
         val recentSort = Sort.by(Sort.Direction.DESC, "updatedAt")
         val pageable = PageRequest.of(0, limit, recentSort)
 
-        val models = if (CurrentUser.isAdmin()) {
+        val models = if (accessService.canViewAdminPanel()) {
             modelsRepository.findAll(pageable).content
         } else {
             modelsRepository.findAccessibleForUser(
@@ -67,7 +67,7 @@ class DashboardController(
             ).content
         }
 
-        val notations = if (CurrentUser.isAdmin()) {
+        val notations = if (accessService.canViewAdminPanel()) {
             notationsRepository.findAll(pageable).content
         } else {
             notationsRepository.findAccessibleForUser(

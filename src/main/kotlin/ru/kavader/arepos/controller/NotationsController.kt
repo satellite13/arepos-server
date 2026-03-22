@@ -43,7 +43,7 @@ class NotationsController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<NotationResponse> {
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
             return notationsRepository.findAccessibleForUser(
                 userId = currentUserId,
@@ -70,7 +70,7 @@ class NotationsController(
 
     @GetMapping("/deleted")
     fun listDeletedNotations(pageable: Pageable): Page<NotationResponse> {
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
         }
         return notationsRepository.findByDeletedTrue(pageable).map { it.toResponse() }
@@ -80,7 +80,7 @@ class NotationsController(
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
     fun permanentDeleteNotation(@PathVariable id: UUID) {
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
         }
         val notation = notationsRepository.findByIdIncludingDeleted(id)
@@ -92,7 +92,7 @@ class NotationsController(
 
     @GetMapping("/grouped")
     fun listNotationsGrouped(): GroupedEntityResponse<NotationResponse> {
-        val allNotations = if (!CurrentUser.isAdmin()) {
+        val allNotations = if (!accessService.canViewAdminPanel()) {
             notationsRepository.findAccessibleForUser(
                 userId = accessService.currentUserId(),
                 ownerId = null,
@@ -174,7 +174,7 @@ class NotationsController(
     @ResponseStatus(HttpStatus.CREATED)
     fun createNotation(@RequestBody request: NotationRequest): NotationResponse {
         val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
             request.ownerId ?: currentUserId
         } else {
             currentUserId
@@ -217,7 +217,7 @@ class NotationsController(
             }
         accessService.requireCanEditNotation(notation)
 
-        val owner = if (CurrentUser.isAdmin()) {
+        val owner = if (accessService.canViewAdminPanel()) {
             request.ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
@@ -260,7 +260,7 @@ class NotationsController(
             )
         }
         val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
             request.ownerId ?: currentUserId
         } else {
             currentUserId
@@ -385,7 +385,7 @@ class NotationsController(
         val currentUserId = CurrentUser.getId()
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
-        if (CurrentUser.isAdmin()) {
+        if (accessService.canViewAdminPanel()) {
             return ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")

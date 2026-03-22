@@ -3,6 +3,8 @@ package ru.kavader.arepos.security
 import ru.kavader.arepos.model.ShareResourceType
 
 enum class CerbosResourceKind(val policyValue: String) {
+    ADMIN_PANEL("admin_panel"),
+    USER_ADMIN("user_admin"),
     MODEL("model"),
     NOTATION("notation"),
     NODE_TYPE("node_type"),

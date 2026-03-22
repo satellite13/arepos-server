@@ -41,7 +41,7 @@ class NodesController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<NodeResponse> {
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
             return nodesRepository.findAccessibleByFiltersForUser(
                 modelId = modelId,
@@ -99,7 +99,7 @@ class NodesController(
             }
         accessService.requireCanEditModel(model)
         val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
             request.ownerId ?: currentUserId
         } else {
             currentUserId
@@ -159,7 +159,7 @@ class NodesController(
             accessService.requireCanEditModel(newModel)
         } ?: node.model
 
-        val owner = if (CurrentUser.isAdmin()) {
+        val owner = if (accessService.canViewAdminPanel()) {
             request.ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")

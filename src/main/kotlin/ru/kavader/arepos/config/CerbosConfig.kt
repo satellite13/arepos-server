@@ -15,13 +15,10 @@ class CerbosConfig(
 
     init {
         log.info(
-            "Cerbos authz config loaded: enabled={}, mode={}, endpoint={}, shadowEnabled={}, enforceEnabled={}, failOpen={}",
-            cerbosProperties.enabled,
-            cerbosProperties.mode,
+            "Cerbos authz config loaded: endpoint={}, requestTimeout={}, bundleVersion={}",
             cerbosProperties.endpoint,
-            cerbosProperties.shadowEnabled,
-            cerbosProperties.enforceEnabled,
-            cerbosProperties.failOpen
+            cerbosProperties.requestTimeout,
+            cerbosProperties.bundleVersion
         )
     }
 }

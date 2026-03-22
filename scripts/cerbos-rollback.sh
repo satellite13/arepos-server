@@ -3,7 +3,6 @@
 set -euo pipefail
 
 TARGET="${TARGET:-local}" # local | infra
-MODE="${MODE:-shadow}" # shadow | off
 BUNDLE_VERSION="${BUNDLE_VERSION:-}"
 
 PRINT_ONLY="${PRINT_ONLY:-true}"
@@ -27,32 +26,15 @@ log_error() {
 }
 
 build_helm_set_args() {
-  local args=""
-  if [ "$MODE" = "off" ]; then
-    args="$args --set cerbos.enabled=false"
-    args="$args --set cerbos.deploy=false"
-    args="$args --set-string cerbos.mode=DISABLED"
-    args="$args --set authz.cerbosShadowEnabled=false"
-    args="$args --set authz.cerbosEnforceEnabled=false"
-  else
-    args="$args --set cerbos.enabled=true"
-    args="$args --set-string cerbos.mode=SHADOW"
-    args="$args --set authz.cerbosShadowEnabled=true"
-    args="$args --set authz.cerbosEnforceEnabled=false"
-    if [ -n "$BUNDLE_VERSION" ]; then
-      args="$args --set-string cerbos.bundleVersion=$BUNDLE_VERSION"
-    fi
+  local args=" --set cerbos.enabled=true --set cerbos.deploy=true"
+  if [ -n "$BUNDLE_VERSION" ]; then
+    args="$args --set-string cerbos.bundleVersion=$BUNDLE_VERSION"
   fi
   printf "%s" "$args"
 }
 
 if [ "$TARGET" != "local" ] && [ "$TARGET" != "infra" ]; then
   log_error "TARGET должен быть local|infra"
-  exit 1
-fi
-
-if [ "$MODE" != "shadow" ] && [ "$MODE" != "off" ]; then
-  log_error "MODE должен быть shadow|off"
   exit 1
 fi
 

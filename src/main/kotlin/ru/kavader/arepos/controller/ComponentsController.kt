@@ -42,7 +42,7 @@ class ComponentsController(
         val tags = parseTags(tagsAll)
         val tagsJson = if (tags.isEmpty()) null else tags.toJsonArray()
 
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
             return componentsRepository.findAccessibleByFiltersForUser(
                 notationId = notationId,
@@ -79,7 +79,7 @@ class ComponentsController(
     @ResponseStatus(HttpStatus.CREATED)
     fun createComponent(@RequestBody request: ComponentRequest): ComponentResponse {
         val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
             request.ownerId ?: currentUserId
         } else {
             currentUserId
@@ -126,7 +126,7 @@ class ComponentsController(
             }
         accessService.requireCanEditComponent(component)
 
-        val owner = if (CurrentUser.isAdmin()) {
+        val owner = if (accessService.canViewAdminPanel()) {
             request.ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")

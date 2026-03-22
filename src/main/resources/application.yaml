@@ -48,13 +48,8 @@ arepos:
   admin-secret: ${ADMIN_SECRET:}
   authz:
     cerbos:
-      enabled: false
-      mode: DISABLED
       endpoint: http://localhost:3592
       request-timeout: 1s
-      fail-open: false
-      shadow-enabled: false
-      enforce-enabled: false
       bundle-version: ""
   files:
     storage: ${FILE_STORAGE:minio}

@@ -39,12 +39,7 @@ class CerbosDecisionService(
         .connectTimeout(cerbosProperties.requestTimeout)
         .build()
 
-    /**
-     * Returns:
-     *  - true/false when Cerbos returns a decision for the requested action;
-     *  - null when Cerbos is disabled or response does not contain a usable decision.
-     */
-    fun check(request: CerbosAccessRequest): Boolean? {
+    fun check(request: CerbosAccessRequest): Boolean {
         return checkBatch(
             listOf(
                 CerbosBatchAccessRequest(
@@ -55,23 +50,17 @@ class CerbosDecisionService(
                     resourceAttributes = request.resourceAttributes
                 )
             )
-        )[request.resourceId]
+        )[request.resourceId] ?: throw IllegalStateException(
+            "Cerbos decision missing for resourceId=${request.resourceId}, action=${request.action.policyValue}"
+        )
     }
 
-    /**
-     * Returns decision map for each resource id.
-     *  - true/false when Cerbos returns a decision;
-     *  - null when Cerbos is disabled or response does not contain a usable decision.
-     */
-    fun checkBatch(requests: List<CerbosBatchAccessRequest>): Map<UUID, Boolean?> {
-        if (!cerbosProperties.enabled) {
-            return requests.associate { it.resourceId to null }
-        }
+    fun checkBatch(requests: List<CerbosBatchAccessRequest>): Map<UUID, Boolean> {
         if (requests.isEmpty()) {
             return emptyMap()
         }
 
-        val userId = CurrentUser.getId() ?: return requests.associate { it.resourceId to null }
+        val userId = CurrentUser.getId() ?: throw IllegalStateException("Cerbos check requires authenticated principal")
         val role = CurrentUser.getRole() ?: "USER"
 
         val requestBody = mapOf(
@@ -118,16 +107,15 @@ class CerbosDecisionService(
     private fun parseBatchDecisions(
         responseBody: String,
         requests: List<CerbosBatchAccessRequest>
-    ): Map<UUID, Boolean?> {
+    ): Map<UUID, Boolean> {
         val root = objectMapper.readTree(responseBody)
         val results = root.path("results")
         if (!results.isArray || results.isEmpty) {
-            log.debug("Cerbos response has no results")
-            return requests.associate { it.resourceId to null }
+            throw IllegalStateException("Cerbos response has no results")
         }
 
         val requestById = requests.associateBy { it.resourceId.toString() }
-        val decisions = mutableMapOf<UUID, Boolean?>()
+        val decisions = mutableMapOf<UUID, Boolean>()
 
         results.forEachIndexed { index, resultNode ->
             val responseResourceId = resultNode.path("resource").path("id").asText(null)
@@ -142,21 +130,21 @@ class CerbosDecisionService(
         }
 
         return requests.associate { request ->
-            request.resourceId to decisions[request.resourceId]
+            request.resourceId to (decisions[request.resourceId]
+                ?: throw IllegalStateException(
+                    "Cerbos response missing decision for resourceId=${request.resourceId}, action=${request.action.policyValue}"
+                ))
         }
     }
 
-    private fun parseEffect(effect: String?): Boolean? {
+    private fun parseEffect(effect: String?): Boolean {
         if (effect == null) {
-            return null
+            throw IllegalStateException("Cerbos response missing action effect")
         }
         return when (effect) {
             "EFFECT_ALLOW", "ALLOW" -> true
             "EFFECT_DENY", "DENY" -> false
-            else -> {
-                log.debug("Unknown Cerbos effect received: {}", effect)
-                null
-            }
+            else -> throw IllegalStateException("Unknown Cerbos effect received: $effect")
         }
     }
 }

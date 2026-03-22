@@ -90,9 +90,9 @@ sync_chart_policies() {
   log_info "Синхронизированы policy в Helm chart: $chart_policy_dir"
 }
 
-deploy_local_shadow() {
-  local extra_args="--set cerbos.enabled=true --set cerbos.deploy=true --set-string cerbos.mode=SHADOW --set-string cerbos.bundleVersion=${BUNDLE_VERSION} --set authz.cerbosShadowEnabled=true --set authz.cerbosEnforceEnabled=false"
-  log_info "Локальный deploy через deploy.sh в shadow-режиме..."
+deploy_local() {
+  local extra_args="--set cerbos.enabled=true --set cerbos.deploy=true --set-string cerbos.bundleVersion=${BUNDLE_VERSION}"
+  log_info "Локальный deploy через deploy.sh (enforce-only)..."
   if [ "$DRY_RUN" = "true" ]; then
     log_warn "DRY_RUN=true, команда не выполнена:"
     echo "HELM_EXTRA_ARGS=\"$extra_args\" NAMESPACE=$NAMESPACE RELEASE_NAME=$RELEASE_NAME VALUES_FILE=$VALUES_FILE ./deploy.sh"
@@ -106,12 +106,8 @@ print_prod_instructions() {
   echo
   echo "Рекомендуемые параметры для infra:"
   echo "  cerbos.enabled=true"
-  echo "  cerbos.mode=SHADOW"
+  echo "  cerbos.deploy=true"
   echo "  cerbos.bundleVersion=${BUNDLE_VERSION}"
-  echo "  authz.cerbosShadowEnabled=true"
-  echo "  authz.cerbosEnforceEnabled=false"
-  echo
-  echo "После стабилизации shadow-метрик включайте enforce отдельным релизом."
 }
 
 main() {
@@ -134,7 +130,7 @@ main() {
       log_info "DEPLOY_TARGET=none, деплой пропущен"
       ;;
     local)
-      deploy_local_shadow
+      deploy_local
       ;;
     prod)
       print_prod_instructions

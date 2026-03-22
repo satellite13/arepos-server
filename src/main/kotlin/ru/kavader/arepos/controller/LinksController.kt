@@ -43,7 +43,7 @@ class LinksController(
         @RequestParam(required = false) targetId: UUID?,
         @RequestParam(required = false) linkTypeId: UUID?
     ): Page<LinkResponse> {
-        if (!CurrentUser.isAdmin()) {
+        if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
             return linksRepository.findAccessibleByFiltersForUser(
                 modelId = modelId,
@@ -128,7 +128,7 @@ class LinksController(
     @ResponseStatus(HttpStatus.CREATED)
     fun createLink(@RequestBody request: LinkRequest): LinkResponse {
         val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (CurrentUser.isAdmin()) {
+        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
             request.ownerId ?: currentUserId
         } else {
             currentUserId
@@ -186,7 +186,7 @@ class LinksController(
             }
         accessService.requireCanEditLink(link)
 
-        val owner = if (CurrentUser.isAdmin()) {
+        val owner = if (accessService.canViewAdminPanel()) {
             request.ownerId?.let {
                 usersRepository.findById(it).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")

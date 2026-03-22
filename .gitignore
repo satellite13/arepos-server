@@ -46,6 +46,5 @@ metrics/grafana/
 metrics/prometheus/
 
 # Local Cerbos rollout artifacts
-.cerbos-shadow-baseline.env
 authz/cerbos/releases/*.tar.gz
 authz/cerbos/releases/*.tar.gz.sha256
