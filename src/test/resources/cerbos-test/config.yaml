@@ -1,0 +1,9 @@
+# Тестовый Cerbos: как в charts/arepos-server/templates/cerbos.yaml (disk + /policies)
+apiVersion: api.cerbos.dev/v1
+storage:
+  driver: disk
+  disk:
+    directory: /policies
+server:
+  httpListenAddr: ":3592"
+  grpcListenAddr: ":3593"

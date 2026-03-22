@@ -111,9 +111,9 @@ helm lint ./charts/arepos-server
 
 ### Test Architecture
 
-Tests use **TestContainers** with a shared PostgreSQL container across the test suite:
+Tests use **TestContainers** with shared PostgreSQL and Cerbos containers across the test suite:
 
-- **Base Class**: `PostgresContainerTest` - sets up PostgreSQL 16.4 container
+- **Base Class**: `PostgresContainerTest` — PostgreSQL 16.4 plus `ghcr.io/cerbos/cerbos` with policies from `authz/cerbos/policies` (config `src/test/resources/cerbos-test/config.yaml`). `@DynamicPropertySource` sets `arepos.authz.cerbos.endpoint` to the mapped HTTP port. Requires **Docker** and a working directory at the project root when running tests (Gradle default).
 - **Repository Tests**: Extend `RepositoryTestBase` which provides test data builders
 - **Controller Tests**: Use MockMvc with mocked repositories
 
