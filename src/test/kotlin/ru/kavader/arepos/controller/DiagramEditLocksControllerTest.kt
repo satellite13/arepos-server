@@ -10,6 +10,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.model.ResourceShares
@@ -26,6 +27,7 @@ import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @SpringBootTest
@@ -172,6 +174,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.reason").value("LOCKED_BY_OTHER"))
             .andExpect(jsonPath("$.lockedByUserId").value(s.ownerId.toString()))
+            .andExpect(jsonPath("$.diagramUpdatedAt").exists())
     }
 
     @Test
@@ -253,5 +256,149 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             .contentAsString
         val list = objectMapper.readValue(json, object : TypeReference<List<Any>>() {})
         assertTrue(list.isEmpty())
+    }
+
+    @Test
+    fun `heartbeat by holder returns 200`() {
+        val s = createDiagramFixture()
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))
+            .andExpect(status().isOk)
+
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/heartbeat").withAuth(s.ownerId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.isLocked").value(true))
+            .andExpect(jsonPath("$.lockedByUserId").value(s.ownerId.toString()))
+    }
+
+    @Test
+    fun `heartbeat by non-holder returns 403`() {
+        val s = createDiagramFixture()
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))
+            .andExpect(status().isOk)
+
+        val other = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "lock-heartbeat-other-${UUID.randomUUID()}@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val now = Instant.now()
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = s.modelId,
+                granteeUser = other,
+                grantedByUser = usersRepository.findById(s.ownerId).get(),
+                permission = SharePermission.EDIT,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/heartbeat").withAuth(other.id!!, Role.USER))
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `GET list without modelId returns 400 for non-admin`() {
+        val s = createDiagramFixture()
+        val other = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "lock-list-user-${UUID.randomUUID()}@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val now = Instant.now()
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = s.modelId,
+                granteeUser = other,
+                grantedByUser = usersRepository.findById(s.ownerId).get(),
+                permission = SharePermission.EDIT,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        mockMvc.perform(get("/api/v1/diagram-locks").withAuth(other.id!!, Role.USER))
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `GET list without modelId returns all active locks for admin`() {
+        val s = createDiagramFixture()
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))
+            .andExpect(status().isOk)
+
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "lock-list-admin-${UUID.randomUUID()}@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val json = mockMvc.perform(get("/api/v1/diagram-locks").withAuth(admin.id!!))
+            .andExpect(status().isOk)
+            .andReturn()
+            .response
+            .contentAsString
+
+        val list = objectMapper.readValue(json, object : TypeReference<List<Map<String, Any?>>>() {})
+        assertEquals(1, list.size)
+        assertEquals(s.diagramId.toString(), list[0]["diagramId"])
+    }
+
+    @Test
+    fun `GET list exposes diagramUpdatedAt refreshed after diagram save`() {
+        val s = createDiagramFixture()
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))
+            .andExpect(status().isOk)
+
+        val lockJsonBefore = mockMvc.perform(
+            get("/api/v1/diagram-locks").param("modelId", s.modelId.toString()).withAuth(s.ownerId)
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+            .response
+            .contentAsString
+        val listBefore =
+            objectMapper.readValue(lockJsonBefore, object : TypeReference<List<Map<String, Any?>>>() {})
+        assertEquals(1, listBefore.size)
+        val atBefore = listBefore[0]["diagramUpdatedAt"] as String?
+        assertNotNull(atBefore)
+        val instantBefore = Instant.parse(atBefore)
+
+        mockMvc.perform(
+            put("/api/v1/diagrams/${s.diagramId}")
+                .withAuth(s.ownerId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        DiagramUpdateRequest(attrs = """{"layout":"auto","testPatch":true}""")
+                    )
+                )
+        )
+            .andExpect(status().isOk)
+
+        val lockJsonAfter = mockMvc.perform(
+            get("/api/v1/diagram-locks").param("modelId", s.modelId.toString()).withAuth(s.ownerId)
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+            .response
+            .contentAsString
+        val listAfter =
+            objectMapper.readValue(lockJsonAfter, object : TypeReference<List<Map<String, Any?>>>() {})
+        assertEquals(1, listAfter.size)
+        val atAfter = listAfter[0]["diagramUpdatedAt"] as String?
+        assertNotNull(atAfter)
+        val instantAfter = Instant.parse(atAfter)
+        assertTrue(
+            !instantAfter.isBefore(instantBefore),
+            "diagramUpdatedAt in lock list should reflect diagram row after save"
+        )
     }
 }
