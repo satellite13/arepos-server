@@ -16,7 +16,9 @@ import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
+import ru.kavader.arepos.service.ModelSyncBroadcaster
 import java.time.Instant
 import java.util.UUID
 
@@ -31,7 +33,9 @@ class NodesController(
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
     private val objectMapper: ObjectMapper,
-    private val mdFileLinkValidator: MdFileLinkValidator
+    private val mdFileLinkValidator: MdFileLinkValidator,
+    private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
+    private val modelSyncBroadcaster: ModelSyncBroadcaster
 ) {
 
     @GetMapping
@@ -134,6 +138,7 @@ class NodesController(
                 updatedAt = now
             )
         )
+        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "node_create")
         return saved.toResponse()
     }
 
@@ -200,6 +205,7 @@ class NodesController(
                 attrs = request.attrs ?: node.attrs
             )
         )
+        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "node_update")
         return updated.toResponse()
     }
 
@@ -214,7 +220,15 @@ class NodesController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "System tree root node cannot be deleted")
         }
         accessService.requireCanEditNode(node)
+        val modelId = requireNotNull(node.model.id)
         nodesRepository.deleteById(id)
+        diagramCanvasInstancesCleanupService.removeDeletedModelEntitiesFromAllDiagrams(
+            modelId,
+            listOf(id),
+            emptyList(),
+            Instant.now()
+        )
+        modelSyncBroadcaster.broadcastModelChanged(modelId, "node_delete")
     }
 
     private fun getCurrentUser() = CurrentUser.getId()?.let {

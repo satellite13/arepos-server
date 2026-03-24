@@ -61,6 +61,7 @@ class SecurityConfig(
                 auth
                     .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                     .requestMatchers("/error").permitAll()
+                    .requestMatchers("/ws/**").permitAll()
                     .requestMatchers("/api/v1/auth/**").permitAll()
                     .requestMatchers("/actuator/health/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/system/version").permitAll()

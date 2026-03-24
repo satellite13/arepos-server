@@ -16,7 +16,9 @@ import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
+import ru.kavader.arepos.service.ModelSyncBroadcaster
 import java.time.Instant
 import java.util.UUID
 
@@ -31,7 +33,9 @@ class LinksController(
     private val diagramsRepository: DiagramsRepository,
     private val relationsRepository: RelationsRepository,
     private val accessService: ResourceAccessService,
-    private val mdFileLinkValidator: MdFileLinkValidator
+    private val mdFileLinkValidator: MdFileLinkValidator,
+    private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
+    private val modelSyncBroadcaster: ModelSyncBroadcaster
 ) {
 
     @GetMapping
@@ -172,6 +176,7 @@ class LinksController(
                 model = model
             )
         )
+        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "link_create")
         return saved.toResponse()
     }
 
@@ -235,6 +240,7 @@ class LinksController(
                 model = model
             )
         )
+        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "link_update")
         return updated.toResponse()
     }
 
@@ -246,7 +252,15 @@ class LinksController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found")
             }
         accessService.requireCanEditLink(link)
+        val modelId = requireNotNull(link.model.id)
         linksRepository.deleteById(id)
+        diagramCanvasInstancesCleanupService.removeDeletedModelEntitiesFromAllDiagrams(
+            modelId,
+            emptyList(),
+            listOf(id),
+            Instant.now()
+        )
+        modelSyncBroadcaster.broadcastModelChanged(modelId, "link_delete")
     }
 
     private fun getCurrentUser() = CurrentUser.getId()?.let {

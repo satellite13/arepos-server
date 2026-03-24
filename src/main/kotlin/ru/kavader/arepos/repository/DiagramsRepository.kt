@@ -214,4 +214,7 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
         nativeQuery = true
     )
     fun findDistinctNotationIdsByModelId(modelId: UUID): List<UUID>
+
+    @Query("SELECT d FROM Diagrams d WHERE d.model.id = :modelId AND d.deleted = false")
+    fun findAllActiveByModelId(modelId: UUID): List<Diagrams>
 }

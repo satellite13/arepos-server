@@ -24,6 +24,7 @@ import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.MdFileLinkValidator
+import ru.kavader.arepos.service.ModelSyncBroadcaster
 import java.time.Instant
 import java.util.UUID
 
@@ -38,7 +39,8 @@ class ModelsController(
     private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService,
     private val objectMapper: ObjectMapper,
-    private val mdFileLinkValidator: MdFileLinkValidator
+    private val mdFileLinkValidator: MdFileLinkValidator,
+    private val modelSyncBroadcaster: ModelSyncBroadcaster
 ) {
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
@@ -264,6 +266,7 @@ class ModelsController(
                 owner = owner
             )
         )
+        modelSyncBroadcaster.broadcastModelChanged(id, "model_update")
         return updated.toResponse()
     }
 

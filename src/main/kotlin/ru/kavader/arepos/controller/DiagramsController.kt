@@ -22,6 +22,7 @@ import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.DiagramSvgStorage
 import ru.kavader.arepos.service.MdFileLinkValidator
+import ru.kavader.arepos.service.ModelSyncBroadcaster
 import java.time.Instant
 import java.util.UUID
 
@@ -36,7 +37,8 @@ class DiagramsController(
     private val accessService: ResourceAccessService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val diagramSvgStorage: DiagramSvgStorage,
-    private val diagramPreviewLinksRepository: DiagramPreviewLinksRepository
+    private val diagramPreviewLinksRepository: DiagramPreviewLinksRepository,
+    private val modelSyncBroadcaster: ModelSyncBroadcaster
 ) {
 
     @GetMapping
@@ -135,6 +137,7 @@ class DiagramsController(
                 node = node
             )
         )
+        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "diagram_create")
         return saved.toResponse()
     }
 
@@ -211,6 +214,7 @@ class DiagramsController(
                 node = node
             )
         )
+        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "diagram_update")
         return updated.toResponse()
     }
 
@@ -227,6 +231,7 @@ class DiagramsController(
         if (deletedCount == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
         }
+        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(diagram.model.id), "diagram_delete")
     }
 
     @PutMapping("/{id}/svg")
@@ -406,6 +411,7 @@ class DiagramsController(
                 node = diagram.node
             )
         )
+        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(diagram.model.id), "diagram_baseline")
         return saved.toResponse()
     }
 

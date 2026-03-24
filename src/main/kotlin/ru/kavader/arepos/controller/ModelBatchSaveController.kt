@@ -6,9 +6,22 @@ import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.BatchConflictItem
+import ru.kavader.arepos.dto.BatchDeleteEntry
+import ru.kavader.arepos.dto.BatchDiagramCreate
+import ru.kavader.arepos.dto.BatchDiagramUpdate
+import ru.kavader.arepos.dto.BatchLinkCreate
+import ru.kavader.arepos.dto.BatchLinkUpdate
+import ru.kavader.arepos.dto.BatchNodeCreate
+import ru.kavader.arepos.dto.BatchNodeUpdate
+import ru.kavader.arepos.dto.BatchSaveConflictException
+import ru.kavader.arepos.dto.BatchSaveRequest
+import ru.kavader.arepos.dto.BatchSaveResponse
 import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
+import ru.kavader.arepos.service.ModelSyncBroadcaster
 import java.time.Instant
 import java.util.UUID
 
@@ -26,7 +39,9 @@ class ModelBatchSaveController(
     private val relationsRepository: RelationsRepository,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
+    private val modelSyncBroadcaster: ModelSyncBroadcaster
 ) {
 
     @PostMapping("/{modelId}/batch-save")
@@ -39,6 +54,11 @@ class ModelBatchSaveController(
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Model $modelId not found") }
         accessService.requireCanEditModel(model)
 
+        val conflicts = collectBatchConflicts(request, model)
+        if (conflicts.isNotEmpty()) {
+            throw BatchSaveConflictException(conflicts)
+        }
+
         val owner = usersRepository.findById(accessService.currentUserId())
             .orElseThrow { ResponseStatusException(HttpStatus.UNAUTHORIZED, "Current user not found") }
         val now = Instant.now()
@@ -50,10 +70,10 @@ class ModelBatchSaveController(
         // --- Nodes ---
         val nodesUpdated = updateNodes(request.nodes.update, model, owner, now)
         val nodesCreated = createNodesTopological(request.nodes.create, model, owner, now, nodeIdMap)
-        val nodesDeleted = deleteNodes(request.nodes.delete)
+        val nodesDeleted = deleteNodes(request.nodes.delete, model)
 
         // --- Links ---
-        val linksDeleted = deleteLinks(request.links.delete)
+        val linksDeleted = deleteLinks(request.links.delete, model)
         val linksCreated = createLinks(request.links.create, model, owner, now, nodeIdMap, linkIdMap)
         val linksUpdated = updateLinks(request.links.update, model, owner, now, nodeIdMap)
 
@@ -65,6 +85,30 @@ class ModelBatchSaveController(
         val diagramsUpdated = updateDiagrams(
             request.diagrams.update, model, owner, now, nodeIdMap, linkIdMap
         )
+
+        val deletedNodeIds = request.nodes.delete.map { it.id }
+        val deletedLinkIds = request.links.delete.map { it.id }
+        if (deletedNodeIds.isNotEmpty() || deletedLinkIds.isNotEmpty()) {
+            diagramCanvasInstancesCleanupService.removeDeletedModelEntitiesFromAllDiagrams(
+                requireNotNull(model.id),
+                deletedNodeIds,
+                deletedLinkIds,
+                now
+            )
+        }
+
+        val mutated = request.nodes.create.isNotEmpty() ||
+            request.nodes.update.isNotEmpty() ||
+            request.nodes.delete.isNotEmpty() ||
+            request.links.create.isNotEmpty() ||
+            request.links.update.isNotEmpty() ||
+            request.links.delete.isNotEmpty() ||
+            request.diagrams.create.isNotEmpty() ||
+            request.diagrams.update.isNotEmpty() ||
+            request.diagrams.delete.isNotEmpty()
+        if (mutated) {
+            modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "batch_save")
+        }
 
         return BatchSaveResponse(
             nodeIdMap = nodeIdMap,
@@ -176,14 +220,22 @@ class ModelBatchSaveController(
         return created
     }
 
-    private fun deleteNodes(ids: List<UUID>): Int {
-        for (id in ids) {
-            if (!nodesRepository.existsById(id)) {
-                throw ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found")
+    private fun deleteNodes(entries: List<BatchDeleteEntry>, model: Models): Int {
+        if (entries.isEmpty()) return 0
+        val modelId = requireNotNull(model.id) { "Model id required" }
+        for (entry in entries) {
+            val id = entry.id
+            val node = nodesRepository.findById(id)
+                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found") }
+            if (node.model.id != modelId) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Node $id does not belong to model $modelId"
+                )
             }
             nodesRepository.deleteById(id)
         }
-        return ids.size
+        return entries.size
     }
 
     // ── Link operations ─────────────────────────────────────────────
@@ -256,14 +308,22 @@ class ModelBatchSaveController(
         return updates.size
     }
 
-    private fun deleteLinks(ids: List<UUID>): Int {
-        for (id in ids) {
-            if (!linksRepository.existsById(id)) {
-                throw ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found")
+    private fun deleteLinks(entries: List<BatchDeleteEntry>, model: Models): Int {
+        if (entries.isEmpty()) return 0
+        val modelId = requireNotNull(model.id) { "Model id required" }
+        for (entry in entries) {
+            val id = entry.id
+            val link = linksRepository.findById(id)
+                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found") }
+            if (link.model.id != modelId) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Link $id does not belong to model $modelId"
+                )
             }
             linksRepository.deleteById(id)
         }
-        return ids.size
+        return entries.size
     }
 
     // ── Diagram operations ──────────────────────────────────────────
@@ -342,17 +402,82 @@ class ModelBatchSaveController(
         return updates.size
     }
 
-    private fun deleteDiagrams(ids: List<UUID>): Int {
-        for (id in ids) {
+    private fun deleteDiagrams(entries: List<BatchDeleteEntry>): Int {
+        for (entry in entries) {
+            val id = entry.id
             if (!diagramsRepository.existsById(id)) {
                 throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
             }
             diagramsRepository.softDeleteById(id)
         }
-        return ids.size
+        return entries.size
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
+
+    private fun isVersionConflict(server: Instant?, clientBase: Instant): Boolean {
+        if (server == null) return true
+        return server.toEpochMilli() != clientBase.toEpochMilli()
+    }
+
+    private fun collectBatchConflicts(request: BatchSaveRequest, model: Models): List<BatchConflictItem> {
+        if (request.force) return emptyList()
+        val modelId = requireNotNull(model.id) { "Model id required" }
+        val conflicts = mutableListOf<BatchConflictItem>()
+
+        for (upd in request.nodes.update) {
+            val base = upd.baseUpdatedAt ?: continue
+            val node = nodesRepository.findById(upd.id).orElse(null) ?: continue
+            if (node.model.id != modelId) continue
+            if (isVersionConflict(node.updatedAt, base)) {
+                conflicts.add(BatchConflictItem("node", upd.id, node.updatedAt, base))
+            }
+        }
+        for (del in request.nodes.delete) {
+            val base = del.baseUpdatedAt ?: continue
+            val node = nodesRepository.findById(del.id).orElse(null) ?: continue
+            if (node.model.id != modelId) continue
+            if (isVersionConflict(node.updatedAt, base)) {
+                conflicts.add(BatchConflictItem("node", del.id, node.updatedAt, base))
+            }
+        }
+
+        for (upd in request.links.update) {
+            val base = upd.baseUpdatedAt ?: continue
+            val link = linksRepository.findById(upd.id).orElse(null) ?: continue
+            if (link.model.id != modelId) continue
+            if (isVersionConflict(link.updatedAt, base)) {
+                conflicts.add(BatchConflictItem("link", upd.id, link.updatedAt, base))
+            }
+        }
+        for (del in request.links.delete) {
+            val base = del.baseUpdatedAt ?: continue
+            val link = linksRepository.findById(del.id).orElse(null) ?: continue
+            if (link.model.id != modelId) continue
+            if (isVersionConflict(link.updatedAt, base)) {
+                conflicts.add(BatchConflictItem("link", del.id, link.updatedAt, base))
+            }
+        }
+
+        for (upd in request.diagrams.update) {
+            val base = upd.baseUpdatedAt ?: continue
+            val diagram = diagramsRepository.findById(upd.id).orElse(null) ?: continue
+            if (diagram.model.id != modelId) continue
+            if (isVersionConflict(diagram.updatedAt, base)) {
+                conflicts.add(BatchConflictItem("diagram", upd.id, diagram.updatedAt, base))
+            }
+        }
+        for (del in request.diagrams.delete) {
+            val base = del.baseUpdatedAt ?: continue
+            val diagram = diagramsRepository.findById(del.id).orElse(null) ?: continue
+            if (diagram.model.id != modelId) continue
+            if (isVersionConflict(diagram.updatedAt, base)) {
+                conflicts.add(BatchConflictItem("diagram", del.id, diagram.updatedAt, base))
+            }
+        }
+
+        return conflicts
+    }
 
     private fun resolveRef(ref: String, idMap: Map<String, UUID>, label: String): UUID {
         idMap[ref]?.let { return it }
@@ -494,94 +619,3 @@ class ModelBatchSaveController(
         return relationsRepository.existsByLinkType_IdAndNotation_IdIn(linkTypeId, notationIds)
     }
 }
-
-// ── Request / Response DTOs ─────────────────────────────────────────
-
-data class BatchSaveRequest(
-    val nodes: BatchNodeOps = BatchNodeOps(),
-    val links: BatchLinkOps = BatchLinkOps(),
-    val diagrams: BatchDiagramOps = BatchDiagramOps()
-)
-
-data class BatchNodeOps(
-    val create: List<BatchNodeCreate> = emptyList(),
-    val update: List<BatchNodeUpdate> = emptyList(),
-    val delete: List<UUID> = emptyList()
-)
-
-data class BatchNodeCreate(
-    val tempId: String,
-    val name: String,
-    val nodeTypeId: UUID,
-    val parentNodeId: String? = null,
-    val attrs: String? = null
-)
-
-data class BatchNodeUpdate(
-    val id: UUID,
-    val name: String,
-    val nodeTypeId: UUID,
-    val parentNodeId: String? = null,
-    val attrs: String? = null
-)
-
-data class BatchLinkOps(
-    val create: List<BatchLinkCreate> = emptyList(),
-    val update: List<BatchLinkUpdate> = emptyList(),
-    val delete: List<UUID> = emptyList()
-)
-
-data class BatchLinkCreate(
-    val tempId: String,
-    val sourceId: String,
-    val targetId: String,
-    val linkTypeId: UUID,
-    val attrs: String? = null
-)
-
-data class BatchLinkUpdate(
-    val id: UUID,
-    val sourceId: String,
-    val targetId: String,
-    val linkTypeId: UUID,
-    val attrs: String? = null
-)
-
-data class BatchDiagramOps(
-    val create: List<BatchDiagramCreate> = emptyList(),
-    val update: List<BatchDiagramUpdate> = emptyList(),
-    val delete: List<UUID> = emptyList()
-)
-
-data class BatchDiagramCreate(
-    val tempId: String,
-    val name: String,
-    val version: String,
-    val notationId: UUID,
-    val nodeId: String? = null,
-    val attrs: String? = null
-)
-
-data class BatchDiagramUpdate(
-    val id: UUID,
-    val name: String,
-    val version: String,
-    val notationId: UUID,
-    val nodeId: String? = null,
-    val attrs: String? = null
-)
-
-data class BatchSaveResponse(
-    val nodeIdMap: Map<String, UUID>,
-    val linkIdMap: Map<String, UUID>,
-    val diagramIdMap: Map<String, UUID>,
-    val nodesCreated: Int,
-    val nodesUpdated: Int,
-    val nodesDeleted: Int,
-    val linksCreated: Int,
-    val linksUpdated: Int,
-    val linksDeleted: Int,
-    val diagramsCreated: Int,
-    val diagramsUpdated: Int,
-    val diagramsDeleted: Int
-)

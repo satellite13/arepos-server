@@ -41,6 +41,9 @@ arepos:
   audit:
     retention: ${AUDIT_RETENTION:PT24H}
     cleanup-cron: ${AUDIT_CLEANUP_CRON:0 0 * * * *}
+  websocket:
+    # Список через запятую или * (dev). Для prod задать явные origin фронта.
+    allowed-origin-patterns: ${WEBSOCKET_ALLOWED_ORIGIN_PATTERNS:*}
   jwt:
     secret: ${JWT_SECRET:default-dev-secret-key-change-in-production-must-be-at-least-256-bits-long!!}
     access-expiration: ${JWT_ACCESS_EXPIRATION:PT30M}
