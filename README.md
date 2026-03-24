@@ -48,6 +48,7 @@ charts/arepos-server/
 - JDK 24 or 25
 - Docker (for local image build and Testcontainers-based tests)
 - PostgreSQL (if running outside Testcontainers)
+- MinIO (if `FILE_STORAGE=minio`, default mode)
 - Kubernetes + Helm (for cluster deployment)
 
 ## Local Development
@@ -63,6 +64,8 @@ Important environment variables:
 - `DB_PASSWORD` (default: `arepos`)
 - `JWT_SECRET` (required for production)
 - `ADMIN_SECRET` (recommended for admin bootstrap flow)
+- `FILE_STORAGE` (`minio` by default; use `disabled` for local run without file storage)
+- `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET` (when `FILE_STORAGE=minio`)
 
 ### 2) Build and run
 

@@ -47,8 +47,8 @@
 
 ## API (реализовано)
 
-- **POST /api/v1/documents** — зарегистрировать привязку документа к контексту. Body (camelCase): `fileId` (обязательный), опционально `modelId`, `notationId`, `componentId`, `nodeId`, `nodeTypeId`, `linkTypeId`. Проверка прав на файл и на сущности контекста. Ответ: `{ fileId, label }`.
-- **GET /api/v1/documents** — список документов для селекта (только созданные текущим пользователем). Query-параметры (camelCase, опциональные): `modelId`, `notationId`, `componentId`, `nodeId`, `nodeTypeId`, `linkTypeId`. Ответ: массив `{ fileId, label }` (label = filename файла).
+- **POST /api/v1/documents** — зарегистрировать привязку документа к контексту. Body (camelCase): `fileId` (обязательный), опционально `modelId`, `notationId`, `componentId`, `nodeId`, `nodeTypeId`, `linkTypeId`, `diagramId`, `relationId`, `nodeShapeId`. Проверка прав на файл и на сущности контекста. Ответ: `{ fileId, label }`.
+- **GET /api/v1/documents** — список документов для селекта (только созданные текущим пользователем). Query-параметры (camelCase, опциональные): `modelId`, `notationId`, `componentId`, `nodeId`, `nodeTypeId`, `linkTypeId`, `diagramId`, `relationId`, `nodeShapeId`. Ответ: массив `{ fileId, label }` (label = filename файла).
 
 При необходимости можно добавить в таблицу поле `title` (nullable) для отображаемого названия документа в селекте, по умолчанию использовать `files.filename`.
 
@@ -68,8 +68,14 @@
 - Существующие файлы не имеют записей в `document_refs`. Селект на фронте может по-прежнему объединять: (1) документы из API `GET /documents?...` и (2) документы, уже подставленные в модели (из attrs и componentProperties), чтобы старые данные продолжали отображаться и быть выбираемыми.
 - При следующем сохранении документа в контексте (например, при создании через «Новый документ») бэкенд создаёт запись в `document_refs`; опционально можно добавить фоновую задачу или скрипт, который по существующим ссылкам в attrs создаёт записи `document_refs` постфактум.
 
+## Статус реализации
+
+- Реализованы миграции `018-add-document-refs.sql` и `021-document-refs-wiki-and-node-shapes-attrs.sql`.
+- Реализованы `DocumentRefs` entity, repository, service, контроллер `DocumentsController` (POST + GET с фильтрами).
+- Поддержаны расширенные контексты: `diagramId`, `relationId`, `nodeShapeId`.
+
 ## Дальнейшие шаги
 
-1. Добавить миграцию Liquibase: таблица `document_refs`, индексы по file_id, created_by, model_id, notation_id, component_id, node_id.
-2. Реализовать entity, repository, сервис и контроллер (POST + GET с фильтрами).
-3. На фронте при создании документа через «Новый документ» вызывать POST /documents с контекстом; для селекта — GET /documents с нужными query-параметрами и объединять с текущим списком из модели.
+1. На фронте при создании документа через «Новый документ» вызывать POST `/documents` с контекстом.
+2. Для селекта использовать GET `/documents` с нужными query-параметрами и объединять с текущим списком из модели для обратной совместимости.
+3. Опционально добавить утилиту/миграционный job для постфактум-заполнения `document_refs` по историческим ссылкам из attrs.

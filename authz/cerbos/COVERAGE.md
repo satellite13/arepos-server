@@ -48,10 +48,15 @@ Policy-файлы: `authz/cerbos/policies/resource.*.yaml`.
 
 - Модели/дерево: `ModelsController`, `NodesController`, `LinksController`, `ModelBatchSaveController`, `ModelDiffController`
 - Нотации/типы/правила: `NotationsController`, `ComponentsController`, `RelationsController`, `RelationRulesController`, `RelationRulesSyncController`, `NotationImportController`
-- Диаграммы/файлы/документы: `DiagramsController`, `FilesController`, `DocumentsController`
+- Диаграммы/файлы/документы: `DiagramsController`, `DiagramEditLocksController`, `FilesController`, `DocumentsController`
 - Каталоги: `NodeTypesController`, `LinkTypesController`, `NodeShapesController`
 - Доступ/шаринг/дашборд: `PermissionsController`, `AccessSharesController`, `DashboardController`, `AuditLogController`
 - Platform admin: `UsersController`
+
+`DiagramEditLocksController` использует проверки через `DiagramEditLockService`:
+- acquire/heartbeat/release -> `diagram:edit`
+- list locks по modelId -> `model:view`
+- force-release -> `admin_panel:view`
 
 Публичные и auth-only контроллеры (не ресурсная Cerbos-авторизация):
 

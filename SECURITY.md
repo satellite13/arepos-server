@@ -15,7 +15,9 @@ Instead:
    - impact
    - reproduction steps
    - possible mitigation
-2. Send it to project maintainers through a private communication channel.
+2. Send it to project maintainers through a private communication channel:
+   - private vulnerability/advisory report in the Git hosting platform (preferred), or
+   - direct private message/email to maintainers.
 
 If no private channel is available yet, create one before public release and update this file.
 

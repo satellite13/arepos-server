@@ -48,6 +48,7 @@ charts/arepos-server/
 - JDK 24 или 25
 - Docker (для локальной сборки образа и тестов на Testcontainers)
 - PostgreSQL (если запуск вне Testcontainers)
+- MinIO (если `FILE_STORAGE=minio`, режим по умолчанию)
 - Kubernetes + Helm (для деплоя в кластер)
 
 ## Локальная разработка
@@ -63,6 +64,8 @@ charts/arepos-server/
 - `DB_PASSWORD` (по умолчанию: `arepos`)
 - `JWT_SECRET` (обязательно для production)
 - `ADMIN_SECRET` (рекомендуется для bootstrap администраторов)
+- `FILE_STORAGE` (`minio` по умолчанию; `disabled` для локального запуска без файлового хранилища)
+- `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET` (когда `FILE_STORAGE=minio`)
 
 ### 2) Сборка и запуск
 
