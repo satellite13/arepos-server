@@ -54,6 +54,14 @@ env:
       secretKeyRef:
         name: arepos-server-auth-secret
         key: admin-secret
+  # Model live sync: transactional outbox для STOMP model_changed (см. docs/ops/model-sync-outbox-runbook.md)
+  - name: MODEL_SYNC_OUTBOX_ENABLED
+    value: "true"
+  # При необходимости:
+  # - name: MODEL_SYNC_OUTBOX_PUBLISH_MS
+  #   value: "500"
+  # - name: MODEL_SYNC_OUTBOX_BATCH_SIZE
+  #   value: "50"
 
 # Cerbos defaults for local deploy.sh.
 # Keep this block aligned with infra values to avoid rollout drift.

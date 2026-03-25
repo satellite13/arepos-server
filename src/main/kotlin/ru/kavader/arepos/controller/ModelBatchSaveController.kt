@@ -384,7 +384,7 @@ class ModelBatchSaveController(
                 .orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${item.notationId} not found")
                 }
-            accessService.requireCanViewNotation(notation)
+            accessService.requireCanReferenceNotationForModelDiagram(notation, model)
             val node = item.nodeId?.let { ref ->
                 val nodeUuid = resolveRef(ref, nodeIdMap, "diagram node")
                 nodesRepository.findById(nodeUuid)
@@ -423,7 +423,7 @@ class ModelBatchSaveController(
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram ${upd.id} not found") }
             val notation = notationsRepository.findById(upd.notationId)
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${upd.notationId} not found") }
-            accessService.requireCanViewNotation(notation)
+            accessService.requireCanReferenceNotationForModelDiagram(notation, model)
             val node = upd.nodeId?.let { ref ->
                 val nodeUuid = resolveRef(ref, nodeIdMap, "diagram node")
                 nodesRepository.findById(nodeUuid)

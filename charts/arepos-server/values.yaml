@@ -249,6 +249,13 @@ minio:
 env: []
 # - name: SPRING_PROFILES_ACTIVE
 #   value: "production"
+# Model live sync outbox (application.yaml: arepos.model-sync.*):
+# - name: MODEL_SYNC_OUTBOX_ENABLED
+#   value: "false"
+# - name: MODEL_SYNC_OUTBOX_PUBLISH_MS
+#   value: "500"
+# - name: MODEL_SYNC_OUTBOX_BATCH_SIZE
+#   value: "50"
 
 # Cerbos authorization configuration
 cerbos:

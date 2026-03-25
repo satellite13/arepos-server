@@ -64,7 +64,9 @@ class LinkTypesController(
                 val notation = notationsRepository.findById(requestedNotationId).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $requestedNotationId not found")
                 }
-                accessService.requireCanViewNotation(notation)
+                if (!accessService.canViewNotation(notation)) {
+                    return@forEach
+                }
                 relationsRepository.findDistinctLinkTypeIdsByNotationId(requestedNotationId)
                     .forEach { notationLinkTypeIds.add(it) }
                 notation.owner.id?.let { notationOwnerIds.add(it) }

@@ -64,7 +64,9 @@ class NodeTypesController(
                 val notation = notationsRepository.findById(requestedNotationId).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $requestedNotationId not found")
                 }
-                accessService.requireCanViewNotation(notation)
+                if (!accessService.canViewNotation(notation)) {
+                    return@forEach
+                }
                 componentsRepository.findDistinctNodeTypeIdsByNotationId(requestedNotationId)
                     .forEach { notationNodeTypeIds.add(it) }
                 notation.owner.id?.let { notationOwnerIds.add(it) }

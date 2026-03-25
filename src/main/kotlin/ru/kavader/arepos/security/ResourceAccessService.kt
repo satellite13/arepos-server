@@ -231,6 +231,19 @@ class ResourceAccessService(
         }
     }
 
+    /**
+     * Создание/обновление диаграммы в модели: нотация видна по ACL нотации
+     * или пользователь может редактировать модель (редактор модели без шаринга нотации).
+     */
+    fun canReferenceNotationForModelDiagram(notation: Notations, model: Models): Boolean =
+        canViewNotation(notation) || canEditModel(model)
+
+    fun requireCanReferenceNotationForModelDiagram(notation: Notations, model: Models) {
+        if (!canReferenceNotationForModelDiagram(notation, model)) {
+            deny()
+        }
+    }
+
     fun requireCanEditNodeType(nodeType: NodeTypes) {
         if (!canEditNodeType(nodeType)) {
             deny()

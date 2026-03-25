@@ -12,6 +12,8 @@
 | `arepos.model-sync.outbox-publish-interval-ms` / `MODEL_SYNC_OUTBOX_PUBLISH_MS` | Интервал тика воркера (мс). |
 | `arepos.model-sync.outbox-batch-size` / `MODEL_SYNC_OUTBOX_BATCH_SIZE` | Размер пачки за тик. |
 
+В Kubernetes переменные задаются в Helm values (`env` в `deploy-values.yaml` или своём values-файле); в репозитории пример для `deploy.sh` — блок `MODEL_SYNC_*` в [`deploy-values.yaml`](../../deploy-values.yaml).
+
 ## Метрики (Prometheus)
 
 - `arepos_model_sync_outbox_pending_rows` — оценка числа неопубликованных строк (обновляется на каждом тике воркера).
