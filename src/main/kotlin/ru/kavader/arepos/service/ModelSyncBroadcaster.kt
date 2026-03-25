@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.messaging.simp.SimpMessagingTemplate
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import ru.kavader.arepos.dto.DiagramSpectatorView
 import ru.kavader.arepos.dto.ModelSyncEntityEvent
 import ru.kavader.arepos.model.ModelSyncOutbox
@@ -30,6 +31,7 @@ class ModelSyncBroadcaster(
     @Value("\${arepos.model-sync.outbox-enabled:false}") private val outboxEnabled: Boolean
 ) {
 
+    @Transactional
     fun broadcastModelChanged(modelId: UUID, source: String, events: List<ModelSyncEntityEvent> = emptyList()) {
         val bumped = modelsRepository.incrementSyncRevision(modelId)
         if (bumped == 0) {
