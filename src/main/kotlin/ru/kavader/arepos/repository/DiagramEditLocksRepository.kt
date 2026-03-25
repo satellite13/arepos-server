@@ -34,4 +34,13 @@ interface DiagramEditLocksRepository : JpaRepository<DiagramEditLocks, UUID> {
     @Modifying
     @Query("DELETE FROM DiagramEditLocks l WHERE l.diagram.id = :diagramId")
     fun deleteByDiagramId(@Param("diagramId") diagramId: UUID): Int
+
+    @Query(
+        "SELECT l FROM DiagramEditLocks l JOIN FETCH l.lockedBy JOIN FETCH l.diagram d JOIN FETCH d.model " +
+            "WHERE l.diagram.id = :diagramId AND l.expiresAt >= :now"
+    )
+    fun findActiveWithDiagram(
+        @Param("diagramId") diagramId: UUID,
+        @Param("now") now: Instant
+    ): DiagramEditLocks?
 }
