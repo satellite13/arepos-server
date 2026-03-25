@@ -38,6 +38,11 @@ springdoc:
     path: /swagger-ui.html
 
 arepos:
+  model-sync:
+    # Публикация model_changed через transactional outbox (иначе — прямой SimpMessagingTemplate).
+    outbox-enabled: ${MODEL_SYNC_OUTBOX_ENABLED:false}
+    outbox-publish-interval-ms: ${MODEL_SYNC_OUTBOX_PUBLISH_MS:500}
+    outbox-batch-size: ${MODEL_SYNC_OUTBOX_BATCH_SIZE:50}
   audit:
     retention: ${AUDIT_RETENTION:PT24H}
     cleanup-cron: ${AUDIT_CLEANUP_CRON:0 0 * * * *}

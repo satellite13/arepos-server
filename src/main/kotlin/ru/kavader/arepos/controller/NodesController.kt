@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.ModelSyncEntityEvent
 import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.DiagramsRepository
@@ -138,7 +139,11 @@ class NodesController(
                 updatedAt = now
             )
         )
-        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "node_create")
+        modelSyncBroadcaster.broadcastModelChanged(
+            requireNotNull(model.id),
+            "node_create",
+            listOf(ModelSyncEntityEvent("node_created", "node", requireNotNull(saved.id)))
+        )
         return saved.toResponse()
     }
 
@@ -205,7 +210,11 @@ class NodesController(
                 attrs = request.attrs ?: node.attrs
             )
         )
-        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "node_update")
+        modelSyncBroadcaster.broadcastModelChanged(
+            requireNotNull(model.id),
+            "node_update",
+            listOf(ModelSyncEntityEvent("node_updated", "node", requireNotNull(updated.id)))
+        )
         return updated.toResponse()
     }
 
@@ -228,7 +237,11 @@ class NodesController(
             emptyList(),
             Instant.now()
         )
-        modelSyncBroadcaster.broadcastModelChanged(modelId, "node_delete")
+        modelSyncBroadcaster.broadcastModelChanged(
+            modelId,
+            "node_delete",
+            listOf(ModelSyncEntityEvent("node_deleted", "node", id))
+        )
     }
 
     private fun getCurrentUser() = CurrentUser.getId()?.let {

@@ -17,6 +17,7 @@ import ru.kavader.arepos.dto.BatchNodeUpdate
 import ru.kavader.arepos.dto.BatchSaveConflictException
 import ru.kavader.arepos.dto.BatchSaveRequest
 import ru.kavader.arepos.dto.BatchSaveResponse
+import ru.kavader.arepos.dto.ModelSyncEntityEvent
 import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService
@@ -107,7 +108,11 @@ class ModelBatchSaveController(
             request.diagrams.update.isNotEmpty() ||
             request.diagrams.delete.isNotEmpty()
         if (mutated) {
-            modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "batch_save")
+            modelSyncBroadcaster.broadcastModelChanged(
+                requireNotNull(model.id),
+                "batch_save",
+                buildBatchSyncEvents(request, nodeIdMap, linkIdMap, diagramIdMap)
+            )
         }
 
         return BatchSaveResponse(
@@ -124,6 +129,43 @@ class ModelBatchSaveController(
             diagramsUpdated = diagramsUpdated,
             diagramsDeleted = diagramsDeleted
         )
+    }
+
+    private fun buildBatchSyncEvents(
+        request: BatchSaveRequest,
+        nodeIdMap: Map<String, UUID>,
+        linkIdMap: Map<String, UUID>,
+        diagramIdMap: Map<String, UUID>
+    ): List<ModelSyncEntityEvent> {
+        val out = ArrayList<ModelSyncEntityEvent>()
+        for (c in request.nodes.create) {
+            out.add(ModelSyncEntityEvent("node_created", "node", nodeIdMap.getValue(c.tempId)))
+        }
+        for (u in request.nodes.update) {
+            out.add(ModelSyncEntityEvent("node_updated", "node", u.id))
+        }
+        for (d in request.nodes.delete) {
+            out.add(ModelSyncEntityEvent("node_deleted", "node", d.id))
+        }
+        for (c in request.links.create) {
+            out.add(ModelSyncEntityEvent("link_created", "link", linkIdMap.getValue(c.tempId)))
+        }
+        for (u in request.links.update) {
+            out.add(ModelSyncEntityEvent("link_updated", "link", u.id))
+        }
+        for (d in request.links.delete) {
+            out.add(ModelSyncEntityEvent("link_deleted", "link", d.id))
+        }
+        for (c in request.diagrams.create) {
+            out.add(ModelSyncEntityEvent("diagram_created", "diagram", diagramIdMap.getValue(c.tempId)))
+        }
+        for (u in request.diagrams.update) {
+            out.add(ModelSyncEntityEvent("diagram_updated", "diagram", u.id))
+        }
+        for (d in request.diagrams.delete) {
+            out.add(ModelSyncEntityEvent("diagram_deleted", "diagram", d.id))
+        }
+        return out
     }
 
     // ── Node operations ─────────────────────────────────────────────

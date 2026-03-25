@@ -296,3 +296,23 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 033-models-sync-revision
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/033-models-sync-revision.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
+  - changeSet:
+      id: 034-model-sync-outbox
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/034-model-sync-outbox.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

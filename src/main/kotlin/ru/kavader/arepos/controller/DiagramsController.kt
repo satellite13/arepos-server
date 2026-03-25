@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.ModelSyncEntityEvent
 import ru.kavader.arepos.model.DiagramPreviewLinks
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Models
@@ -137,7 +138,11 @@ class DiagramsController(
                 node = node
             )
         )
-        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "diagram_create")
+        modelSyncBroadcaster.broadcastModelChanged(
+            requireNotNull(model.id),
+            "diagram_create",
+            listOf(ModelSyncEntityEvent("diagram_created", "diagram", requireNotNull(saved.id)))
+        )
         return saved.toResponse()
     }
 
@@ -214,7 +219,11 @@ class DiagramsController(
                 node = node
             )
         )
-        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "diagram_update")
+        modelSyncBroadcaster.broadcastModelChanged(
+            requireNotNull(model.id),
+            "diagram_update",
+            listOf(ModelSyncEntityEvent("diagram_updated", "diagram", requireNotNull(updated.id)))
+        )
         return updated.toResponse()
     }
 
@@ -231,7 +240,11 @@ class DiagramsController(
         if (deletedCount == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
         }
-        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(diagram.model.id), "diagram_delete")
+        modelSyncBroadcaster.broadcastModelChanged(
+            requireNotNull(diagram.model.id),
+            "diagram_delete",
+            listOf(ModelSyncEntityEvent("diagram_deleted", "diagram", id))
+        )
     }
 
     @PutMapping("/{id}/svg")
@@ -411,7 +424,11 @@ class DiagramsController(
                 node = diagram.node
             )
         )
-        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(diagram.model.id), "diagram_baseline")
+        modelSyncBroadcaster.broadcastModelChanged(
+            requireNotNull(diagram.model.id),
+            "diagram_baseline",
+            listOf(ModelSyncEntityEvent("diagram_created", "diagram", requireNotNull(saved.id)))
+        )
         return saved.toResponse()
     }
 

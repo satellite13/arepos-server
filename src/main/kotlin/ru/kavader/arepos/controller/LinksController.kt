@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.ModelSyncEntityEvent
 import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.LinksRepository
@@ -176,7 +177,11 @@ class LinksController(
                 model = model
             )
         )
-        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "link_create")
+        modelSyncBroadcaster.broadcastModelChanged(
+            requireNotNull(model.id),
+            "link_create",
+            listOf(ModelSyncEntityEvent("link_created", "link", requireNotNull(saved.id)))
+        )
         return saved.toResponse()
     }
 
@@ -240,7 +245,11 @@ class LinksController(
                 model = model
             )
         )
-        modelSyncBroadcaster.broadcastModelChanged(requireNotNull(model.id), "link_update")
+        modelSyncBroadcaster.broadcastModelChanged(
+            requireNotNull(model.id),
+            "link_update",
+            listOf(ModelSyncEntityEvent("link_updated", "link", requireNotNull(updated.id)))
+        )
         return updated.toResponse()
     }
 
@@ -260,7 +269,11 @@ class LinksController(
             listOf(id),
             Instant.now()
         )
-        modelSyncBroadcaster.broadcastModelChanged(modelId, "link_delete")
+        modelSyncBroadcaster.broadcastModelChanged(
+            modelId,
+            "link_delete",
+            listOf(ModelSyncEntityEvent("link_deleted", "link", id))
+        )
     }
 
     private fun getCurrentUser() = CurrentUser.getId()?.let {

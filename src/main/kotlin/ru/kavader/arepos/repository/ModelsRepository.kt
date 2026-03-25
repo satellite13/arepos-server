@@ -134,6 +134,12 @@ interface ModelsRepository : JpaRepository<Models, UUID> {
     @Modifying
     @Query("UPDATE Models m SET m.deleted = true WHERE m.id = :id")
     fun softDeleteById(id: UUID): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        "UPDATE Models m SET m.syncRevision = m.syncRevision + 1 WHERE m.id = :modelId AND m.deleted = false"
+    )
+    fun incrementSyncRevision(modelId: UUID): Int
 }
 
 

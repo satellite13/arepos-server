@@ -43,5 +43,8 @@ data class Models(
     val source: Models? = null,
 
     @Column(name = "deleted", nullable = false)
-    val deleted: Boolean = false
+    val deleted: Boolean = false,
+
+    @Column(name = "sync_revision", nullable = false)
+    val syncRevision: Long = 0
 )

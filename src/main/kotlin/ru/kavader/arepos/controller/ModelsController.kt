@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.ModelSyncEntityEvent
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.model.Models
@@ -266,7 +267,11 @@ class ModelsController(
                 owner = owner
             )
         )
-        modelSyncBroadcaster.broadcastModelChanged(id, "model_update")
+        modelSyncBroadcaster.broadcastModelChanged(
+            id,
+            "model_update",
+            listOf(ModelSyncEntityEvent("model_updated", "model", id))
+        )
         return updated.toResponse()
     }
 
