@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.DocumentRefsService
 import ru.kavader.arepos.service.FileStorageService
 import java.util.*
 
@@ -39,7 +40,8 @@ data class UploadMarkdownRequest(
 class FilesController(
     private val fileStorageService: FileStorageService,
     private val usersRepository: UsersRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val documentRefsService: DocumentRefsService
 ) {
 
     @PostMapping("/upload")
@@ -91,6 +93,7 @@ class FilesController(
         val file = fileStorageService.getFileMetadata(id)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
         accessService.requireCanViewFile(file)
+        documentRefsService.requireCanModifyMarkdownForLinkedEntities(id)
         val updated = fileStorageService.updateMarkdown(id, request.content, owner)
         val url = "/api/v1/files/${updated.id}"
         return FileUploadResponse(

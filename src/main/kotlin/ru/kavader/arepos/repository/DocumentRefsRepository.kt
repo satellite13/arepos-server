@@ -15,6 +15,8 @@ interface DocumentRefsRepository : JpaRepository<DocumentRefs, UUID> {
     fun findFirstByFile_IdAndNodeType_Id(fileId: UUID, nodeTypeId: UUID): Optional<DocumentRefs>
     fun findFirstByFile_IdAndLinkType_Id(fileId: UUID, linkTypeId: UUID): Optional<DocumentRefs>
 
+    fun findAllByFile_Id(fileId: UUID): List<DocumentRefs>
+
     @Query(
         """
         SELECT dr FROM DocumentRefs dr

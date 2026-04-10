@@ -2,6 +2,7 @@ package ru.kavader.arepos.service
 
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.DocumentRefs
 import ru.kavader.arepos.model.Files
@@ -61,6 +62,26 @@ class DocumentRefsService(
     private val nodeShapesRepository: NodeShapesRepository,
     private val accessService: ResourceAccessService
 ) {
+
+    /**
+     * Если markdown-файл привязан к сущностям через document_refs, правка контента
+     * требует тех же прав, что и регистрация ссылки (иначе обход через PUT /files/.../markdown).
+     */
+    @Transactional(readOnly = true)
+    fun requireCanModifyMarkdownForLinkedEntities(fileId: UUID) {
+        val refs = documentRefsRepository.findAllByFile_Id(fileId)
+        for (ref in refs) {
+            ref.model?.let { accessService.requireCanEditModel(it) }
+            ref.node?.let { accessService.requireCanEditNode(it) }
+            ref.diagram?.let { accessService.requireCanEditDiagram(it) }
+            ref.notation?.let { accessService.requireCanEditNotation(it) }
+            ref.component?.let { accessService.requireCanEditComponent(it) }
+            ref.relation?.let { accessService.requireCanEditRelation(it) }
+            ref.nodeType?.let { accessService.requireCanEditNodeType(it) }
+            ref.linkType?.let { accessService.requireCanEditLinkType(it) }
+            ref.nodeShape?.let { accessService.requireCanEditNodeShape(it) }
+        }
+    }
 
     fun registerRef(request: RegisterDocumentRefRequest): DocumentItem {
         val userId = accessService.currentUserId()
@@ -218,7 +239,7 @@ class DocumentRefsService(
         return byFile.mapNotNull { (_, fileRefs) ->
             val ref = fileRefs.maxWithOrNull(
                 compareBy(
-                    { r -> val (t, _) = entityTypeAndName(r); if (t != null && t != "unknown") 1 else 0 },
+                    { r -> val (t, _) = entityTypeAndName(r); if (t != "unknown") 1 else 0 },
                     { r -> r.createdAt?.toEpochMilli() ?: 0L }
                 )
             ) ?: return@mapNotNull null
