@@ -9,11 +9,13 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.model.Notations
+import ru.kavader.arepos.model.Relations
 import ru.kavader.arepos.model.ResourceShares
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.SharePermission
@@ -25,6 +27,7 @@ import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.ResourceSharesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
@@ -64,6 +67,9 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var componentsRepository: ComponentsRepository
+
+    @Autowired
+    lateinit var relationsRepository: RelationsRepository
 
     @Test
     fun `models list keeps access and pagination invariants`() {
@@ -211,6 +217,307 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
         val json = objectMapper.readTree(response)
         val ids = contentIds(json)
         assertTrue(ids.contains(persisted.id.toString()))
+    }
+
+    @Test
+    fun `diagrams list includes diagrams for model VIEW when notation is not shared`() {
+        val now = Instant.now()
+        val notationOwner = createUser("notation-owner-diag-view", Role.USER)
+        val modelOwner = createUser("model-owner-diag-view", Role.USER)
+        val viewer = createUser("viewer-diag-view", Role.USER)
+
+        val notation = notationsRepository.save(
+            Notations(
+                name = "private-notation-diag",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "shared-model-diag",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val diagram = diagramsRepository.save(
+            Diagrams(
+                name = "diagram-with-private-notation",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now,
+                model = model,
+                notation = notation,
+                deleted = false
+            )
+        )
+
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = null,
+                grantedByUser = modelOwner,
+                permission = SharePermission.VIEW,
+                createdAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/diagrams?modelId=${model.id}&page=0&size=20")
+                .withAuth(viewer.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect { result ->
+                val body = objectMapper.readTree(result.response.contentAsString)
+                val ids = contentIds(body)
+                assertTrue(ids.contains(diagram.id.toString()))
+            }
+    }
+
+    @Test
+    fun `GET node-type by id allowed for model viewer when node type has no direct share`() {
+        val now = Instant.now()
+        val notationOwner = createUser("nt-n-ow", Role.USER)
+        val nodeTypeOwner = createUser("nt-t-ow", Role.USER)
+        val modelOwner = createUser("nt-m-ow", Role.USER)
+        val viewer = createUser("nt-view", Role.USER)
+
+        val notation = notationsRepository.save(
+            Notations(
+                name = "nt-priv-notation",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val nodeType = nodeTypesRepository.save(
+            NodeTypes(
+                name = "nt-unshared-type-${UUID.randomUUID()}",
+                createdAt = now,
+                updatedAt = now,
+                attrs = """{}""",
+                owner = nodeTypeOwner
+            )
+        )
+        componentsRepository.save(
+            Components(
+                name = "nt-comp",
+                version = "1.0.0",
+                attrs = null,
+                createdAt = now,
+                updatedAt = now,
+                notation = notation,
+                owner = notationOwner,
+                nodeType = nodeType
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "nt-shared-model",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "nt-diag",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now,
+                model = model,
+                notation = notation,
+                deleted = false
+            )
+        )
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = null,
+                grantedByUser = modelOwner,
+                permission = SharePermission.VIEW,
+                createdAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/node-types/${nodeType.id}").withAuth(viewer.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+    }
+
+    @Test
+    fun `GET link-type by id allowed for model viewer when link type has no direct share`() {
+        val now = Instant.now()
+        val notationOwner = createUser("lt-n-ow", Role.USER)
+        val linkTypeOwner = createUser("lt-t-ow", Role.USER)
+        val modelOwner = createUser("lt-m-ow", Role.USER)
+        val viewer = createUser("lt-view", Role.USER)
+
+        val notation = notationsRepository.save(
+            Notations(
+                name = "lt-priv-notation",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val linkType = linkTypesRepository.save(
+            LinkTypes(
+                name = "lt-unshared-${UUID.randomUUID()}",
+                createdAt = now,
+                updatedAt = now,
+                attrs = """{}""",
+                owner = linkTypeOwner
+            )
+        )
+        relationsRepository.save(
+            Relations(
+                attrs = null,
+                createdAt = now,
+                updatedAt = now,
+                version = "1.0.0",
+                owner = notationOwner,
+                notation = notation,
+                name = "lt-rel-${UUID.randomUUID()}",
+                linkType = linkType
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "lt-shared-model",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "lt-diag",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now,
+                model = model,
+                notation = notation,
+                deleted = false
+            )
+        )
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = null,
+                grantedByUser = modelOwner,
+                permission = SharePermission.VIEW,
+                createdAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/link-types/${linkType.id}").withAuth(viewer.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+    }
+
+    @Test
+    fun `model editor with EDIT can list components and types for notation without diagram or notation share`() {
+        val now = Instant.now()
+        val notationOwner = createUser("ed-n-ow", Role.USER)
+        val nodeTypeOwner = createUser("ed-nt-ow", Role.USER)
+        val modelOwner = createUser("ed-m-ow", Role.USER)
+        val editor = createUser("ed-editor", Role.USER)
+
+        val notation = notationsRepository.save(
+            Notations(
+                name = "ed-priv-notation",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val nodeType = nodeTypesRepository.save(
+            NodeTypes(
+                name = "ed-unshared-nt-${UUID.randomUUID()}",
+                createdAt = now,
+                updatedAt = now,
+                attrs = """{}""",
+                owner = nodeTypeOwner
+            )
+        )
+        val component = componentsRepository.save(
+            Components(
+                name = "ed-comp",
+                version = "1.0.0",
+                attrs = null,
+                createdAt = now,
+                updatedAt = now,
+                notation = notation,
+                owner = notationOwner,
+                nodeType = nodeType
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "ed-shared-model",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = editor,
+                grantedByUser = modelOwner,
+                permission = SharePermission.EDIT,
+                createdAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get(
+                "/api/v1/components?notationId=${notation.id}&modelId=${model.id}&page=0&size=50"
+            ).withAuth(editor.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect { result ->
+                val body = objectMapper.readTree(result.response.contentAsString)
+                val ids = contentIds(body)
+                assertTrue(ids.contains(component.id.toString()))
+            }
+
+        mockMvc.perform(
+            get(
+                "/api/v1/node-types?modelId=${model.id}&notationId=${notation.id}&page=0&size=50"
+            ).withAuth(editor.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect { result ->
+                val body = objectMapper.readTree(result.response.contentAsString)
+                val ids = contentIds(body)
+                assertTrue(ids.contains(nodeType.id.toString()))
+            }
+
+        mockMvc.perform(
+            get("/api/v1/notations/${notation.id}?modelId=${model.id}").withAuth(editor.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
     }
 
     @Test

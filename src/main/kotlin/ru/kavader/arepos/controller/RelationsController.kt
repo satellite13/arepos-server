@@ -34,6 +34,7 @@ class RelationsController(
     fun listRelations(
         pageable: Pageable,
         @RequestParam(required = false) notationId: UUID?,
+        @RequestParam(required = false) modelId: UUID?,
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?,
         @RequestParam(required = false) tagsAll: String?
@@ -50,6 +51,7 @@ class RelationsController(
                 name = normalizedName,
                 tagsJson = tagsJson,
                 currentUserId = currentUserId,
+                diagramEditorModelId = modelId,
                 pageable = pageable
             ).map { it.toResponse() }
         }

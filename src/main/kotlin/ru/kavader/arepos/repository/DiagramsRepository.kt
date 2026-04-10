@@ -92,42 +92,6 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
                         )
                     )
               )
-              AND (
-                  EXISTS (
-                      SELECT 1
-                      FROM notations n
-                      WHERE n.id = d.notation_id
-                        AND n.deleted = false
-                        AND (
-                            n.owner = :currentUserId
-                            OR EXISTS (
-                                SELECT 1
-                                FROM resource_shares rs
-                                WHERE rs.resource_type = 'NOTATION'
-                                  AND rs.resource_id = n.id
-                                  AND rs.permission IN ('VIEW', 'EDIT')
-                                  AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                            )
-                        )
-                  )
-                  OR EXISTS (
-                      SELECT 1
-                      FROM models m2
-                      WHERE m2.id = d.model
-                        AND m2.deleted = false
-                        AND (
-                            m2.owner = :currentUserId
-                            OR EXISTS (
-                                SELECT 1
-                                FROM resource_shares rs
-                                WHERE rs.resource_type = 'MODEL'
-                                  AND rs.resource_id = m2.id
-                                  AND rs.permission = 'EDIT'
-                                  AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                            )
-                        )
-                  )
-              )
         """,
         countQuery = """
             SELECT COUNT(*)
@@ -155,42 +119,6 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
                         )
                     )
               )
-              AND (
-                  EXISTS (
-                      SELECT 1
-                      FROM notations n
-                      WHERE n.id = d.notation_id
-                        AND n.deleted = false
-                        AND (
-                            n.owner = :currentUserId
-                            OR EXISTS (
-                                SELECT 1
-                                FROM resource_shares rs
-                                WHERE rs.resource_type = 'NOTATION'
-                                  AND rs.resource_id = n.id
-                                  AND rs.permission IN ('VIEW', 'EDIT')
-                                  AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                            )
-                        )
-                  )
-                  OR EXISTS (
-                      SELECT 1
-                      FROM models m2
-                      WHERE m2.id = d.model
-                        AND m2.deleted = false
-                        AND (
-                            m2.owner = :currentUserId
-                            OR EXISTS (
-                                SELECT 1
-                                FROM resource_shares rs
-                                WHERE rs.resource_type = 'MODEL'
-                                  AND rs.resource_id = m2.id
-                                  AND rs.permission = 'EDIT'
-                                  AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                            )
-                        )
-                  )
-              )
         """,
         nativeQuery = true
     )
@@ -203,6 +131,36 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
         currentUserId: UUID,
         pageable: Pageable
     ): Page<Diagrams>
+
+    /**
+     * Нотация используется активной диаграммой в модели, которую пользователь может просматривать
+     * (владелец или шаринг MODEL с VIEW/EDIT, в т.ч. grantee_user_id IS NULL).
+     */
+    @Query(
+        value = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM diagrams d
+                INNER JOIN models m ON m.id = d.model
+                WHERE d.deleted = false
+                  AND d.notation_id = :notationId
+                  AND m.deleted = false
+                  AND (
+                      m.owner = :userId
+                      OR EXISTS (
+                          SELECT 1
+                          FROM resource_shares rs
+                          WHERE rs.resource_type = 'MODEL'
+                            AND rs.resource_id = m.id
+                            AND rs.permission IN ('VIEW', 'EDIT')
+                            AND (rs.grantee_user_id = :userId OR rs.grantee_user_id IS NULL)
+                      )
+                  )
+            )
+        """,
+        nativeQuery = true
+    )
+    fun existsViewableModelDiagramWithNotation(notationId: UUID, userId: UUID): Boolean
 
     @Query(
         value = """

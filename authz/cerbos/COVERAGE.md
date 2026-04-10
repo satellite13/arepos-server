@@ -11,10 +11,9 @@
 
 ## Resource policies
 
-Покрытые ресурсы policy:
+Ресурсы Cerbos, к которым **runtime** обращается из Kotlin (`CerbosResourceKind` в `CerbosAuthzModel.kt`):
 - `model`
 - `notation`
-- `diagram`
 - `node_type`
 - `link_type`
 - `node_shape`
@@ -22,6 +21,8 @@
 - `share`
 - `admin_panel`
 - `user_admin`
+
+Отдельного ресурса `diagram` в Cerbos нет: права на диаграмму выводятся из прав на **модель**, к которой привязана диаграмма (см. маппинг ниже).
 
 Policy-файлы: `authz/cerbos/policies/resource.*.yaml`.
 
@@ -31,7 +32,7 @@ Policy-файлы: `authz/cerbos/policies/resource.*.yaml`.
 
 - `canViewModel` / `canEditModel` -> `model:view|edit`
 - `canViewNotation` / `canEditNotation` -> `notation:view|edit`
-- `canViewDiagram` / `canEditDiagram` -> `diagram:view|edit`
+- `canViewDiagram` / `canEditDiagram` -> **`model:view|edit`** (делегируют в `canViewModel` / `canEditModel` по `diagram.model`)
 - `canViewNodeType` / `canEditNodeType` -> `node_type:view|edit`
 - `canViewLinkType` / `canEditLinkType` -> `link_type:view|edit`
 - `canViewNodeShape` / `canEditNodeShape` -> `node_shape:view|edit`
@@ -53,10 +54,12 @@ Policy-файлы: `authz/cerbos/policies/resource.*.yaml`.
 - Доступ/шаринг/дашборд: `PermissionsController`, `AccessSharesController`, `DashboardController`, `AuditLogController`
 - Platform admin: `UsersController`
 
-`DiagramEditLocksController` использует проверки через `DiagramEditLockService`:
-- acquire/heartbeat/release -> `diagram:edit`
-- list locks по modelId -> `model:view`
-- force-release -> `admin_panel:view`
+`DiagramEditLocksController` использует проверки через `DiagramEditLockService` и `DiagramCollaborationService`:
+- acquire/heartbeat/release, live/pointer (держатель блокировки) -> `model:edit` через `requireCanEditDiagram`
+- spectate start/ping/leave -> `model:view` через `requireCanViewDiagram`
+- list locks по `modelId` -> `model:view` через `requireCanViewModel`
+- list locks без `modelId` (все активные) -> `admin_panel:view` через `canViewAdminPanel`
+- force-release -> `admin_panel:view` через `canViewAdminPanel`
 
 Публичные и auth-only контроллеры (не ресурсная Cerbos-авторизация):
 

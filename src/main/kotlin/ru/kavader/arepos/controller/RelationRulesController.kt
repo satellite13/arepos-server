@@ -35,6 +35,7 @@ class RelationRulesController(
         @RequestParam(required = false) relationId: UUID?,
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) notationId: UUID?,
+        @RequestParam(required = false) modelId: UUID?,
         @RequestParam(required = false, defaultValue = "true") includeAttrs: Boolean
     ): Page<RelationRuleResponse> {
         if (!accessService.canViewAdminPanel()) {
@@ -45,6 +46,7 @@ class RelationRulesController(
                     ownerId = ownerId,
                     notationId = notationId,
                     currentUserId = currentUserId,
+                    diagramEditorModelId = modelId,
                     pageable = pageable
                 ).map { it.toResponse(includeAttrs = true) }
             } else {
@@ -53,6 +55,7 @@ class RelationRulesController(
                     ownerId = ownerId,
                     notationId = notationId,
                     currentUserId = currentUserId,
+                    diagramEditorModelId = modelId,
                     pageable = pageable
                 ).map { it.toResponse() }
             }

@@ -13,6 +13,7 @@ import ru.kavader.arepos.model.Relations
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.DiagramsRepository
+import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.RelationRulesRepository
 import ru.kavader.arepos.repository.RelationsRepository
@@ -28,6 +29,7 @@ import java.util.UUID
 class NotationsController(
     private val notationsRepository: NotationsRepository,
     private val usersRepository: UsersRepository,
+    private val modelsRepository: ModelsRepository,
     private val diagramsRepository: DiagramsRepository,
     private val componentsRepository: ComponentsRepository,
     private val relationsRepository: RelationsRepository,
@@ -119,10 +121,23 @@ class NotationsController(
     }
 
     @GetMapping("/{id}")
-    fun getNotation(@PathVariable id: UUID): NotationResponse =
+    fun getNotation(
+        @PathVariable id: UUID,
+        @RequestParam(required = false) modelId: UUID?
+    ): NotationResponse =
         notationsRepository.findById(id)
             .map {
-                accessService.requireCanViewNotation(it)
+                if (modelId != null) {
+                    val model = modelsRepository.findById(modelId).orElseThrow {
+                        ResponseStatusException(HttpStatus.NOT_FOUND, "Model $modelId not found")
+                    }
+                    accessService.requireCanViewModel(model)
+                    if (!accessService.canReferenceNotationForModelDiagram(it, model)) {
+                        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                    }
+                } else {
+                    accessService.requireCanViewNotation(it)
+                }
                 it.toResponse()
             }
             .orElseThrow {
@@ -130,7 +145,10 @@ class NotationsController(
             }
 
     @GetMapping("/{id}/meta")
-    fun getNotationMeta(@PathVariable id: UUID): NotationMetaResponse =
+    fun getNotationMeta(
+        @PathVariable id: UUID,
+        @RequestParam(required = false) modelId: UUID?
+    ): NotationMetaResponse =
         notationsRepository.findById(id)
             .map { notation ->
                 val canViewDirectly = accessService.canViewNotation(notation)
@@ -142,8 +160,15 @@ class NotationsController(
                     name = "",
                     pageable = Pageable.unpaged()
                 ).content.let { diagrams -> accessService.filterViewableDiagrams(diagrams).isNotEmpty() }
+                val viaModelEditor = modelId?.let { mid ->
+                    val model = modelsRepository.findById(mid).orElseThrow {
+                        ResponseStatusException(HttpStatus.NOT_FOUND, "Model $mid not found")
+                    }
+                    accessService.requireCanViewModel(model)
+                    accessService.canReferenceNotationForModelDiagram(notation, model)
+                } ?: false
 
-                if (!canViewDirectly && !hasVisibleDiagramWithNotation) {
+                if (!canViewDirectly && !hasVisibleDiagramWithNotation && !viaModelEditor) {
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
                 }
 

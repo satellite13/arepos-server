@@ -20,12 +20,18 @@ import ru.kavader.arepos.model.RelationRules
 import ru.kavader.arepos.model.Relations
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.ShareResourceType
+import ru.kavader.arepos.repository.ComponentsRepository
+import ru.kavader.arepos.repository.DiagramsRepository
+import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.ResourceSharesRepository
 import java.util.UUID
 
 @Service
 class ResourceAccessService(
     private val resourceSharesRepository: ResourceSharesRepository,
+    private val diagramsRepository: DiagramsRepository,
+    private val componentsRepository: ComponentsRepository,
+    private val relationsRepository: RelationsRepository,
     private val cerbosDecisionService: CerbosDecisionService,
     private val authzObservabilityService: AuthzObservabilityService
 ) {
@@ -86,8 +92,15 @@ class ResourceAccessService(
     }
 
     fun filterViewableNotations(notations: Collection<Notations>): List<Notations> {
-        val decisions = canViewNotations(notations)
-        return notations.filter { notation -> notation.id?.let { decisions[it] } == true }
+        if (notations.isEmpty()) {
+            return emptyList()
+        }
+        val direct = canViewNotations(notations)
+        val userId = currentUserId()
+        return notations.filter { notation ->
+            val id = notation.id ?: return@filter false
+            direct[id] == true || diagramsRepository.existsViewableModelDiagramWithNotation(id, userId)
+        }
     }
 
     fun canViewDiagrams(diagrams: Collection<Diagrams>): Map<UUID, Boolean> {
@@ -96,26 +109,13 @@ class ResourceAccessService(
         }
 
         val models = diagrams.map { it.model }.distinctBy { it.id }
-        val notations = diagrams.map { it.notation }.distinctBy { it.id }
         val modelView = canViewModels(models)
-        val modelEdit = evaluateTopLevelBatch(
-            entries = models.mapNotNull { model ->
-                model.id?.let { id ->
-                    Triple(model.owner.id!!, ShareResourceType.MODEL, id)
-                }
-            },
-            action = CerbosAction.EDIT
-        )
-        val notationView = canViewNotations(notations)
 
         return diagrams.mapNotNull { diagram ->
             val diagramId = diagram.id ?: return@mapNotNull null
             val modelId = diagram.model.id ?: return@mapNotNull diagramId to false
-            val notationId = diagram.notation.id ?: return@mapNotNull diagramId to false
             val canViewModel = modelView[modelId] == true
-            val canViewNotation = notationView[notationId] == true
-            val canEditModel = modelEdit[modelId] == true
-            diagramId to (canViewModel && (canViewNotation || canEditModel))
+            diagramId to canViewModel
         }.toMap()
     }
 
@@ -127,20 +127,35 @@ class ResourceAccessService(
     fun canEditNotation(notation: Notations): Boolean =
         canEditTopLevel(notation.owner.id!!, ShareResourceType.NOTATION, notation.id!!)
 
-    fun canViewNotation(notation: Notations): Boolean =
-        canViewTopLevel(notation.owner.id!!, ShareResourceType.NOTATION, notation.id!!)
+    fun canViewNotation(notation: Notations): Boolean {
+        val id = notation.id ?: return false
+        if (canViewTopLevel(notation.owner.id!!, ShareResourceType.NOTATION, id)) {
+            return true
+        }
+        return diagramsRepository.existsViewableModelDiagramWithNotation(id, currentUserId())
+    }
 
     fun canEditNodeType(nodeType: NodeTypes): Boolean =
         canEditTopLevel(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, nodeType.id!!)
 
-    fun canViewNodeType(nodeType: NodeTypes): Boolean =
-        canViewTopLevel(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, nodeType.id!!)
+    fun canViewNodeType(nodeType: NodeTypes): Boolean {
+        val id = nodeType.id ?: return false
+        if (canViewTopLevel(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, id)) {
+            return true
+        }
+        return componentsRepository.existsNodeTypeReachableViaViewableNotation(id, currentUserId())
+    }
 
     fun canEditLinkType(linkType: LinkTypes): Boolean =
         canEditTopLevel(linkType.owner.id!!, ShareResourceType.LINK_TYPE, linkType.id!!)
 
-    fun canViewLinkType(linkType: LinkTypes): Boolean =
-        canViewTopLevel(linkType.owner.id!!, ShareResourceType.LINK_TYPE, linkType.id!!)
+    fun canViewLinkType(linkType: LinkTypes): Boolean {
+        val id = linkType.id ?: return false
+        if (canViewTopLevel(linkType.owner.id!!, ShareResourceType.LINK_TYPE, id)) {
+            return true
+        }
+        return relationsRepository.existsLinkTypeReachableViaViewableNotation(id, currentUserId())
+    }
 
     fun canEditNodeShape(shape: NodeShapes): Boolean =
         canEditTopLevel(shape.owner.id!!, ShareResourceType.NODE_SHAPE, shape.id!!)
@@ -189,8 +204,7 @@ class ResourceAccessService(
 
     fun canEditDiagram(diagram: Diagrams): Boolean = canEditModel(diagram.model)
 
-    fun canViewDiagram(diagram: Diagrams): Boolean =
-        canViewModel(diagram.model) && (canViewNotation(diagram.notation) || canEditModel(diagram.model))
+    fun canViewDiagram(diagram: Diagrams): Boolean = canViewModel(diagram.model)
 
     fun canViewFile(file: Files): Boolean {
         return applyCerbosDecision(

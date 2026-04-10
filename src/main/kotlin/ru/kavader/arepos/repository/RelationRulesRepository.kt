@@ -222,9 +222,31 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
                       FROM resource_shares rs
                       WHERE rs.resource_type = 'MODEL'
                         AND rs.resource_id = m.id
-                        AND rs.permission = 'EDIT'
+                        AND rs.permission IN ('VIEW', 'EDIT')
                         AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
                     )
+                )
+                OR (
+                  :diagramEditorModelId IS NOT NULL
+                  AND :notationId IS NOT NULL
+                  AND r.notation = :notationId
+                  AND EXISTS (
+                    SELECT 1
+                    FROM models m
+                    WHERE m.id = :diagramEditorModelId
+                      AND m.deleted = false
+                      AND (
+                        m.owner = :currentUserId
+                        OR EXISTS (
+                          SELECT 1
+                          FROM resource_shares rs
+                          WHERE rs.resource_type = 'MODEL'
+                            AND rs.resource_id = m.id
+                            AND rs.permission = 'EDIT'
+                            AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                        )
+                      )
+                  )
                 )
               )
             ORDER BY rr.id
@@ -270,9 +292,31 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
                       FROM resource_shares rs
                       WHERE rs.resource_type = 'MODEL'
                         AND rs.resource_id = m.id
-                        AND rs.permission = 'EDIT'
+                        AND rs.permission IN ('VIEW', 'EDIT')
                         AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
                     )
+                )
+                OR (
+                  :diagramEditorModelId IS NOT NULL
+                  AND :notationId IS NOT NULL
+                  AND r.notation = :notationId
+                  AND EXISTS (
+                    SELECT 1
+                    FROM models m
+                    WHERE m.id = :diagramEditorModelId
+                      AND m.deleted = false
+                      AND (
+                        m.owner = :currentUserId
+                        OR EXISTS (
+                          SELECT 1
+                          FROM resource_shares rs
+                          WHERE rs.resource_type = 'MODEL'
+                            AND rs.resource_id = m.id
+                            AND rs.permission = 'EDIT'
+                            AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                        )
+                      )
+                  )
                 )
               )
         """,
@@ -283,6 +327,7 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
         @Param("ownerId") ownerId: UUID?,
         @Param("notationId") notationId: UUID?,
         @Param("currentUserId") currentUserId: UUID,
+        @Param("diagramEditorModelId") diagramEditorModelId: UUID?,
         pageable: Pageable
     ): Page<RelationRuleListProjection>
 
@@ -335,9 +380,31 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
                       FROM resource_shares rs
                       WHERE rs.resource_type = 'MODEL'
                         AND rs.resource_id = m.id
-                        AND rs.permission = 'EDIT'
+                        AND rs.permission IN ('VIEW', 'EDIT')
                         AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
                     )
+                )
+                OR (
+                  :diagramEditorModelId IS NOT NULL
+                  AND :notationId IS NOT NULL
+                  AND r.notation = :notationId
+                  AND EXISTS (
+                    SELECT 1
+                    FROM models m
+                    WHERE m.id = :diagramEditorModelId
+                      AND m.deleted = false
+                      AND (
+                        m.owner = :currentUserId
+                        OR EXISTS (
+                          SELECT 1
+                          FROM resource_shares rs
+                          WHERE rs.resource_type = 'MODEL'
+                            AND rs.resource_id = m.id
+                            AND rs.permission = 'EDIT'
+                            AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                        )
+                      )
+                  )
                 )
               )
             ORDER BY rr.id
@@ -383,9 +450,31 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
                       FROM resource_shares rs
                       WHERE rs.resource_type = 'MODEL'
                         AND rs.resource_id = m.id
-                        AND rs.permission = 'EDIT'
+                        AND rs.permission IN ('VIEW', 'EDIT')
                         AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
                     )
+                )
+                OR (
+                  :diagramEditorModelId IS NOT NULL
+                  AND :notationId IS NOT NULL
+                  AND r.notation = :notationId
+                  AND EXISTS (
+                    SELECT 1
+                    FROM models m
+                    WHERE m.id = :diagramEditorModelId
+                      AND m.deleted = false
+                      AND (
+                        m.owner = :currentUserId
+                        OR EXISTS (
+                          SELECT 1
+                          FROM resource_shares rs
+                          WHERE rs.resource_type = 'MODEL'
+                            AND rs.resource_id = m.id
+                            AND rs.permission = 'EDIT'
+                            AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                        )
+                      )
+                  )
                 )
               )
         """,
@@ -396,6 +485,7 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
         @Param("ownerId") ownerId: UUID?,
         @Param("notationId") notationId: UUID?,
         @Param("currentUserId") currentUserId: UUID,
+        @Param("diagramEditorModelId") diagramEditorModelId: UUID?,
         pageable: Pageable
     ): Page<RelationRuleListLightProjection>
 }

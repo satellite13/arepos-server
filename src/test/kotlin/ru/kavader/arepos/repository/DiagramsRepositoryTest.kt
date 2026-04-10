@@ -1,8 +1,13 @@
 package ru.kavader.arepos.repository
 
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import ru.kavader.arepos.model.ResourceShares
+import ru.kavader.arepos.model.SharePermission
+import ru.kavader.arepos.model.ShareResourceType
+import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -10,6 +15,9 @@ import kotlin.test.assertTrue
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class DiagramsRepositoryTest : RepositoryTestBase() {
+
+    @Autowired
+    lateinit var resourceSharesRepository: ResourceSharesRepository
 
     @Test
     fun `findAll returns only not deleted diagrams`() {
@@ -46,5 +54,29 @@ class DiagramsRepositoryTest : RepositoryTestBase() {
 
         assertTrue(diagramsRepository.existsByModelAndNameAndVersion(model, "diagram-unique", "2.1.0"))
         assertFalse(diagramsRepository.existsByModelAndNameAndVersionAndIdNot(model, "diagram-unique", "2.1.0", first.id!!))
+    }
+
+    @Test
+    fun `existsViewableModelDiagramWithNotation true when model shared VIEW and notation not shared`() {
+        val modelOwner = persistUser()
+        val notationOwner = persistUser()
+        val viewer = persistUser()
+        val notation = persistNotation(owner = notationOwner)
+        val model = persistModel(owner = modelOwner)
+        persistDiagram(model = model, notation = notation, owner = modelOwner)
+        val now = Instant.now()
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = null,
+                grantedByUser = modelOwner,
+                permission = SharePermission.VIEW,
+                createdAt = now
+            )
+        )
+        assertTrue(
+            diagramsRepository.existsViewableModelDiagramWithNotation(notation.id!!, viewer.id!!)
+        )
     }
 }

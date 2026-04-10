@@ -58,24 +58,29 @@ class NodeTypesController(
                 ).map { it.toResponse() }
             }
 
+            val resolvedModel = modelId?.let { mid ->
+                modelsRepository.findById(mid).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Model $mid not found")
+                }.also { accessService.requireCanViewModel(it) }
+            }
             val notationOwnerIds = mutableSetOf<UUID>()
             val notationNodeTypeIds = mutableSetOf<UUID>()
             notationId?.forEach { requestedNotationId ->
                 val notation = notationsRepository.findById(requestedNotationId).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $requestedNotationId not found")
                 }
-                if (!accessService.canViewNotation(notation)) {
+                val allowed = when (val m = resolvedModel) {
+                    null -> accessService.canViewNotation(notation)
+                    else -> accessService.canReferenceNotationForModelDiagram(notation, m)
+                }
+                if (!allowed) {
                     return@forEach
                 }
                 componentsRepository.findDistinctNodeTypeIdsByNotationId(requestedNotationId)
                     .forEach { notationNodeTypeIds.add(it) }
                 notation.owner.id?.let { notationOwnerIds.add(it) }
             }
-            val modelNodeTypeIds = modelId?.let { requestedModelId ->
-                val model = modelsRepository.findById(requestedModelId).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Model $requestedModelId not found")
-                }
-                accessService.requireCanViewModel(model)
+            val modelNodeTypeIds = resolvedModel?.let { model ->
                 nodesRepository.findDistinctNodeTypeIdsByModelId(model.id!!)
                     .toSet()
             } ?: emptySet()

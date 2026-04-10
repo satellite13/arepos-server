@@ -58,24 +58,29 @@ class LinkTypesController(
                 ).map { it.toResponse() }
             }
 
+            val resolvedModel = modelId?.let { mid ->
+                modelsRepository.findById(mid).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Model $mid not found")
+                }.also { accessService.requireCanViewModel(it) }
+            }
             val notationOwnerIds = mutableSetOf<UUID>()
             val notationLinkTypeIds = mutableSetOf<UUID>()
             notationId?.forEach { requestedNotationId ->
                 val notation = notationsRepository.findById(requestedNotationId).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $requestedNotationId not found")
                 }
-                if (!accessService.canViewNotation(notation)) {
+                val allowed = when (val m = resolvedModel) {
+                    null -> accessService.canViewNotation(notation)
+                    else -> accessService.canReferenceNotationForModelDiagram(notation, m)
+                }
+                if (!allowed) {
                     return@forEach
                 }
                 relationsRepository.findDistinctLinkTypeIdsByNotationId(requestedNotationId)
                     .forEach { notationLinkTypeIds.add(it) }
                 notation.owner.id?.let { notationOwnerIds.add(it) }
             }
-            val modelLinkTypeIds = modelId?.let { requestedModelId ->
-                val model = modelsRepository.findById(requestedModelId).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Model $requestedModelId not found")
-                }
-                accessService.requireCanViewModel(model)
+            val modelLinkTypeIds = resolvedModel?.let { model ->
                 linksRepository.findDistinctLinkTypeIdsByModelId(model.id!!)
                     .toSet()
             } ?: emptySet()

@@ -77,7 +77,6 @@ main() {
   log_info "Checking required Cerbos policy files..."
   assert_file_exists "authz/cerbos/policies/resource.model.yaml"
   assert_file_exists "authz/cerbos/policies/resource.notation.yaml"
-  assert_file_exists "authz/cerbos/policies/resource.diagram.yaml"
   assert_file_exists "authz/cerbos/policies/resource.node_type.yaml"
   assert_file_exists "authz/cerbos/policies/resource.link_type.yaml"
   assert_file_exists "authz/cerbos/policies/resource.node_shape.yaml"

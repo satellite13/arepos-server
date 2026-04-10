@@ -65,7 +65,7 @@ TARGET=infra BUNDLE_VERSION=policy-<prev-sha> VALUES_FILE=<infra-values.yaml> AP
 
 ## Важно
 
-- Baseline policies покрывают: `model`, `notation`, `diagram`, `node_type`, `link_type`, `node_shape`, `file`, `share`, `admin_panel`, `user_admin`.
+- Baseline policies покрывают: `model`, `notation`, `node_type`, `link_type`, `node_shape`, `file`, `share`, `admin_panel`, `user_admin`. Доступ к диаграммам в Cerbos не выделяется отдельным ресурсом — проверяется через `model` (см. `authz/cerbos/COVERAGE.md`).
 - Любой новый endpoint с проверкой доступа должен быть привязан к Cerbos resource/action и покрыт policy.
 - Карта текущего покрытия endpoint/check/policy: `authz/cerbos/COVERAGE.md`.
 - Перед merge/release запускайте verify-checklist: `authz/cerbos/VERIFY.md`.
