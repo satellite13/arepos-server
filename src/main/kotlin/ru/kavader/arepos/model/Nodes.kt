@@ -16,37 +16,37 @@ data class Nodes(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @Column(name = "stable_id", columnDefinition = "uuid", nullable = false)
-    val stableId: UUID,
+    var stableId: UUID,
 
     @Column(name = "name", nullable = false)
-    val name: String,
+    var name: String,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant? = null,
+    var createdAt: Instant? = null,
 
     @Column(name = "updated_at")
-    val updatedAt: Instant? = null,
+    var updatedAt: Instant? = null,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
-    val attrs: String? = null,
+    var attrs: String? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_node")
-    val parentNode: Nodes? = null,
+    var parentNode: Nodes? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "model", nullable = false)
-    val model: Models,
+    var model: Models,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner", nullable = false)
-    val owner: Users,
+    var owner: Users,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "node_type", nullable = false)
-    val nodeType: NodeTypes
+    var nodeType: NodeTypes
 )

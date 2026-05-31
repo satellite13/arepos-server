@@ -22,7 +22,7 @@ class AuthController(
     private val jwtTokenProvider: JwtTokenProvider,
     private val userProfileAttrsService: UserProfileAttrsService,
     private val metrics: CustomMetricsService,
-    @Value("\${arepos.admin-secret:}") private val adminSecret: String
+    @param:Value("\${arepos.admin-secret:}") private val adminSecret: String
 ) {
 
     @PostMapping("/register")
@@ -145,14 +145,15 @@ class AuthController(
     }
 
     private fun buildAuthResponse(user: Users): AuthResponse {
-        val accessToken = jwtTokenProvider.generateAccessToken(user.id!!, user.role.name)
-        val refreshToken = jwtTokenProvider.generateRefreshToken(user.id)
+        val userId = requireNotNull(user.id)
+        val accessToken = jwtTokenProvider.generateAccessToken(userId, user.role.name)
+        val refreshToken = jwtTokenProvider.generateRefreshToken(userId)
         val profile = userProfileAttrsService.readProfile(user.attrs)
         return AuthResponse(
             accessToken = accessToken,
             refreshToken = refreshToken,
             user = UserInfoResponse(
-                id = user.id,
+                id = userId,
                 email = user.email,
                 role = user.role.name,
                 firstName = profile.firstName,

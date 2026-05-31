@@ -21,29 +21,29 @@ data class AuditLog(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @Column(name = "table_name", nullable = false)
-    val tableName: String,
+    var tableName: String,
 
     @Column(name = "operation", nullable = false)
-    val operation: String,
+    var operation: String,
 
     @Column(name = "row_id", nullable = false)
-    val rowId: UUID,
+    var rowId: UUID,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "old_values", columnDefinition = "jsonb")
-    val oldValues: String? = null,
+    var oldValues: String? = null,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "new_values", columnDefinition = "jsonb")
-    val newValues: String? = null,
+    var newValues: String? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "changed_by")
-    val changedBy: Users? = null,
+    var changedBy: Users? = null,
 
     @Column(name = "changed_at", nullable = false)
-    val changedAt: Instant? = null
+    var changedAt: Instant? = null
 )
