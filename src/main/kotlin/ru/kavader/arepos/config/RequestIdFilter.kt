@@ -19,6 +19,8 @@ class RequestIdFilter : OncePerRequestFilter() {
     companion object {
         const val MDC_KEY = "requestId"
         const val RESPONSE_HEADER = "X-Request-Id"
+        private const val MAX_REQUEST_ID_LENGTH = 64
+        private val REQUEST_ID_REGEX = Regex("^[A-Za-z0-9._-]+$")
     }
 
     override fun doFilterInternal(
@@ -26,7 +28,7 @@ class RequestIdFilter : OncePerRequestFilter() {
         response: HttpServletResponse,
         filterChain: FilterChain
     ) {
-        val requestId = request.getHeader(RESPONSE_HEADER)?.takeIf { it.isNotBlank() }
+        val requestId = normalizeRequestId(request.getHeader(RESPONSE_HEADER))
             ?: UUID.randomUUID().toString().takeLast(12)
         MDC.put(MDC_KEY, requestId)
         response.setHeader(RESPONSE_HEADER, requestId)
@@ -35,5 +37,12 @@ class RequestIdFilter : OncePerRequestFilter() {
         } finally {
             MDC.remove(MDC_KEY)
         }
+    }
+
+    private fun normalizeRequestId(headerValue: String?): String? {
+        val value = headerValue?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (value.length > MAX_REQUEST_ID_LENGTH) return null
+        if (!REQUEST_ID_REGEX.matches(value)) return null
+        return value
     }
 }

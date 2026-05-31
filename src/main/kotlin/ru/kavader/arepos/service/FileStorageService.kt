@@ -35,6 +35,7 @@ class FileStorageService(
     companion object {
         private val log = LoggerFactory.getLogger(FileStorageService::class.java)
         private const val MAX_SIZE: Long = 5 * 1024 * 1024 // 5 MB
+        private const val VERSION_ID_NULL_SENTINEL = "null"
         private val ALLOWED_IMAGE_TYPES = setOf(
             "image/jpeg",
             "image/png",
@@ -162,7 +163,7 @@ class FileStorageService(
         val builder = GetObjectArgs.builder()
             .bucket(minioProperties.bucket)
             .`object`(file.objectKey)
-        if (latestVersion != null && latestVersion.versionId != null) {
+        if (latestVersion != null && isUsableVersionId(latestVersion.versionId)) {
             builder.versionId(latestVersion.versionId)
         }
         val stream = minioClient.getObject(builder.build())
@@ -174,14 +175,14 @@ class FileStorageService(
     fun getFileVersion(id: UUID, versionNumber: Int): Pair<Files, Resource>? {
         val file = filesRepository.findById(id).orElse(null) ?: return null
         val version = fileVersionsRepository.findByFileAndVersionNumber(file, versionNumber) ?: return null
-        
-        val stream = minioClient.getObject(
-            GetObjectArgs.builder()
-                .bucket(minioProperties.bucket)
-                .`object`(file.objectKey)
-                .versionId(version.versionId)
-                .build()
-        )
+
+        val builder = GetObjectArgs.builder()
+            .bucket(minioProperties.bucket)
+            .`object`(file.objectKey)
+        if (isUsableVersionId(version.versionId)) {
+            builder.versionId(version.versionId)
+        }
+        val stream = minioClient.getObject(builder.build())
         return file to InputStreamResource(stream)
     }
 
@@ -232,7 +233,7 @@ class FileStorageService(
         
         val version = FileVersions(
             file = file,
-            versionId = versionId ?: "null",
+            versionId = versionId ?: VERSION_ID_NULL_SENTINEL,
             versionNumber = nextVersionNumber,
             createdAt = java.time.Instant.now(),
             createdBy = owner,
@@ -240,6 +241,9 @@ class FileStorageService(
         )
         fileVersionsRepository.save(version)
     }
+
+    private fun isUsableVersionId(versionId: String?): Boolean =
+        !versionId.isNullOrBlank() && !versionId.equals(VERSION_ID_NULL_SENTINEL, ignoreCase = true)
 
     private fun isAllowedType(contentType: String): Boolean {
         return ALLOWED_IMAGE_TYPES.any { contentType.startsWith(it, ignoreCase = true) || contentType == it }

@@ -6,11 +6,11 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.PageRequest
 import org.springframework.messaging.simp.SimpMessagingTemplate
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
 import ru.kavader.arepos.metrics.ModelSyncMetrics
 import ru.kavader.arepos.repository.ModelSyncOutboxRepository
 import java.time.Instant
+import java.util.UUID
 
 @Service
 class ModelSyncOutboxPublishService(
@@ -37,16 +37,21 @@ class ModelSyncOutboxPublishService(
             return
         }
         metrics.refreshPendingCount(outboxRepository.countByPublishedAtIsNull())
-        val batch = outboxRepository.findPendingForPublish(PageRequest.of(0, batchSize))
+        val batchIds = outboxRepository.findPendingForPublish(PageRequest.of(0, batchSize))
+            .mapNotNull { it.id }
         val now = Instant.now()
-        for (row in batch) {
+        for (rowId in batchIds) {
             transactionTemplate.executeWithoutResult {
-                processRow(row, now)
+                processRow(rowId, now)
             }
         }
     }
 
-    private fun processRow(row: ru.kavader.arepos.model.ModelSyncOutbox, now: Instant) {
+    private fun processRow(rowId: UUID, now: Instant) {
+        val row = outboxRepository.findById(rowId).orElse(null) ?: return
+        if (row.publishedAt != null) {
+            return
+        }
         val modelId = requireNotNull(row.model.id)
         try {
             @Suppress("UNCHECKED_CAST")
@@ -54,6 +59,7 @@ class ModelSyncOutboxPublishService(
             messagingTemplate.convertAndSend("/topic/models/$modelId", map)
             row.publishedAt = now
             row.lastError = null
+            outboxRepository.save(row)
         } catch (ex: Exception) {
             log.warn("model sync outbox publish failed: id={}", row.id, ex)
             metrics.outboxRetries.increment()
@@ -62,6 +68,7 @@ class ModelSyncOutboxPublishService(
             if (row.attempts == maxAttempts) {
                 metrics.outboxPublishFailures.increment()
             }
+            outboxRepository.save(row)
         }
     }
 }
