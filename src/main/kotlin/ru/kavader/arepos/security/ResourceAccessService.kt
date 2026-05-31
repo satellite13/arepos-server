@@ -24,6 +24,7 @@ import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.ResourceSharesRepository
+import ru.kavader.arepos.repository.UsersRepository
 import java.util.UUID
 
 @Service
@@ -32,6 +33,7 @@ class ResourceAccessService(
     private val diagramsRepository: DiagramsRepository,
     private val componentsRepository: ComponentsRepository,
     private val relationsRepository: RelationsRepository,
+    private val usersRepository: UsersRepository,
     private val cerbosDecisionService: CerbosDecisionService,
     private val authzObservabilityService: AuthzObservabilityService
 ) {
@@ -39,7 +41,6 @@ class ResourceAccessService(
         private val log = LoggerFactory.getLogger(ResourceAccessService::class.java)
         private const val REQUEST_CACHE_ATTR = "arepos.authz.request.decision.cache"
     }
-    private val localDecisionCache = ThreadLocal.withInitial { mutableMapOf<DecisionCacheKey, Boolean>() }
 
     private val viewPermissions = setOf(SharePermission.VIEW, SharePermission.EDIT)
     private data class ShareFlags(val hasView: Boolean, val hasEdit: Boolean)
@@ -61,6 +62,71 @@ class ResourceAccessService(
 
     fun currentUserId(): UUID = CurrentUser.getId()
         ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+
+    /**
+     * Resolves the owner for entity creation. Admins may assign any owner;
+     * other users always create under their own identity.
+     */
+    fun resolveOwnerForCreate(requestOwnerId: UUID?): ru.kavader.arepos.model.Users {
+        val userId = currentUserId()
+        val resolvedOwnerId = if (canViewAdminPanel()) {
+            requestOwnerId ?: userId
+        } else {
+            userId
+        }
+        return usersRepository.findById(resolvedOwnerId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
+        }
+    }
+
+    /**
+     * Resolves the owner for entity update. Admins may reassign ownership;
+     * other users always keep the existing owner.
+     */
+    fun resolveOwnerForUpdate(requestOwnerId: UUID?, currentOwner: ru.kavader.arepos.model.Users): ru.kavader.arepos.model.Users {
+        return if (canViewAdminPanel()) {
+            requestOwnerId?.let {
+                usersRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
+                }
+            } ?: currentOwner
+        } else {
+            currentOwner
+        }
+    }
+
+    /**
+     * Resolves a readable owner for list filtering. Admins may filter by any owner
+     * or see all; other users must either view their own resources or have shared access
+     * from the requested owner via the [hasSharedAccess] predicate.
+     *
+     * Returns the [Users] entity for the resolved owner, or null if no filter should be applied.
+     */
+    fun resolveReadableOwner(
+        ownerId: UUID?,
+        hasSharedAccess: (ownerId: UUID, userId: UUID) -> Boolean
+    ): ru.kavader.arepos.model.Users? {
+        val currentUserId = currentUserId()
+
+        if (canViewAdminPanel()) {
+            return ownerId?.let {
+                usersRepository.findById(it).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
+                }
+            }
+        }
+
+        if (ownerId != null && ownerId != currentUserId) {
+            if (!hasSharedAccess(ownerId, currentUserId)) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            }
+            return null
+        }
+
+        return usersRepository.findById(currentUserId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $currentUserId not found")
+        }
+    }
 
     fun canEditModel(model: Models): Boolean = canEditTopLevel(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
 
@@ -819,7 +885,9 @@ class ResourceAccessService(
             attributes.setAttribute(REQUEST_CACHE_ATTR, created, RequestAttributes.SCOPE_REQUEST)
             return created
         }
-        return localDecisionCache.get()
+        // Outside request scope (e.g., scheduled tasks): no caching to avoid stale
+        // ThreadLocal state leaking between invocations on thread-pooled executors.
+        return mutableMapOf()
     }
 
     private fun topLevelAccessPermission(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): String? {

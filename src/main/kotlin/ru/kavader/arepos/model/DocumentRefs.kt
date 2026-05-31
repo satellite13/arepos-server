@@ -5,7 +5,22 @@ import java.time.Instant
 import java.util.UUID
 
 @Entity
-@Table(name = "document_refs", schema = "public")
+@Table(
+    name = "document_refs",
+    schema = "public",
+    indexes = [
+        Index(name = "document_refs_file_id_idx", columnList = "file_id"),
+        Index(name = "document_refs_node_type_id_idx", columnList = "node_type_id"),
+        Index(name = "document_refs_link_type_id_idx", columnList = "link_type_id"),
+        Index(name = "document_refs_model_id_idx", columnList = "model_id"),
+        Index(name = "document_refs_notation_id_idx", columnList = "notation_id"),
+        Index(name = "document_refs_component_id_idx", columnList = "component_id"),
+        Index(name = "document_refs_node_id_idx", columnList = "node_id"),
+        Index(name = "document_refs_diagram_id_idx", columnList = "diagram_id"),
+        Index(name = "document_refs_relation_id_idx", columnList = "relation_id"),
+        Index(name = "document_refs_node_shape_id_idx", columnList = "node_shape_id")
+    ]
+)
 data class DocumentRefs(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

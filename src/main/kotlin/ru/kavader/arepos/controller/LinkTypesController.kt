@@ -141,26 +141,7 @@ class LinkTypesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createLinkType(@RequestBody request: LinkTypeRequest): LinkTypeResponse {
-        val currentUserId = accessService.currentUserId()
-        if (!accessService.canViewAdminPanel() && request.ownerId != null && request.ownerId != currentUserId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot create link type for another user")
-        }
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        log.info(
-            "createLinkType request: currentUserId={}, role={}, requestOwnerId={}, resolvedOwnerId={}",
-            CurrentUser.getId(),
-            CurrentUser.getRole(),
-            request.ownerId,
-            resolvedOwnerId
-        )
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+        val owner = accessService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = linkTypesRepository.save(
@@ -185,15 +166,7 @@ class LinkTypesController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
             }
         accessService.requireCanEditLinkType(linkType)
-        val owner = if (accessService.canViewAdminPanel()) {
-            request.ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            } ?: linkType.owner
-        } else {
-            linkType.owner
-        }
+        val owner = accessService.resolveOwnerForUpdate(request.ownerId, linkType.owner)
 
         val updated = linkTypesRepository.save(
             linkType.copy(
@@ -209,42 +182,16 @@ class LinkTypesController(
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteLinkType(@PathVariable id: UUID) {
         val linkType = linkTypesRepository.findById(id).orElseThrow {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
+            ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
         }
         accessService.requireCanEditLinkType(linkType)
         linkTypesRepository.deleteById(id)
     }
 
-    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? {
-        val currentUserId = CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
-
-        if (accessService.canViewAdminPanel()) {
-            return ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            }
+    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? =
+        accessService.resolveReadableOwner(ownerId) { oid, uid ->
+            linkTypesRepository.findAccessibleForUser(uid, oid, "", viewPermissions, Pageable.ofSize(1)).hasContent()
         }
-
-        if (ownerId != null && ownerId != currentUserId) {
-            val hasSharedFromOwner = linkTypesRepository.findAccessibleForUser(
-                userId = currentUserId,
-                ownerId = ownerId,
-                name = "",
-                viewPermissions = viewPermissions,
-                pageable = Pageable.ofSize(1)
-            ).hasContent()
-            if (!hasSharedFromOwner) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-            }
-            return null
-        }
-
-        return usersRepository.findById(currentUserId).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $currentUserId not found")
-        }
-    }
 
     private fun LinkTypes.toResponse() = LinkTypeResponse(
         id = requireNotNull(id),

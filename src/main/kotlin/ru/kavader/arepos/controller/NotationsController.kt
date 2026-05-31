@@ -21,6 +21,9 @@ import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.MdFileLinkValidator
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
+import ru.kavader.arepos.util.VersionUtils
 import java.time.Instant
 import java.util.UUID
 
@@ -197,17 +200,8 @@ class NotationsController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    fun createNotation(@RequestBody request: NotationRequest): NotationResponse {
-        val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+    fun createNotation(@RequestBody @Valid request: NotationRequest): NotationResponse {
+        val owner = accessService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
         // Конфликт только с неудалёнными: версия, занятая удалённой нотацией, допустима
         if (notationsRepository.existsByNameAndVersion(request.name, request.version)) {
@@ -234,7 +228,7 @@ class NotationsController(
     @PutMapping("/{id}")
     fun updateNotation(
         @PathVariable id: UUID,
-        @RequestBody request: NotationUpdateRequest
+        @RequestBody @Valid request: NotationUpdateRequest
     ): NotationResponse {
         val notation = notationsRepository.findById(id)
             .orElseThrow {
@@ -242,15 +236,7 @@ class NotationsController(
             }
         accessService.requireCanEditNotation(notation)
 
-        val owner = if (accessService.canViewAdminPanel()) {
-            request.ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            } ?: notation.owner
-        } else {
-            notation.owner
-        }
+        val owner = accessService.resolveOwnerForUpdate(request.ownerId, notation.owner)
 
         mdFileLinkValidator.validate(request.attrs)
         val updated = notationsRepository.save(
@@ -284,16 +270,7 @@ class NotationsController(
                 "Notation with name '${request.name}' and version '${request.version}' already exists"
             )
         }
-        val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+        val owner = accessService.resolveOwnerForCreate(request.ownerId)
 
         mdFileLinkValidator.validate(request.attrs ?: source.attrs)
         val now = Instant.now()
@@ -390,50 +367,12 @@ class NotationsController(
         }
     }
 
-    private val compareNotationsByVersionDesc: Comparator<Notations> =
-        compareBy<Notations> { parseSemver(it.version) == null }
-            .thenByDescending { parseSemver(it.version)?.first ?: 0 }
-            .thenByDescending { parseSemver(it.version)?.second ?: 0 }
-            .thenByDescending { parseSemver(it.version)?.third ?: 0 }
-            .thenByDescending { it.version }
+    private val compareNotationsByVersionDesc = VersionUtils.semverDescComparator<Notations> { it.version }
 
-    private fun parseSemver(version: String): Triple<Int, Int, Int>? {
-        val parts = version.trim().split(".")
-        if (parts.size != 3) return null
-        val major = parts[0].toIntOrNull() ?: return null
-        val minor = parts[1].toIntOrNull() ?: return null
-        val patch = parts[2].toIntOrNull() ?: return null
-        return Triple(major, minor, patch)
-    }
-
-    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? {
-        val currentUserId = CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
-
-        if (accessService.canViewAdminPanel()) {
-            return ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            }
+    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? =
+        accessService.resolveReadableOwner(ownerId) { oid, uid ->
+            notationsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
         }
-
-        if (ownerId != null && ownerId != currentUserId) {
-            val hasSharedFromOwner = notationsRepository.existsAccessibleByOwnerForUser(
-                ownerId = ownerId,
-                userId = currentUserId,
-                viewPermissions = viewPermissions
-            )
-            if (!hasSharedFromOwner) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-            }
-            return null
-        }
-
-        return usersRepository.findById(currentUserId).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $currentUserId not found")
-        }
-    }
 
     private fun Notations.toResponse() = NotationResponse(
         id = requireNotNull(id),
@@ -449,8 +388,8 @@ class NotationsController(
 }
 
 data class NotationRequest(
-    val name: String,
-    val version: String,
+    @field:NotBlank val name: String,
+    @field:NotBlank val version: String,
     val ownerId: UUID? = null,
     val attrs: String? = null
 )

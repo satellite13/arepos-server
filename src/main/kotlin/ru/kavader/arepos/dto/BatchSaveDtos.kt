@@ -119,4 +119,8 @@ data class BatchSaveConflictBody(
 
 class BatchSaveConflictException(
     val conflicts: List<BatchConflictItem>
-) : RuntimeException("Batch save conflict: ${conflicts.size} entity(ies)")
+) : RuntimeException("Batch save conflict: ${conflicts.size} entity(ies)") {
+    init {
+        require(conflicts.isNotEmpty()) { "BatchConflictItem list must not be empty" }
+    }
+}

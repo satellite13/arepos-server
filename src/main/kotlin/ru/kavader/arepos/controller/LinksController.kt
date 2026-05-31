@@ -19,6 +19,7 @@ import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
+import ru.kavader.arepos.service.ModelDiagramTypeValidator
 import ru.kavader.arepos.service.ModelSyncBroadcaster
 import java.time.Instant
 import java.util.UUID
@@ -36,7 +37,8 @@ class LinksController(
     private val accessService: ResourceAccessService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
-    private val modelSyncBroadcaster: ModelSyncBroadcaster
+    private val modelSyncBroadcaster: ModelSyncBroadcaster,
+    private val typeValidator: ModelDiagramTypeValidator
 ) {
 
     @GetMapping
@@ -132,16 +134,7 @@ class LinksController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createLink(@RequestBody request: LinkRequest): LinkResponse {
-        val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+        val owner = accessService.resolveOwnerForCreate(request.ownerId)
         val model = modelsRepository.findById(request.modelId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
@@ -196,15 +189,7 @@ class LinksController(
             }
         accessService.requireCanEditLink(link)
 
-        val owner = if (accessService.canViewAdminPanel()) {
-            request.ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            } ?: link.owner
-        } else {
-            link.owner
-        }
+        val owner = accessService.resolveOwnerForUpdate(request.ownerId, link.owner)
         val model = request.modelId?.let {
             modelsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
@@ -276,11 +261,6 @@ class LinksController(
         )
     }
 
-    private fun getCurrentUser() = CurrentUser.getId()?.let {
-        usersRepository.findById(it).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $it not found")
-        }
-    } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
     private fun Links.toResponse() = LinkResponse(
         id = requireNotNull(id),
@@ -311,15 +291,8 @@ class LinksController(
         throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
     }
 
-    private fun isLinkTypeUsedInModelDiagramNotations(
-        linkTypeId: UUID,
-        model: ru.kavader.arepos.model.Models
-    ): Boolean {
-        val notationIds = diagramsRepository.findDistinctNotationIdsByModelId(requireNotNull(model.id)).toSet()
-        if (notationIds.isEmpty()) return false
-
-        return relationsRepository.existsByLinkType_IdAndNotation_IdIn(linkTypeId, notationIds)
-    }
+    private fun isLinkTypeUsedInModelDiagramNotations(linkTypeId: UUID, model: ru.kavader.arepos.model.Models): Boolean =
+        typeValidator.isLinkTypeUsedInModelDiagramNotations(linkTypeId, requireNotNull(model.id))
 }
 
 data class LinkRequest(

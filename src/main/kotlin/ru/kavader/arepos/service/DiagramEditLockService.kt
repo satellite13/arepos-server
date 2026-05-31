@@ -12,6 +12,7 @@ import ru.kavader.arepos.repository.DiagramEditLocksRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.metrics.CustomMetricsService
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Duration
 import java.time.Instant
@@ -23,7 +24,8 @@ class DiagramEditLockService(
     private val modelsRepository: ModelsRepository,
     private val locksRepository: DiagramEditLocksRepository,
     private val usersRepository: UsersRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val metrics: CustomMetricsService
 ) {
 
     companion object {
@@ -53,6 +55,7 @@ class DiagramEditLockService(
                     expiresAt = newExpiry
                 )
             )
+            metrics.editLockAcquire.increment()
             return toHeldResponse(diagram, me, newExpiry, null)
         }
         if (row.expiresAt.isBefore(now)) {
@@ -60,11 +63,13 @@ class DiagramEditLockService(
             row.lockedAt = now
             row.lastHeartbeatAt = now
             row.expiresAt = newExpiry
+            metrics.editLockAcquire.increment()
             return toHeldResponse(diagram, me, newExpiry, null)
         }
         if (row.lockedBy.id == meId) {
             row.lastHeartbeatAt = now
             row.expiresAt = newExpiry
+            metrics.editLockAcquire.increment()
             return toHeldResponse(diagram, me, newExpiry, null)
         }
         throw DiagramEditLockConflictException(toConflictResponse(diagram, row))
@@ -106,6 +111,7 @@ class DiagramEditLockService(
         if (row.lockedBy.id != meId) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Lock is held by another user")
         }
+        metrics.editLockRelease.increment()
         locksRepository.delete(row)
     }
 

@@ -141,26 +141,7 @@ class NodeTypesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createNodeType(@RequestBody request: NodeTypeRequest): NodeTypeResponse {
-        val currentUserId = accessService.currentUserId()
-        if (!accessService.canViewAdminPanel() && request.ownerId != null && request.ownerId != currentUserId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot create node type for another user")
-        }
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        log.info(
-            "createNodeType request: currentUserId={}, role={}, requestOwnerId={}, resolvedOwnerId={}",
-            CurrentUser.getId(),
-            CurrentUser.getRole(),
-            request.ownerId,
-            resolvedOwnerId
-        )
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+        val owner = accessService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = nodeTypesRepository.save(
@@ -185,15 +166,7 @@ class NodeTypesController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
             }
         accessService.requireCanEditNodeType(nodeType)
-        val owner = if (accessService.canViewAdminPanel()) {
-            request.ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            } ?: nodeType.owner
-        } else {
-            nodeType.owner
-        }
+        val owner = accessService.resolveOwnerForUpdate(request.ownerId, nodeType.owner)
 
         val updated = nodeTypesRepository.save(
             nodeType.copy(
@@ -209,42 +182,16 @@ class NodeTypesController(
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteNodeType(@PathVariable id: UUID) {
         val nodeType = nodeTypesRepository.findById(id).orElseThrow {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
+            ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
         }
         accessService.requireCanEditNodeType(nodeType)
         nodeTypesRepository.deleteById(id)
     }
 
-    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? {
-        val currentUserId = CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
-
-        if (accessService.canViewAdminPanel()) {
-            return ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            }
+    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? =
+        accessService.resolveReadableOwner(ownerId) { oid, uid ->
+            nodeTypesRepository.findAccessibleForUser(uid, oid, "", viewPermissions, Pageable.ofSize(1)).hasContent()
         }
-
-        if (ownerId != null && ownerId != currentUserId) {
-            val hasSharedFromOwner = nodeTypesRepository.findAccessibleForUser(
-                userId = currentUserId,
-                ownerId = ownerId,
-                name = "",
-                viewPermissions = viewPermissions,
-                pageable = Pageable.ofSize(1)
-            ).hasContent()
-            if (!hasSharedFromOwner) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-            }
-            return null
-        }
-
-        return usersRepository.findById(currentUserId).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $currentUserId not found")
-        }
-    }
 
     private fun NodeTypes.toResponse() = NodeTypeResponse(
         id = requireNotNull(id),

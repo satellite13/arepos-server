@@ -131,7 +131,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `updates node parent to root when parentNodeId is null`() {
+    fun `preserves existing parent when parentNodeId is omitted from update`() {
         val folder = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
                 stableId = java.util.UUID.randomUUID(),
@@ -154,8 +154,9 @@ class NodesControllerTest : ControllerIntegrationTest() {
             )
         )
 
+        // parentNodeId = null means "don't change parent", not "clear parent"
         val payload = NodeUpdateRequest(
-            name = child.name,
+            name = "Renamed-Child",
             modelId = model.id!!,
             ownerId = owner.id!!,
             nodeTypeId = nodeType.id!!,
@@ -170,10 +171,11 @@ class NodesControllerTest : ControllerIntegrationTest() {
                 .content(objectMapper.writeValueAsString(payload))
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.parentNodeId").doesNotExist())
+            .andExpect(jsonPath("$.name").value("Renamed-Child"))
+            .andExpect(jsonPath("$.parentNodeId").value(folder.id.toString()))
 
         val reloaded = nodesRepository.findById(child.id!!).orElseThrow()
-        assertEquals(null, reloaded.parentNode?.id)
+        assertEquals(folder.id, reloaded.parentNode?.id)
     }
 
     @Test

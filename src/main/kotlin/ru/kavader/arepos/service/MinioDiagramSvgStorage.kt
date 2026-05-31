@@ -39,8 +39,8 @@ class MinioDiagramSvgStorage(
                     .`object`(key)
                     .build()
             )
-            stream.readAllBytes()
-        } catch (e: Exception) {
+            stream.use { it.readAllBytes() }
+        } catch (_: Exception) {
             null
         }
     }

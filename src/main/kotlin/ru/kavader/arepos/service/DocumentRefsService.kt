@@ -83,6 +83,7 @@ class DocumentRefsService(
         }
     }
 
+    @Transactional
     fun registerRef(request: RegisterDocumentRefRequest): DocumentItem {
         val userId = accessService.currentUserId()
         val user = usersRepository.findById(userId)

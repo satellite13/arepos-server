@@ -5,18 +5,13 @@ import jakarta.persistence.EntityManagerFactory
 import org.hibernate.event.service.spi.EventListenerRegistry
 import org.hibernate.event.spi.EventType
 import org.hibernate.internal.SessionFactoryImpl
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Configuration
 
 @Configuration
-class JpaConfig {
-
-    @Autowired
-    lateinit var auditInterceptor: AuditInterceptor
-
-    @Autowired
-    lateinit var entityManagerFactory: EntityManagerFactory
-
+class JpaConfig(
+    private val auditInterceptor: AuditInterceptor,
+    private val entityManagerFactory: EntityManagerFactory
+) {
     @PostConstruct
     fun registerEventListeners() {
         val sessionFactory = entityManagerFactory.unwrap(SessionFactoryImpl::class.java)

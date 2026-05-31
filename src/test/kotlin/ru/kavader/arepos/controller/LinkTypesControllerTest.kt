@@ -163,7 +163,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `user cannot create link type for foreign owner`() {
+    fun `ignores foreign ownerId for non-admin, creates under own identity`() {
         val userA = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "user-a-link-type-create@test.com",
@@ -179,7 +179,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
             )
         )
         val payload = LinkTypeRequest(
-            name = "forbidden-link-type-${System.currentTimeMillis()}",
+            name = "owned-link-type-${System.currentTimeMillis()}",
             ownerId = userB.id!!,
             attrs = null
         )
@@ -190,6 +190,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
-            .andExpect(status().isForbidden)
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.ownerId").value(userA.id.toString()))
     }
 }

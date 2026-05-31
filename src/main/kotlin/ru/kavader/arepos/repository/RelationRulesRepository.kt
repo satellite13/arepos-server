@@ -14,8 +14,6 @@ import java.util.UUID
 @Repository
 interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
     fun findByRelation(relation: Relations, pageable: Pageable): Page<RelationRules>
-    fun findByOwner(owner: Users, pageable: Pageable): Page<RelationRules>
-    fun findByRelationAndOwner(relation: Relations, owner: Users, pageable: Pageable): Page<RelationRules>
     fun existsByRelationAndFromComponentAndToComponent(
         relation: Relations,
         fromComponent: ru.kavader.arepos.model.Components,

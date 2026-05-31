@@ -4,35 +4,23 @@ import org.hibernate.event.spi.*
 import org.hibernate.engine.spi.SessionImplementor
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
-import org.springframework.web.context.request.RequestContextHolder
-import org.springframework.web.context.request.ServletRequestAttributes
 import java.util.*
 
 /**
  * Перехватчик событий Hibernate для установки переменной сессии PostgreSQL `app.current_user_id`
  * перед выполнением операций INSERT, UPDATE, DELETE.
- * 
+ *
  * Эта переменная используется триггером `audit_trigger` для записи идентификатора пользователя
  * в таблицу `audit_log`.
- * 
- * Идентификатор пользователя может быть установлен двумя способами:
- * 1. Через заголовок HTTP-запроса `X-User-Id`
- * 2. Программно через `AuditInterceptor.setCurrentUserId(userId)`
- * 
- * Пример использования в контроллере:
- * ```
- * @PostMapping
- * fun createModel(@RequestBody request: ModelRequest, @RequestHeader("X-User-Id") userId: UUID) {
- *     // userId автоматически будет использован триггером audit_trigger
- *     return modelsRepository.save(...)
- * }
- * ```
+ *
+ * Идентификатор пользователя устанавливается через `AuditInterceptor.setCurrentUserId(userId)`
+ * из `JwtAuthenticationFilter` после успешной валидации JWT-токена,
+ * либо извлекается из `SecurityContextHolder`.
  */
 @Component
 class AuditInterceptor : PreInsertEventListener, PreUpdateEventListener, PreDeleteEventListener {
 
     companion object {
-        private val USER_ID_HEADER = "X-User-Id"
         private val threadLocalUserId = ThreadLocal<UUID?>()
         
         /**
@@ -55,11 +43,6 @@ class AuditInterceptor : PreInsertEventListener, PreUpdateEventListener, PreDele
          */
         private fun getCurrentUserId(): UUID? {
             return threadLocalUserId.get() ?: try {
-                val requestAttributes = RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes
-                requestAttributes?.request?.getHeader(USER_ID_HEADER)?.let { UUID.fromString(it) }
-            } catch (_: Exception) {
-                null
-            } ?: try {
                 SecurityContextHolder.getContext().authentication?.principal as? UUID
             } catch (_: Exception) {
                 null

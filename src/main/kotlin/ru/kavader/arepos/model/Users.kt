@@ -3,6 +3,7 @@ package ru.kavader.arepos.model
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
+import org.hibernate.annotations.DynamicUpdate
 import org.hibernate.annotations.JdbcTypeCode
 import java.time.Instant
 import java.util.*
@@ -13,6 +14,7 @@ enum class Role {
 }
 
 @Entity
+@DynamicUpdate
 @Table(
     name = "users", schema = "public", indexes = [
         Index(name = "users_attrs_idx", columnList = "attrs", unique = false)

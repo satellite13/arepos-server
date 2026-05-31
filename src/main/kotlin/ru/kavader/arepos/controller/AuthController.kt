@@ -9,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.metrics.CustomMetricsService
 import ru.kavader.arepos.security.JwtTokenProvider
 import java.time.Instant
 import java.util.*
@@ -20,6 +21,7 @@ class AuthController(
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenProvider: JwtTokenProvider,
     private val userProfileAttrsService: UserProfileAttrsService,
+    private val metrics: CustomMetricsService,
     @Value("\${arepos.admin-secret:}") private val adminSecret: String
 ) {
 
@@ -58,9 +60,11 @@ class AuthController(
         }
 
         if (user.passwordHash == null || !passwordEncoder.matches(request.password, user.passwordHash)) {
+            metrics.authLoginFailure.increment()
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
         }
 
+        metrics.authLoginSuccess.increment()
         return buildAuthResponse(user)
     }
 

@@ -80,16 +80,7 @@ class ComponentsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createComponent(@RequestBody request: ComponentRequest): ComponentResponse {
-        val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+        val owner = accessService.resolveOwnerForCreate(request.ownerId)
         val notation = notationsRepository.findById(request.notationId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${request.notationId} not found")
@@ -128,15 +119,7 @@ class ComponentsController(
             }
         accessService.requireCanEditComponent(component)
 
-        val owner = if (accessService.canViewAdminPanel()) {
-            request.ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            } ?: component.owner
-        } else {
-            component.owner
-        }
+        val owner = accessService.resolveOwnerForUpdate(request.ownerId, component.owner)
         val notation = request.notationId?.let {
             notationsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")

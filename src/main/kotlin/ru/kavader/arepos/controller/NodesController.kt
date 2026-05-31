@@ -19,6 +19,10 @@ import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
+import ru.kavader.arepos.service.ModelDiagramTypeValidator
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotNull
 import ru.kavader.arepos.service.ModelSyncBroadcaster
 import java.time.Instant
 import java.util.UUID
@@ -36,7 +40,8 @@ class NodesController(
     private val objectMapper: ObjectMapper,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
-    private val modelSyncBroadcaster: ModelSyncBroadcaster
+    private val modelSyncBroadcaster: ModelSyncBroadcaster,
+    private val typeValidator: ModelDiagramTypeValidator
 ) {
 
     @GetMapping
@@ -97,7 +102,7 @@ class NodesController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    fun createNode(@RequestBody request: NodeRequest): NodeResponse {
+    fun createNode(@RequestBody @Valid request: NodeRequest): NodeResponse {
         val model = modelsRepository.findById(request.modelId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
@@ -188,17 +193,14 @@ class NodesController(
         } ?: node.nodeType
 
         mdFileLinkValidator.validate(request.attrs)
-        val parentNode = if (request.parentNodeId != null) {
-            val parentId = request.parentNodeId
+        val parentNode = request.parentNodeId?.let { parentId ->
             if (parentId == id) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Node cannot be its own parent")
             }
             nodesRepository.findById(parentId).orElse(null)?.also { parent ->
                 accessService.requireCanEditNode(parent)
             }
-        } else {
-            null
-        }
+        } ?: node.parentNode
 
         val updated = nodesRepository.save(
             node.copy(
@@ -279,15 +281,8 @@ class NodesController(
         throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
     }
 
-    private fun isNodeTypeUsedInModelDiagramNotations(
-        nodeTypeId: UUID,
-        model: ru.kavader.arepos.model.Models
-    ): Boolean {
-        val notationIds = diagramsRepository.findDistinctNotationIdsByModelId(requireNotNull(model.id)).toSet()
-        if (notationIds.isEmpty()) return false
-
-        return componentsRepository.existsByNodeType_IdAndNotation_IdIn(nodeTypeId, notationIds)
-    }
+    private fun isNodeTypeUsedInModelDiagramNotations(nodeTypeId: UUID, model: ru.kavader.arepos.model.Models): Boolean =
+        typeValidator.isNodeTypeUsedInModelDiagramNotations(nodeTypeId, requireNotNull(model.id))
 
     private fun isSystemTreeRoot(node: Nodes): Boolean {
         val attrs = node.attrs ?: return false
@@ -302,10 +297,10 @@ class NodesController(
 }
 
 data class NodeRequest(
-    val name: String,
-    val modelId: UUID,
+    @field:NotBlank val name: String,
+    @field:NotNull val modelId: UUID,
     val ownerId: UUID? = null,
-    val nodeTypeId: UUID,
+    @field:NotNull val nodeTypeId: UUID,
     val parentNodeId: UUID? = null,
     val attrs: String? = null,
     val stableId: UUID? = null

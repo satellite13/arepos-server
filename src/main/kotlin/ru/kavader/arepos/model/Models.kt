@@ -2,15 +2,15 @@ package ru.kavader.arepos.model
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
+import org.hibernate.annotations.DynamicUpdate
 import org.hibernate.annotations.JdbcTypeCode
 import java.time.Instant
 import java.util.*
 import org.hibernate.type.SqlTypes
 
 @Entity
-@Table(name = "models", schema = "public", uniqueConstraints = [
-    UniqueConstraint(name = "models_name_version_key", columnNames = ["name", "version"])
-])
+@DynamicUpdate
+@Table(name = "models", schema = "public")
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Models(
     @Id

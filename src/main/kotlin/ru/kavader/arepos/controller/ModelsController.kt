@@ -26,6 +26,9 @@ import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.ModelSyncBroadcaster
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
+import ru.kavader.arepos.util.VersionUtils
 import java.time.Instant
 import java.util.UUID
 
@@ -163,40 +166,19 @@ class ModelsController(
             .map { it.toResponse() }
     }
 
-    private val compareModelsByVersionDesc: Comparator<Models> = compareBy<Models> { parseSemver(it.version) == null }
-        .thenByDescending { parseSemver(it.version)?.first ?: 0 }
-        .thenByDescending { parseSemver(it.version)?.second ?: 0 }
-        .thenByDescending { parseSemver(it.version)?.third ?: 0 }
-        .thenByDescending { it.version }
-
-    private fun parseSemver(version: String): Triple<Int, Int, Int>? {
-        val parts = version.trim().split(".")
-        if (parts.size != 3) return null
-        val major = parts[0].toIntOrNull() ?: return null
-        val minor = parts[1].toIntOrNull() ?: return null
-        val patch = parts[2].toIntOrNull() ?: return null
-        return Triple(major, minor, patch)
-    }
+    private val compareModelsByVersionDesc = VersionUtils.semverDescComparator<Models> { it.version }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    fun createModel(@RequestBody request: ModelRequest): ModelResponse {
+    @Transactional
+    fun createModel(@RequestBody @Valid request: ModelRequest): ModelResponse {
         if (modelsRepository.existsByNameAndVersion(request.name, request.version)) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
                 "Model with name '${request.name}' and version '${request.version}' already exists"
             )
         }
-        val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+        val owner = accessService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = modelsRepository.save(
@@ -232,7 +214,7 @@ class ModelsController(
     @PutMapping("/{id}")
     fun updateModel(
         @PathVariable id: UUID,
-        @RequestBody request: ModelUpdateRequest
+        @RequestBody @Valid request: ModelUpdateRequest
     ): ModelResponse {
         val model = modelsRepository.findById(id)
             .orElseThrow {
@@ -249,15 +231,7 @@ class ModelsController(
                 "Model with name '$newName' and version '$newVersion' already exists"
             )
         }
-        val owner = if (accessService.canViewAdminPanel()) {
-            request.ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            } ?: model.owner
-        } else {
-            model.owner
-        }
+        val owner = accessService.resolveOwnerForUpdate(request.ownerId, model.owner)
 
         val updated = modelsRepository.save(
             model.copy(
@@ -309,16 +283,7 @@ class ModelsController(
                 "Model with name '${request.name}' and version '${request.version}' already exists"
             )
         }
-        val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+        val owner = accessService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
 
@@ -486,34 +451,10 @@ class ModelsController(
         }
     }
 
-    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? {
-        val currentUserId = CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
-
-        if (accessService.canViewAdminPanel()) {
-            return ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            }
+    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? =
+        accessService.resolveReadableOwner(ownerId) { oid, uid ->
+            modelsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
         }
-
-        if (ownerId != null && ownerId != currentUserId) {
-            val hasSharedFromOwner = modelsRepository.existsAccessibleByOwnerForUser(
-                ownerId = ownerId,
-                userId = currentUserId,
-                viewPermissions = viewPermissions
-            )
-            if (!hasSharedFromOwner) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-            }
-            return null
-        }
-
-        return usersRepository.findById(currentUserId).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $currentUserId not found")
-        }
-    }
 
     private fun Models.toResponse() = ModelResponse(
         id = requireNotNull(id),
@@ -560,8 +501,8 @@ class ModelsController(
 }
 
 data class ModelRequest(
-    val name: String,
-    val version: String,
+    @field:NotBlank val name: String,
+    @field:NotBlank val version: String,
     val ownerId: UUID? = null,
     val attrs: String? = null
 )

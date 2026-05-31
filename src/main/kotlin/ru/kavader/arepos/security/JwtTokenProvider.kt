@@ -20,7 +20,7 @@ data class JwtProperties(
 class JwtTokenProvider(private val jwtProperties: JwtProperties) {
 
     private val key: SecretKey by lazy {
-        Keys.hmacShaKeyFor(jwtProperties.secret.toByteArray())
+        Keys.hmacShaKeyFor(jwtProperties.secret.toByteArray(Charsets.UTF_8))
     }
 
     fun generateAccessToken(userId: UUID, role: String): String {

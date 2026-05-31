@@ -94,16 +94,7 @@ class RelationRulesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createRelationRule(@RequestBody request: RelationRuleRequest): RelationRuleResponse {
-        val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+        val owner = accessService.resolveOwnerForCreate(request.ownerId)
         val relation = relationsRepository.findById(request.relationId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Relation ${request.relationId} not found")
@@ -152,15 +143,7 @@ class RelationRulesController(
             }
         accessService.requireCanEditRelationRule(relationRule)
 
-        val owner = if (accessService.canViewAdminPanel()) {
-            request.ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            } ?: relationRule.owner
-        } else {
-            relationRule.owner
-        }
+        val owner = accessService.resolveOwnerForUpdate(request.ownerId, relationRule.owner)
         val relation = request.relationId?.let {
             relationsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $it not found")
@@ -219,12 +202,6 @@ class RelationRulesController(
         accessService.requireCanEditRelationRule(relationRule)
         relationRulesRepository.deleteById(id)
     }
-
-    private fun getCurrentUser() = CurrentUser.getId()?.let {
-        usersRepository.findById(it).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $it not found")
-        }
-    } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
     private fun RelationRules.toResponse() = RelationRuleResponse(
         id = requireNotNull(id),

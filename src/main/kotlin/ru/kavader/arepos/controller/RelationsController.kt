@@ -80,16 +80,7 @@ class RelationsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createRelation(@RequestBody request: RelationRequest): RelationResponse {
-        val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+        val owner = accessService.resolveOwnerForCreate(request.ownerId)
         val notation = notationsRepository.findById(request.notationId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${request.notationId} not found")
@@ -128,15 +119,7 @@ class RelationsController(
             }
         accessService.requireCanEditRelation(relation)
 
-        val owner = if (accessService.canViewAdminPanel()) {
-            request.ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            } ?: relation.owner
-        } else {
-            relation.owner
-        }
+        val owner = accessService.resolveOwnerForUpdate(request.ownerId, relation.owner)
         val notation = request.notationId?.let {
             notationsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")
@@ -176,12 +159,6 @@ class RelationsController(
         accessService.requireCanEditRelation(relation)
         relationsRepository.deleteById(id)
     }
-
-    private fun getCurrentUser() = CurrentUser.getId()?.let {
-        usersRepository.findById(it).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $it not found")
-        }
-    } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
     private fun Relations.toResponse() = RelationResponse(
         id = requireNotNull(id),

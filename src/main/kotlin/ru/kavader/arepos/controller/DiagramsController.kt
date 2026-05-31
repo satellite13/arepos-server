@@ -24,6 +24,10 @@ import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.DiagramSvgStorage
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.ModelSyncBroadcaster
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotNull
+import ru.kavader.arepos.util.VersionUtils
 import java.time.Instant
 import java.util.UUID
 
@@ -87,17 +91,8 @@ class DiagramsController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    fun createDiagram(@RequestBody request: DiagramRequest): DiagramResponse {
-        val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+    fun createDiagram(@RequestBody @Valid request: DiagramRequest): DiagramResponse {
+        val owner = accessService.resolveOwnerForCreate(request.ownerId)
         val model = modelsRepository.findById(request.modelId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
@@ -158,15 +153,7 @@ class DiagramsController(
         accessService.requireCanEditDiagram(diagram)
         requireLatestDiagramVersion(diagram, "updated")
 
-        val owner = if (accessService.canViewAdminPanel()) {
-            request.ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            } ?: diagram.owner
-        } else {
-            diagram.owner
-        }
+        val owner = accessService.resolveOwnerForUpdate(request.ownerId, diagram.owner)
         val model = request.modelId?.let {
             modelsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
@@ -455,8 +442,8 @@ class DiagramsController(
     }
 
     private fun compareDiagramVersions(a: Diagrams, b: Diagrams): Int {
-        val aSemver = parseSemver(a.version)
-        val bSemver = parseSemver(b.version)
+        val aSemver = VersionUtils.parseSemver(a.version)
+        val bSemver = VersionUtils.parseSemver(b.version)
         if (aSemver != null && bSemver != null) {
             val majorCmp = aSemver.first.compareTo(bSemver.first)
             if (majorCmp != 0) return majorCmp
@@ -474,14 +461,6 @@ class DiagramsController(
         return aId.compareTo(bId)
     }
 
-    private fun parseSemver(version: String): Triple<Int, Int, Int>? {
-        val parts = version.trim().split(".")
-        if (parts.size != 3) return null
-        val major = parts[0].toIntOrNull() ?: return null
-        val minor = parts[1].toIntOrNull() ?: return null
-        val patch = parts[2].toIntOrNull() ?: return null
-        return Triple(major, minor, patch)
-    }
 
     private fun Diagrams.toResponse() = DiagramResponse(
         id = requireNotNull(id),
@@ -498,10 +477,10 @@ class DiagramsController(
 }
 
 data class DiagramRequest(
-    val name: String,
-    val version: String,
+    @field:NotBlank val name: String,
+    @field:NotBlank val version: String,
     val ownerId: UUID? = null,
-    val modelId: UUID,
+    @field:NotNull val modelId: UUID,
     val nodeId: UUID? = null,
     val notationId: UUID,
     val attrs: String? = null

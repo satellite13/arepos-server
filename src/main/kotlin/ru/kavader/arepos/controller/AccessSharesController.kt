@@ -1,6 +1,7 @@
 package ru.kavader.arepos.controller
 
 import org.springframework.http.HttpStatus
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -38,6 +39,7 @@ class AccessSharesController(
 ) {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Transactional
     fun grantShare(@RequestBody request: AccessShareRequest): AccessShareResponse {
         val resourceType = request.resourceType ?: throw ResponseStatusException(
             HttpStatus.BAD_REQUEST,

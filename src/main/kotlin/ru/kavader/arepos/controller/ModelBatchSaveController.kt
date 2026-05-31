@@ -22,6 +22,7 @@ import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
+import ru.kavader.arepos.service.ModelDiagramTypeValidator
 import ru.kavader.arepos.service.ModelSyncBroadcaster
 import java.time.Instant
 import java.util.UUID
@@ -42,7 +43,8 @@ class ModelBatchSaveController(
     private val accessService: ResourceAccessService,
     private val objectMapper: ObjectMapper,
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
-    private val modelSyncBroadcaster: ModelSyncBroadcaster
+    private val modelSyncBroadcaster: ModelSyncBroadcaster,
+    private val typeValidator: ModelDiagramTypeValidator
 ) {
 
     @PostMapping("/{modelId}/batch-save")
@@ -643,21 +645,9 @@ class ModelBatchSaveController(
         throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
     }
 
-    private fun isNodeTypeUsedInModelDiagramNotations(
-        nodeTypeId: UUID,
-        model: Models
-    ): Boolean {
-        val notationIds = diagramsRepository.findDistinctNotationIdsByModelId(requireNotNull(model.id)).toSet()
-        if (notationIds.isEmpty()) return false
-        return componentsRepository.existsByNodeType_IdAndNotation_IdIn(nodeTypeId, notationIds)
-    }
+    private fun isNodeTypeUsedInModelDiagramNotations(nodeTypeId: UUID, model: Models): Boolean =
+        typeValidator.isNodeTypeUsedInModelDiagramNotations(nodeTypeId, requireNotNull(model.id))
 
-    private fun isLinkTypeUsedInModelDiagramNotations(
-        linkTypeId: UUID,
-        model: Models
-    ): Boolean {
-        val notationIds = diagramsRepository.findDistinctNotationIdsByModelId(requireNotNull(model.id)).toSet()
-        if (notationIds.isEmpty()) return false
-        return relationsRepository.existsByLinkType_IdAndNotation_IdIn(linkTypeId, notationIds)
-    }
+    private fun isLinkTypeUsedInModelDiagramNotations(linkTypeId: UUID, model: Models): Boolean =
+        typeValidator.isLinkTypeUsedInModelDiagramNotations(linkTypeId, requireNotNull(model.id))
 }

@@ -19,7 +19,7 @@ class UserDetailsServiceImpl(
 
         return User.builder()
             .username(user.id.toString())
-            .password(user.passwordHash ?: "")
+            .password(user.passwordHash ?: throw IllegalStateException("User ${user.id} has no password hash"))
             .authorities(SimpleGrantedAuthority("ROLE_${user.role.name}"))
             .disabled(!user.isActive)
             .build()

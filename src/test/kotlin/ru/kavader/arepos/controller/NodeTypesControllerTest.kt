@@ -163,7 +163,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `user cannot create node type for foreign owner`() {
+    fun `ignores foreign ownerId for non-admin, creates under own identity`() {
         val userA = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "user-a-node-type-create@test.com",
@@ -179,7 +179,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
             )
         )
         val payload = NodeTypeRequest(
-            name = "forbidden-node-type-${System.currentTimeMillis()}",
+            name = "owned-node-type-${System.currentTimeMillis()}",
             ownerId = userB.id!!,
             attrs = null
         )
@@ -190,7 +190,8 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
-            .andExpect(status().isForbidden)
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.ownerId").value(userA.id.toString()))
     }
 
     @Test

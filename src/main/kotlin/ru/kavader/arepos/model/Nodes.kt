@@ -2,12 +2,14 @@ package ru.kavader.arepos.model
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
+import org.hibernate.annotations.DynamicUpdate
 import org.hibernate.annotations.JdbcTypeCode
 import java.time.Instant
 import java.util.*
 import org.hibernate.type.SqlTypes
 
 @Entity
+@DynamicUpdate
 @Table(name = "nodes", schema = "public")
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Nodes(

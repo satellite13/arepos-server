@@ -4,6 +4,8 @@ import io.minio.*
 import io.minio.messages.VersioningConfiguration
 import io.minio.messages.Version
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
+import org.springframework.web.server.ResponseStatusException
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.event.ContextRefreshedEvent
@@ -82,11 +84,12 @@ class FileStorageService(
     }
 
     fun upload(file: MultipartFile, owner: Users): Files {
-        require(file.size <= MAX_SIZE) { "File size exceeds 5 MB limit" }
+        if (file.size > MAX_SIZE) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "File size exceeds 5 MB limit")
         val contentType = file.contentType ?: "application/octet-stream"
-        require(isAllowedType(contentType)) {
+        if (!isAllowedType(contentType)) throw ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
             "File type not allowed: $contentType. Allowed: $ALLOWED_IMAGE_TYPES, $MARKDOWN_TYPE"
-        }
+        )
         
         val fileId = UUID.randomUUID()
         val objectKey = "uploads/${owner.id!!}/$fileId/${sanitizeFilename(file.originalFilename ?: "file")}"
@@ -119,8 +122,8 @@ class FileStorageService(
 
     fun uploadMarkdown(content: String, filename: String, owner: Users): Files {
         val bytes = content.toByteArray(Charsets.UTF_8)
-        require(bytes.size <= MAX_SIZE) { "Markdown content exceeds 5 MB limit" }
-        
+        if (bytes.size > MAX_SIZE) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Markdown content exceeds 5 MB limit")
+
         val fileId = UUID.randomUUID()
         val safeFilename = sanitizeFilename(filename).let {
             if (it.endsWith(".md")) it else "$it.md"
@@ -159,7 +162,7 @@ class FileStorageService(
         val builder = GetObjectArgs.builder()
             .bucket(minioProperties.bucket)
             .`object`(file.objectKey)
-        if (latestVersion != null && latestVersion.versionId != "null") {
+        if (latestVersion != null && latestVersion.versionId != null) {
             builder.versionId(latestVersion.versionId)
         }
         val stream = minioClient.getObject(builder.build())
@@ -195,13 +198,13 @@ class FileStorageService(
     }
 
     fun updateMarkdown(id: UUID, content: String, owner: Users): Files {
-        val file = filesRepository.findById(id).orElse(null) 
-            ?: throw IllegalArgumentException("File not found: $id")
-        
-        require(file.contentType == MARKDOWN_TYPE) { "File is not a markdown file" }
-        
+        val file = filesRepository.findById(id).orElse(null)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found: $id")
+
+        if (file.contentType != MARKDOWN_TYPE) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "File is not a markdown file")
+
         val bytes = content.toByteArray(Charsets.UTF_8)
-        require(bytes.size <= MAX_SIZE) { "Markdown content exceeds 5 MB limit" }
+        if (bytes.size > MAX_SIZE) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Markdown content exceeds 5 MB limit")
 
         val result = minioClient.putObject(
             PutObjectArgs.builder()

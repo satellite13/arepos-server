@@ -1,0 +1,14 @@
+.git/
+.gradle/
+build/
+node_modules/
+*.md
+.env
+.idea/
+.claude/
+.cursor/
+charts/
+metrics/
+authz/
+docs/
+scripts/

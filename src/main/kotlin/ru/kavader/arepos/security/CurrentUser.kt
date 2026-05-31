@@ -16,5 +16,7 @@ object CurrentUser {
 
     fun isAdmin(): Boolean = getRole() == "ADMIN"
 
-    fun isEditorOrAdmin(): Boolean = isAdmin()
+    fun isEditor(): Boolean = getRole() == "EDITOR"
+
+    fun isEditorOrAdmin(): Boolean = isAdmin() || isEditor()
 }
