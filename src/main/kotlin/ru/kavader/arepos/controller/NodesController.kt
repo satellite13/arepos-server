@@ -2,20 +2,16 @@ package ru.kavader.arepos.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.ModelSyncEntityEvent
 import ru.kavader.arepos.model.Nodes
-import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
@@ -33,8 +29,6 @@ class NodesController(
     private val nodesRepository: NodesRepository,
     private val modelsRepository: ModelsRepository,
     private val nodeTypesRepository: NodeTypesRepository,
-    private val diagramsRepository: DiagramsRepository,
-    private val componentsRepository: ComponentsRepository,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
     private val objectMapper: ObjectMapper,
@@ -245,12 +239,6 @@ class NodesController(
             listOf(ModelSyncEntityEvent("node_deleted", "node", id))
         )
     }
-
-    private fun getCurrentUser() = CurrentUser.getId()?.let {
-        usersRepository.findById(it).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $it not found")
-        }
-    } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
     private fun Nodes.toResponse() = NodeResponse(
         id = requireNotNull(id),

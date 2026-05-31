@@ -71,23 +71,21 @@ class ModelBatchSaveController(
         val diagramIdMap = mutableMapOf<String, UUID>()
 
         // --- Nodes ---
-        val nodesUpdated = updateNodes(request.nodes.update, model, owner, now)
+        val nodesUpdated = updateNodes(request.nodes.update, model, now)
         val nodesCreated = createNodesTopological(request.nodes.create, model, owner, now, nodeIdMap)
         val nodesDeleted = deleteNodes(request.nodes.delete, model)
 
         // --- Links ---
         val linksDeleted = deleteLinks(request.links.delete, model)
         val linksCreated = createLinks(request.links.create, model, owner, now, nodeIdMap, linkIdMap)
-        val linksUpdated = updateLinks(request.links.update, model, owner, now, nodeIdMap)
+        val linksUpdated = updateLinks(request.links.update, model, now, nodeIdMap)
 
         // --- Diagrams ---
         val diagramsDeleted = deleteDiagrams(request.diagrams.delete)
         val diagramsCreated = createDiagrams(
             request.diagrams.create, model, owner, now, nodeIdMap, linkIdMap, diagramIdMap
         )
-        val diagramsUpdated = updateDiagrams(
-            request.diagrams.update, model, owner, now, nodeIdMap, linkIdMap
-        )
+        val diagramsUpdated = updateDiagrams(request.diagrams.update, model, now, nodeIdMap, linkIdMap)
 
         val deletedNodeIds = request.nodes.delete.map { it.id }
         val deletedLinkIds = request.links.delete.map { it.id }
@@ -175,14 +173,11 @@ class ModelBatchSaveController(
     private fun updateNodes(
         updates: List<BatchNodeUpdate>,
         model: Models,
-        owner: Users,
         now: Instant
     ): Int {
         for (upd in updates) {
-            val node = nodesRepository.findById(upd.id)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Node ${upd.id} not found") }
-            val nodeType = nodeTypesRepository.findById(upd.nodeTypeId)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${upd.nodeTypeId} not found") }
+            val node = findNodeOrThrow(upd.id)
+            val nodeType = findNodeTypeOrThrow(upd.nodeTypeId)
             requireCanUseNodeTypeForModel(nodeType, model)
             val parentNode = resolveParentNode(upd.parentNodeId, emptyMap())
             nodesRepository.save(
@@ -216,24 +211,18 @@ class ModelBatchSaveController(
                 val parentNode: Nodes? = when {
                     parentRef == null -> null
                     nodeIdMap.containsKey(parentRef) -> {
-                        nodesRepository.findById(nodeIdMap[parentRef]!!).orElseThrow {
-                            ResponseStatusException(
-                                HttpStatus.INTERNAL_SERVER_ERROR,
-                                "Just-created node ${nodeIdMap[parentRef]} not found"
-                            )
-                        }
+                        findNodeOrThrow(
+                            requireNotNull(nodeIdMap[parentRef]),
+                            "Just-created node ${nodeIdMap[parentRef]} not found",
+                            HttpStatus.INTERNAL_SERVER_ERROR
+                        )
                     }
                     else -> {
                         val parentUuid = try { UUID.fromString(parentRef) } catch (_: Exception) { continue }
-                        nodesRepository.findById(parentUuid).orElseThrow {
-                            ResponseStatusException(HttpStatus.NOT_FOUND, "Parent node $parentRef not found")
-                        }
+                        findNodeOrThrow(parentUuid, "Parent node $parentRef not found")
                     }
                 }
-                val nodeType = nodeTypesRepository.findById(item.nodeTypeId)
-                    .orElseThrow {
-                        ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${item.nodeTypeId} not found")
-                    }
+                val nodeType = findNodeTypeOrThrow(item.nodeTypeId)
                 requireCanUseNodeTypeForModel(nodeType, model)
                 val saved = nodesRepository.save(
                     Nodes(
@@ -269,8 +258,7 @@ class ModelBatchSaveController(
         val modelId = requireNotNull(model.id) { "Model id required" }
         for (entry in entries) {
             val id = entry.id
-            val node = nodesRepository.findById(id)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found") }
+            val node = findNodeOrThrow(id)
             if (node.model.id != modelId) {
                 throw ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -295,12 +283,9 @@ class ModelBatchSaveController(
         for (item in creates) {
             val sourceId = resolveRef(item.sourceId, nodeIdMap, "source node")
             val targetId = resolveRef(item.targetId, nodeIdMap, "target node")
-            val source = nodesRepository.findById(sourceId)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Source node ${item.sourceId} not found") }
-            val target = nodesRepository.findById(targetId)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Target node ${item.targetId} not found") }
-            val linkType = linkTypesRepository.findById(item.linkTypeId)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${item.linkTypeId} not found") }
+            val source = findNodeOrThrow(sourceId, "Source node ${item.sourceId} not found")
+            val target = findNodeOrThrow(targetId, "Target node ${item.targetId} not found")
+            val linkType = findLinkTypeOrThrow(item.linkTypeId)
             requireCanUseLinkTypeForModel(linkType, model)
             val saved = linksRepository.save(
                 Links(
@@ -323,21 +308,16 @@ class ModelBatchSaveController(
     private fun updateLinks(
         updates: List<BatchLinkUpdate>,
         model: Models,
-        owner: Users,
         now: Instant,
         nodeIdMap: Map<String, UUID>
     ): Int {
         for (upd in updates) {
-            val link = linksRepository.findById(upd.id)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Link ${upd.id} not found") }
+            val link = findLinkOrThrow(upd.id)
             val sourceId = resolveRef(upd.sourceId, nodeIdMap, "source node")
             val targetId = resolveRef(upd.targetId, nodeIdMap, "target node")
-            val source = nodesRepository.findById(sourceId)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Source node ${upd.sourceId} not found") }
-            val target = nodesRepository.findById(targetId)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Target node ${upd.targetId} not found") }
-            val linkType = linkTypesRepository.findById(upd.linkTypeId)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${upd.linkTypeId} not found") }
+            val source = findNodeOrThrow(sourceId, "Source node ${upd.sourceId} not found")
+            val target = findNodeOrThrow(targetId, "Target node ${upd.targetId} not found")
+            val linkType = findLinkTypeOrThrow(upd.linkTypeId)
             requireCanUseLinkTypeForModel(linkType, model)
             linksRepository.save(
                 link.copy(
@@ -357,8 +337,7 @@ class ModelBatchSaveController(
         val modelId = requireNotNull(model.id) { "Model id required" }
         for (entry in entries) {
             val id = entry.id
-            val link = linksRepository.findById(id)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found") }
+            val link = findLinkOrThrow(id)
             if (link.model.id != modelId) {
                 throw ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -382,15 +361,11 @@ class ModelBatchSaveController(
         diagramIdMap: MutableMap<String, UUID>
     ): Int {
         for (item in creates) {
-            val notation = notationsRepository.findById(item.notationId)
-                .orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${item.notationId} not found")
-                }
+            val notation = findNotationOrThrow(item.notationId)
             accessService.requireCanReferenceNotationForModelDiagram(notation, model)
             val node = item.nodeId?.let { ref ->
                 val nodeUuid = resolveRef(ref, nodeIdMap, "diagram node")
-                nodesRepository.findById(nodeUuid)
-                    .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Node $ref not found") }
+                findNodeOrThrow(nodeUuid, "Node $ref not found")
             }
             val remappedAttrs = remapDiagramAttrs(item.attrs, nodeIdMap, linkIdMap)
             val saved = diagramsRepository.save(
@@ -415,21 +390,17 @@ class ModelBatchSaveController(
     private fun updateDiagrams(
         updates: List<BatchDiagramUpdate>,
         model: Models,
-        owner: Users,
         now: Instant,
         nodeIdMap: Map<String, UUID>,
         linkIdMap: Map<String, UUID>
     ): Int {
         for (upd in updates) {
-            val diagram = diagramsRepository.findById(upd.id)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram ${upd.id} not found") }
-            val notation = notationsRepository.findById(upd.notationId)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${upd.notationId} not found") }
+            val diagram = findDiagramOrThrow(upd.id)
+            val notation = findNotationOrThrow(upd.notationId)
             accessService.requireCanReferenceNotationForModelDiagram(notation, model)
             val node = upd.nodeId?.let { ref ->
                 val nodeUuid = resolveRef(ref, nodeIdMap, "diagram node")
-                nodesRepository.findById(nodeUuid)
-                    .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Node $ref not found") }
+                findNodeOrThrow(nodeUuid, "Node $ref not found")
             }
             val remappedAttrs = remapDiagramAttrs(upd.attrs, nodeIdMap, linkIdMap)
             diagramsRepository.save(
@@ -535,10 +506,29 @@ class ModelBatchSaveController(
     private fun resolveParentNode(ref: String?, nodeIdMap: Map<String, UUID>): Nodes? {
         if (ref == null) return null
         val uuid = resolveRef(ref, nodeIdMap, "parent node")
-        return nodesRepository.findById(uuid).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Parent node $ref not found")
-        }
+        return findNodeOrThrow(uuid, "Parent node $ref not found")
     }
+
+    private fun findNodeOrThrow(
+        id: UUID,
+        message: String = "Node $id not found",
+        status: HttpStatus = HttpStatus.NOT_FOUND
+    ): Nodes = nodesRepository.findById(id).orElseThrow { ResponseStatusException(status, message) }
+
+    private fun findLinkOrThrow(id: UUID, message: String = "Link $id not found"): Links =
+        linksRepository.findById(id).orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, message) }
+
+    private fun findDiagramOrThrow(id: UUID, message: String = "Diagram $id not found"): Diagrams =
+        diagramsRepository.findById(id).orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, message) }
+
+    private fun findNodeTypeOrThrow(id: UUID, message: String = "NodeType $id not found"): NodeTypes =
+        nodeTypesRepository.findById(id).orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, message) }
+
+    private fun findLinkTypeOrThrow(id: UUID, message: String = "LinkType $id not found"): LinkTypes =
+        linkTypesRepository.findById(id).orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, message) }
+
+    private fun findNotationOrThrow(id: UUID, message: String = "Notation $id not found"): Notations =
+        notationsRepository.findById(id).orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, message) }
 
     private fun remapDiagramAttrs(
         attrs: String?,

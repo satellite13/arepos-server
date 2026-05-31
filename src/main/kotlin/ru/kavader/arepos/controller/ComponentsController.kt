@@ -1,18 +1,14 @@
 package ru.kavader.arepos.controller
 
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
@@ -22,10 +18,8 @@ import java.util.UUID
 @RequestMapping("/api/v1/components")
 class ComponentsController(
     private val componentsRepository: ComponentsRepository,
-    private val usersRepository: UsersRepository,
     private val notationsRepository: NotationsRepository,
     private val nodeTypesRepository: NodeTypesRepository,
-    private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService,
     private val mdFileLinkValidator: MdFileLinkValidator
 ) {
@@ -159,12 +153,6 @@ class ComponentsController(
         accessService.requireCanEditComponent(component)
         componentsRepository.deleteById(id)
     }
-
-    private fun getCurrentUser() = CurrentUser.getId()?.let {
-        usersRepository.findById(it).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $it not found")
-        }
-    } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
 
     private fun Components.toResponse() = ComponentResponse(
         id = requireNotNull(id),

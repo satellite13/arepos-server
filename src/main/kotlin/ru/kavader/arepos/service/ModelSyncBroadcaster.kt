@@ -28,7 +28,7 @@ class ModelSyncBroadcaster(
     private val modelsRepository: ModelsRepository,
     private val objectMapper: ObjectMapper,
     private val outboxRepository: ModelSyncOutboxRepository,
-    @Value("\${arepos.model-sync.outbox-enabled:false}") private val outboxEnabled: Boolean
+    @param:Value("\${arepos.model-sync.outbox-enabled:false}") private val outboxEnabled: Boolean
 ) {
 
     @Transactional

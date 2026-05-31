@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component
 @Component
 class ModelSyncOutboxScheduler(
     private val publishService: ModelSyncOutboxPublishService,
-    @Value("\${arepos.model-sync.outbox-enabled:false}") private val outboxEnabled: Boolean
+    @param:Value("\${arepos.model-sync.outbox-enabled:false}") private val outboxEnabled: Boolean
 ) {
 
     @Scheduled(fixedDelayString = "\${arepos.model-sync.outbox-publish-interval-ms:500}")

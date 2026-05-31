@@ -12,7 +12,7 @@ import java.time.Instant
 @Component
 class AuditRetentionScheduler(
     private val auditLogRepository: AuditLogRepository,
-    @Value("\${arepos.audit.retention:PT24H}")
+    @param:Value("\${arepos.audit.retention:PT24H}")
     private val retention: Duration
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
