@@ -68,7 +68,7 @@ class DiagramsController(
                 name = name?.trim()?.takeIf { it.isNotEmpty() },
                 currentUserId = currentUserId,
                 pageable = pageable
-            ).map { it.toResponse() }
+            ).map { it.toResponse(accessService) }
         }
 
         return diagramsRepository.findByFilters(
@@ -78,7 +78,7 @@ class DiagramsController(
             notationId = notationId,
             name = name.orEmpty(),
             pageable = pageable
-        ).map { it.toResponse() }
+        ).map { it.toResponse(accessService) }
     }
 
     @GetMapping("/{id}")
@@ -86,7 +86,7 @@ class DiagramsController(
         diagramsRepository.findById(id)
             .map {
                 accessService.requireCanViewDiagram(it)
-                it.toResponse()
+                it.toResponse(accessService)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
@@ -141,7 +141,7 @@ class DiagramsController(
             "diagram_create",
             listOf(ModelSyncEntityEvent("diagram_created", "diagram", requireNotNull(saved.id)))
         )
-        return saved.toResponse()
+        return saved.toResponse(accessService)
     }
 
     @PutMapping("/{id}")
@@ -214,7 +214,7 @@ class DiagramsController(
             "diagram_update",
             listOf(ModelSyncEntityEvent("diagram_updated", "diagram", requireNotNull(updated.id)))
         )
-        return updated.toResponse()
+        return updated.toResponse(accessService)
     }
 
     @DeleteMapping("/{id}")
@@ -419,7 +419,7 @@ class DiagramsController(
             "diagram_baseline",
             listOf(ModelSyncEntityEvent("diagram_created", "diagram", requireNotNull(saved.id)))
         )
-        return saved.toResponse()
+        return saved.toResponse(accessService)
     }
 
     /** Bumps minor version and resets patch: 1.2.3 -> 1.3.0 */
@@ -465,17 +465,5 @@ class DiagramsController(
     }
 
 
-    private fun Diagrams.toResponse() = DiagramResponse(
-        id = requireNotNull(id),
-        name = name,
-        version = version,
-        ownerId = owner.id!!,
-        modelId = model.id!!,
-        nodeId = node?.id,
-        notationId = notation.id!!,
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
-}
 
+}

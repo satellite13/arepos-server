@@ -58,7 +58,7 @@ class NodeTypesController(
                     name = normalizedName,
                     viewPermissions = viewPermissions,
                     pageable = pageable
-                ).map { it.toResponse() }
+                ).map { it.toResponse(accessService) }
             }
 
             val resolvedModel = modelId?.let { mid ->
@@ -111,7 +111,7 @@ class NodeTypesController(
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
                 .toList()
-            return filtered.toPage(pageable).map { it.toResponse() }
+            return filtered.toPage(pageable).map { it.toResponse(accessService) }
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -125,7 +125,7 @@ class NodeTypesController(
             else ->
                 nodeTypesRepository.findAll(pageable)
         }
-        return nodeTypes.map { it.toResponse() }
+        return nodeTypes.map { it.toResponse(accessService) }
     }
 
     @GetMapping("/{id}")
@@ -135,7 +135,7 @@ class NodeTypesController(
                 if (!accessService.canViewNodeType(it) && !accessService.canUseNodeType(it)) {
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
                 }
-                it.toResponse()
+                it.toResponse(accessService)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
@@ -156,7 +156,7 @@ class NodeTypesController(
                 owner = owner
             )
         )
-        return saved.toResponse()
+        return saved.toResponse(accessService)
     }
 
     @PutMapping("/{id}")
@@ -178,7 +178,7 @@ class NodeTypesController(
                 owner = owner
             )
         )
-        return updated.toResponse()
+        return updated.toResponse(accessService)
     }
 
     @DeleteMapping("/{id}")
@@ -195,15 +195,5 @@ class NodeTypesController(
         ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
             nodeTypesRepository.findAccessibleForUser(uid, oid, "", viewPermissions, Pageable.ofSize(1)).hasContent()
         }
-
-    private fun NodeTypes.toResponse() = NodeTypeResponse(
-        id = requireNotNull(id),
-        name = name,
-        ownerId = owner.id!!,
-        accessPermission = accessService.nodeTypeAccessPermission(this),
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
 
 }

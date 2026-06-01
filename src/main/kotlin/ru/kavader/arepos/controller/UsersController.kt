@@ -36,14 +36,14 @@ class UsersController(
         } else {
             usersRepository.findAll(pageable)
         }
-        return users.map { it.toResponse() }
+        return users.map { it.toResponse(userProfileAttrsService) }
     }
 
     @GetMapping("/{id}")
     fun getUser(@PathVariable id: UUID): UserResponse {
         accessService.requireCanManageUsers()
         return usersRepository.findById(id)
-            .map { it.toResponse() }
+            .map { it.toResponse(userProfileAttrsService) }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
             }
@@ -55,7 +55,7 @@ class UsersController(
         usersRepository.findById(id)
             .map {
                 requirePublicUserVisible(it)
-                it.toPublicResponse()
+                it.toPublicResponse(userProfileAttrsService)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
@@ -72,7 +72,7 @@ class UsersController(
         val user = usersRepository.findByEmailIgnoreCase(normalizedEmail)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User with email $normalizedEmail not found")
         requirePublicUserVisible(user)
-        return user.toPublicResponse()
+        return user.toPublicResponse(userProfileAttrsService)
     }
 
     @GetMapping("/public/search")
@@ -87,7 +87,7 @@ class UsersController(
         }
 
         return usersRepository.findByEmailContainingIgnoreCaseAndRoleNot(normalizedEmail, Role.ADMIN, pageable)
-            .map { it.toPublicResponse() }
+            .map { it.toPublicResponse(userProfileAttrsService) }
     }
 
     @PostMapping("/public/batch")
@@ -97,7 +97,7 @@ class UsersController(
         val ids = request.ids.distinct().take(100)
         return usersRepository.findAllById(ids)
             .filter { it.role != Role.ADMIN }
-            .associate { requireNotNull(it.id) to it.toPublicResponse() }
+            .associate { requireNotNull(it.id) to it.toPublicResponse(userProfileAttrsService) }
     }
 
     @GetMapping("/me/profile")
@@ -106,7 +106,7 @@ class UsersController(
         val currentUserId = accessService.currentUserId()
 
         return usersRepository.findById(currentUserId)
-            .map { it.toPublicResponse() }
+            .map { it.toPublicResponse(userProfileAttrsService) }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $currentUserId not found")
             }
@@ -129,7 +129,7 @@ class UsersController(
                 updatedAt = now
             )
         )
-        return saved.toResponse()
+        return saved.toResponse(userProfileAttrsService)
     }
 
     @PutMapping("/{id}")
@@ -173,7 +173,7 @@ class UsersController(
                 passwordHash = request.password?.let(passwordEncoder::encode) ?: user.passwordHash
             )
         )
-        return updated.toResponse()
+        return updated.toResponse(userProfileAttrsService)
     }
 
     @PutMapping("/me/profile")
@@ -200,7 +200,7 @@ class UsersController(
             )
         )
 
-        return updated.toPublicResponse()
+        return updated.toPublicResponse(userProfileAttrsService)
     }
 
     @DeleteMapping("/{id}")
@@ -213,34 +213,7 @@ class UsersController(
         usersRepository.deleteById(id)
     }
 
-    private fun Users.toResponse(): UserResponse {
-        val profile = userProfileAttrsService.readProfile(attrs)
-        return UserResponse(
-            id = requireNotNull(id),
-            email = email,
-            role = role.name,
-            isActive = isActive,
-            firstName = profile.firstName,
-            lastName = profile.lastName,
-            middleName = profile.middleName,
-            position = profile.position,
-            attrs = attrs,
-            createdAt = createdAt,
-            updatedAt = updatedAt
-        )
-    }
 
-    private fun Users.toPublicResponse(): UserPublicResponse {
-        val profile = userProfileAttrsService.readProfile(attrs)
-        return UserPublicResponse(
-            id = requireNotNull(id),
-            email = email,
-            firstName = profile.firstName,
-            lastName = profile.lastName,
-            middleName = profile.middleName,
-            position = profile.position
-        )
-    }
 
     private fun requirePublicUserVisible(user: Users) {
         if (user.role == Role.ADMIN) {

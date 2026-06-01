@@ -50,7 +50,7 @@ class ComponentsController(
                 currentUserId = currentUserId,
                 diagramEditorModelId = modelId,
                 pageable = pageable
-            ).map { it.toResponse() }
+            ).map { it.toResponse(accessService) }
         }
 
         val components = componentsRepository.findByFilters(
@@ -60,7 +60,7 @@ class ComponentsController(
             tagsJson = tagsJson,
             pageable = pageable
         )
-        return components.map { it.toResponse() }
+        return components.map { it.toResponse(accessService) }
     }
 
     @GetMapping("/{id}")
@@ -68,7 +68,7 @@ class ComponentsController(
         componentsRepository.findById(id)
             .map {
                 accessService.requireCanViewComponent(it)
-                it.toResponse()
+                it.toResponse(accessService)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Component $id not found")
@@ -102,7 +102,7 @@ class ComponentsController(
                 nodeType = nodeType
             )
         )
-        return saved.toResponse()
+        return saved.toResponse(accessService)
     }
 
     @PutMapping("/{id}")
@@ -143,7 +143,7 @@ class ComponentsController(
                 nodeType = nodeType
             )
         )
-        return updated.toResponse()
+        return updated.toResponse(accessService)
     }
 
     @DeleteMapping("/{id}")
@@ -156,18 +156,6 @@ class ComponentsController(
         accessService.requireCanEditComponent(component)
         componentsRepository.deleteById(id)
     }
-
-    private fun Components.toResponse() = ComponentResponse(
-        id = requireNotNull(id),
-        name = name,
-        version = version,
-        notationId = notation.id!!,
-        ownerId = owner.id!!,
-        nodeTypeId = nodeType.id!!,
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
 
     private fun parseTags(raw: String?): List<String> =
         raw

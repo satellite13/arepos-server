@@ -88,7 +88,7 @@ class RelationRulesController(
         relationRulesRepository.findById(id)
             .map {
                 accessService.requireCanViewRelationRule(it)
-                it.toResponse()
+                it.toResponse(accessService)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "RelationRule $id not found")
@@ -132,7 +132,7 @@ class RelationRulesController(
                 toComponent = toComponent
             )
         )
-        return saved.toResponse()
+        return saved.toResponse(accessService)
     }
 
     @PutMapping("/{id}")
@@ -192,7 +192,7 @@ class RelationRulesController(
                 toComponent = toComponent
             )
         )
-        return updated.toResponse()
+        return updated.toResponse(accessService)
     }
 
     @DeleteMapping("/{id}")
@@ -206,36 +206,4 @@ class RelationRulesController(
         relationRulesRepository.deleteById(id)
     }
 
-    private fun RelationRules.toResponse() = RelationRuleResponse(
-        id = requireNotNull(id),
-        relationId = relation.id!!,
-        fromComponentId = fromComponent.id!!,
-        toComponentId = toComponent.id!!,
-        ownerId = owner.id!!,
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
-
-    private fun RelationRuleListProjection.toResponse(includeAttrs: Boolean) = RelationRuleResponse(
-        id = id,
-        relationId = relationId,
-        fromComponentId = fromComponentId,
-        toComponentId = toComponentId,
-        ownerId = ownerId,
-        attrs = if (includeAttrs) attrs else null,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
-
-    private fun RelationRuleListLightProjection.toResponse() = RelationRuleResponse(
-        id = id,
-        relationId = relationId,
-        fromComponentId = fromComponentId,
-        toComponentId = toComponentId,
-        ownerId = ownerId,
-        attrs = null,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
 }

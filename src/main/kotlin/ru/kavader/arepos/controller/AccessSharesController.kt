@@ -159,14 +159,4 @@ class AccessSharesController(
         }
     }
 
-    private fun ResourceShares.toResponse() = AccessShareResponse(
-        id = id!!,
-        resourceType = resourceType,
-        resourceId = resourceId,
-        granteeUserId = granteeUser?.id,
-        grantedByUserId = grantedByUser.id!!,
-        permission = permission.name,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
 }

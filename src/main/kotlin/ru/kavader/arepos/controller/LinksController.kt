@@ -63,7 +63,7 @@ class LinksController(
                 linkTypeId = linkTypeId,
                 currentUserId = currentUserId,
                 pageable = pageable
-            ).map { it.toResponse() }
+            ).map { it.toResponse(accessService) }
         }
 
         val links = when {
@@ -120,7 +120,7 @@ class LinksController(
                 linksRepository.findAll(pageable)
             }
         }
-        return links.map { it.toResponse() }
+        return links.map { it.toResponse(accessService) }
     }
 
     @GetMapping("/{id}")
@@ -128,7 +128,7 @@ class LinksController(
         linksRepository.findById(id)
             .map {
                 accessService.requireCanViewLink(it)
-                it.toResponse()
+                it.toResponse(accessService)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found")
@@ -178,7 +178,7 @@ class LinksController(
             "link_create",
             listOf(ModelSyncEntityEvent("link_created", "link", requireNotNull(saved.id)))
         )
-        return saved.toResponse()
+        return saved.toResponse(accessService)
     }
 
     @PutMapping("/{id}")
@@ -238,7 +238,7 @@ class LinksController(
             "link_update",
             listOf(ModelSyncEntityEvent("link_updated", "link", requireNotNull(updated.id)))
         )
-        return updated.toResponse()
+        return updated.toResponse(accessService)
     }
 
     @DeleteMapping("/{id}")
@@ -264,19 +264,6 @@ class LinksController(
         )
     }
 
-
-    private fun Links.toResponse() = LinkResponse(
-        id = requireNotNull(id),
-        stableId = stableId,
-        sourceId = source.id!!,
-        targetId = target.id!!,
-        modelId = model.id!!,
-        ownerId = owner.id!!,
-        linkTypeId = linkType.id!!,
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
 
     private fun requireCanUseLinkTypeForModel(
         linkType: ru.kavader.arepos.model.LinkTypes,

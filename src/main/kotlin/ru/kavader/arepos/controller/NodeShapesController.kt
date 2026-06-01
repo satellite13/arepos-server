@@ -51,7 +51,7 @@ class NodeShapesController(
             .asSequence()
             .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
             .toList()
-        return visibleShapes.toPage(pageable).map { it.toResponse() }
+        return visibleShapes.toPage(pageable).map { it.toResponse(accessService) }
     }
 
     @GetMapping("/{id}")
@@ -61,7 +61,7 @@ class NodeShapesController(
             ResponseStatusException(HttpStatus.NOT_FOUND, "NodeShape $id not found")
         }
         accessService.requireCanViewNodeShape(shape)
-        return shape.toResponse()
+        return shape.toResponse(accessService)
     }
 
     @PostMapping
@@ -83,7 +83,7 @@ class NodeShapesController(
                 updatedAt = now
             )
         )
-        return saved.toResponse()
+        return saved.toResponse(accessService)
     }
 
     @PutMapping("/{id}")
@@ -104,7 +104,7 @@ class NodeShapesController(
                 updatedAt = Instant.now()
             )
         )
-        return updated.toResponse()
+        return updated.toResponse(accessService)
     }
 
     @DeleteMapping("/{id}")
@@ -117,15 +117,4 @@ class NodeShapesController(
         nodeShapesRepository.deleteById(id)
     }
 
-    private fun NodeShapes.toResponse() = NodeShapeResponse(
-        id = requireNotNull(id),
-        name = name,
-        ownerId = owner.id!!,
-        outline = outline,
-        contentArea = contentArea,
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt,
-        canEdit = accessService.canEditNodeShape(this)
-    )
 }

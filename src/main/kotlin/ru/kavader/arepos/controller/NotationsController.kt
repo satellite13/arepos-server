@@ -60,7 +60,7 @@ class NotationsController(
                 name = name?.trim().orEmpty(),
                 viewPermissions = viewPermissions,
                 pageable = pageable
-            ).map { it.toResponse() }
+            ).map { it.toResponse(accessService) }
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -74,7 +74,7 @@ class NotationsController(
             else ->
                 notationsRepository.findAll(pageable)
         }
-        return notations.map { it.toResponse() }
+        return notations.map { it.toResponse(accessService) }
     }
 
     @GetMapping("/deleted")
@@ -82,7 +82,7 @@ class NotationsController(
         if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
         }
-        return notationsRepository.findByDeletedTrue(pageable).map { it.toResponse() }
+        return notationsRepository.findByDeletedTrue(pageable).map { it.toResponse(accessService) }
     }
 
     @DeleteMapping("/{id}/permanent")
@@ -119,7 +119,7 @@ class NotationsController(
                 val sorted = notations.sortedWith(compareNotationsByVersionDesc)
                 EntityGroupResponse(
                     name = sorted.first().name.trim(),
-                    versions = sorted.map { it.toResponse() }
+                    versions = sorted.map { it.toResponse(accessService) }
                 )
             }
             .sortedBy { it.name.lowercase() }
@@ -145,7 +145,7 @@ class NotationsController(
                 } else {
                     accessService.requireCanViewNotation(it)
                 }
-                it.toResponse()
+                it.toResponse(accessService)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
@@ -199,7 +199,7 @@ class NotationsController(
             }
         )
         return accessService.filterViewableNotations(notationsRepository.findBySourceId(id))
-            .map { it.toResponse() }
+            .map { it.toResponse(accessService) }
     }
 
     @PostMapping
@@ -226,7 +226,7 @@ class NotationsController(
                 deleted = false
             )
         )
-        return saved.toResponse()
+        return saved.toResponse(accessService)
     }
 
     @PutMapping("/{id}")
@@ -251,7 +251,7 @@ class NotationsController(
                 owner = owner
             )
         )
-        return updated.toResponse()
+        return updated.toResponse(accessService)
     }
 
     @PostMapping("/{sourceId}/copy")
@@ -353,7 +353,7 @@ class NotationsController(
             }
         }
 
-        return newNotation.toResponse()
+        return newNotation.toResponse(accessService)
     }
 
     @DeleteMapping("/{id}")
@@ -378,15 +378,4 @@ class NotationsController(
             notationsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
         }
 
-    private fun Notations.toResponse() = NotationResponse(
-        id = requireNotNull(id),
-        name = name,
-        version = version,
-        ownerId = owner.id!!,
-        accessPermission = accessService.notationAccessPermission(this),
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt,
-        sourceId = source?.id
-    )
 }

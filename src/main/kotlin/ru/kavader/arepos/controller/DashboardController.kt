@@ -5,6 +5,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
 import org.springframework.web.bind.annotation.*
 import ru.kavader.arepos.dto.dashboard.*
+import ru.kavader.arepos.dto.system.*
 import ru.kavader.arepos.repository.AuditLogRepository
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.ModelsRepository
@@ -103,20 +104,5 @@ class DashboardController(
         )
     }
 
-    private fun ru.kavader.arepos.model.Models.toRecentItem() = DashboardRecentItem(
-        id = id!!,
-        name = name,
-        version = version,
-        ownerId = owner.id!!,
-        updatedAt = updatedAt
-    )
 
-    private fun ru.kavader.arepos.model.Notations.toRecentItem() = DashboardRecentItem(
-        id = id!!,
-        name = name,
-        version = version,
-        ownerId = owner.id!!,
-        updatedAt = updatedAt
-    )
 }
-

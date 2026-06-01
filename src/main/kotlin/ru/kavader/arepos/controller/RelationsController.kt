@@ -56,7 +56,7 @@ class RelationsController(
                 currentUserId = currentUserId,
                 diagramEditorModelId = modelId,
                 pageable = pageable
-            ).map { it.toResponse() }
+            ).map { it.toResponse(accessService) }
         }
 
         val relations = relationsRepository.findByFilters(
@@ -66,7 +66,7 @@ class RelationsController(
             tagsJson = tagsJson,
             pageable = pageable
         )
-        return relations.map { it.toResponse() }
+        return relations.map { it.toResponse(accessService) }
     }
 
     @GetMapping("/{id}")
@@ -74,7 +74,7 @@ class RelationsController(
         relationsRepository.findById(id)
             .map {
                 accessService.requireCanViewRelation(it)
-                it.toResponse()
+                it.toResponse(accessService)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $id not found")
@@ -108,7 +108,7 @@ class RelationsController(
                 linkType = linkType
             )
         )
-        return saved.toResponse()
+        return saved.toResponse(accessService)
     }
 
     @PutMapping("/{id}")
@@ -149,7 +149,7 @@ class RelationsController(
                 linkType = linkType
             )
         )
-        return updated.toResponse()
+        return updated.toResponse(accessService)
     }
 
     @DeleteMapping("/{id}")
@@ -162,18 +162,6 @@ class RelationsController(
         accessService.requireCanEditRelation(relation)
         relationsRepository.deleteById(id)
     }
-
-    private fun Relations.toResponse() = RelationResponse(
-        id = requireNotNull(id),
-        name = name,
-        version = version,
-        notationId = notation.id!!,
-        ownerId = owner.id!!,
-        linkTypeId = linkType.id!!,
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
 
     private fun parseTags(raw: String?): List<String> =
         raw

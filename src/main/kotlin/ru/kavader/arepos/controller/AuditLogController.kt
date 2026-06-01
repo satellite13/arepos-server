@@ -105,15 +105,5 @@ class AuditLogController(
         }
     }
 
-    private fun AuditLog.toResponse() = AuditLogResponse(
-        id = requireNotNull(id),
-        tableName = tableName,
-        operation = operation,
-        rowId = rowId,
-        oldValues = oldValues,
-        newValues = newValues,
-        changedById = changedBy?.id,
-        changedAt = changedAt
-    )
-}
 
+}

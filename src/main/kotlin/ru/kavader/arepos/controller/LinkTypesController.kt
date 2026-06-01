@@ -58,7 +58,7 @@ class LinkTypesController(
                     name = normalizedName,
                     viewPermissions = viewPermissions,
                     pageable = pageable
-                ).map { it.toResponse() }
+                ).map { it.toResponse(accessService) }
             }
 
             val resolvedModel = modelId?.let { mid ->
@@ -111,7 +111,7 @@ class LinkTypesController(
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
                 .toList()
-            return filtered.toPage(pageable).map { it.toResponse() }
+            return filtered.toPage(pageable).map { it.toResponse(accessService) }
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -125,7 +125,7 @@ class LinkTypesController(
             else ->
                 linkTypesRepository.findAll(pageable)
         }
-        return linkTypes.map { it.toResponse() }
+        return linkTypes.map { it.toResponse(accessService) }
     }
 
     @GetMapping("/{id}")
@@ -135,7 +135,7 @@ class LinkTypesController(
                 if (!accessService.canViewLinkType(it) && !accessService.canUseLinkType(it)) {
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
                 }
-                it.toResponse()
+                it.toResponse(accessService)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
@@ -156,7 +156,7 @@ class LinkTypesController(
                 owner = owner
             )
         )
-        return saved.toResponse()
+        return saved.toResponse(accessService)
     }
 
     @PutMapping("/{id}")
@@ -178,7 +178,7 @@ class LinkTypesController(
                 owner = owner
             )
         )
-        return updated.toResponse()
+        return updated.toResponse(accessService)
     }
 
     @DeleteMapping("/{id}")
@@ -196,13 +196,4 @@ class LinkTypesController(
             linkTypesRepository.findAccessibleForUser(uid, oid, "", viewPermissions, Pageable.ofSize(1)).hasContent()
         }
 
-    private fun LinkTypes.toResponse() = LinkTypeResponse(
-        id = requireNotNull(id),
-        name = name,
-        ownerId = owner.id!!,
-        accessPermission = accessService.linkTypeAccessPermission(this),
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
 }

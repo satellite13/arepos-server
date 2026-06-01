@@ -70,7 +70,7 @@ class ModelsController(
                 name = name?.trim().orEmpty(),
                 viewPermissions = viewPermissions,
                 pageable = pageable
-            ).map { it.toResponse() }
+            ).map { it.toResponse(accessService) }
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -84,7 +84,7 @@ class ModelsController(
             else ->
                 modelsRepository.findAll(pageable)
         }
-        return models.map { it.toResponse() }
+        return models.map { it.toResponse(accessService) }
     }
 
     @GetMapping("/deleted")
@@ -92,7 +92,7 @@ class ModelsController(
         if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
         }
-        return modelsRepository.findByDeletedTrue(pageable).map { it.toResponse() }
+        return modelsRepository.findByDeletedTrue(pageable).map { it.toResponse(accessService) }
     }
 
     @DeleteMapping("/{id}/permanent")
@@ -129,7 +129,7 @@ class ModelsController(
                 val sorted = models.sortedWith(compareModelsByVersionDesc)
                 EntityGroupResponse(
                     name = sorted.first().name.trim(),
-                    versions = sorted.map { it.toResponse() }
+                    versions = sorted.map { it.toResponse(accessService) }
                 )
             }
             .sortedBy { it.name.lowercase() }
@@ -142,7 +142,7 @@ class ModelsController(
         modelsRepository.findById(id)
             .map {
                 accessService.requireCanViewModel(it)
-                it.toResponse()
+                it.toResponse(accessService)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
@@ -166,7 +166,7 @@ class ModelsController(
         }
         return filtered
             .sortedWith(compareModelsByVersionDesc)
-            .map { it.toResponse() }
+            .map { it.toResponse(accessService) }
     }
 
     private val compareModelsByVersionDesc = VersionUtils.semverDescComparator<Models> { it.version }
@@ -211,7 +211,7 @@ class ModelsController(
         )
         val attrsWithRoot = mergeModelAttrsWithRootNodeId(saved.attrs, requireNotNull(rootNode.id))
         val updatedModel = modelsRepository.save(saved.copy(attrs = attrsWithRoot))
-        return updatedModel.toResponse()
+        return updatedModel.toResponse(accessService)
     }
 
     @PutMapping("/{id}")
@@ -249,7 +249,7 @@ class ModelsController(
             "model_update",
             listOf(ModelSyncEntityEvent("model_updated", "model", id))
         )
-        return updated.toResponse()
+        return updated.toResponse(accessService)
     }
 
     @DeleteMapping("/{id}")
@@ -410,7 +410,7 @@ class ModelsController(
             )
         }
 
-        return modelsRepository.findById(newModel.id!!).orElseThrow { IllegalStateException("New model not found") }.toResponse()
+        return modelsRepository.findById(newModel.id!!).orElseThrow { IllegalStateException("New model not found") }.toResponse(accessService)
     }
 
     private fun remapDiagramAttrs(
@@ -458,18 +458,6 @@ class ModelsController(
         ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
             modelsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
         }
-
-    private fun Models.toResponse() = ModelResponse(
-        id = requireNotNull(id),
-        name = name,
-        version = version,
-        ownerId = owner.id!!,
-        accessPermission = accessService.modelAccessPermission(this),
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt,
-        sourceId = source?.id
-    )
 
     private fun getOrCreateSystemRootNodeType(
         owner: ru.kavader.arepos.model.Users,

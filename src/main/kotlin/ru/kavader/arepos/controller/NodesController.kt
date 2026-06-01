@@ -54,7 +54,7 @@ class NodesController(
                 name = name?.trim()?.takeIf { it.isNotEmpty() },
                 currentUserId = currentUserId,
                 pageable = pageable
-            ).map { it.toResponse() }
+            ).map { it.toResponse(accessService) }
         }
 
         val nodes = when {
@@ -81,7 +81,7 @@ class NodesController(
                 nodesRepository.findAll(pageable)
             }
         }
-        return nodes.map { it.toResponse() }
+        return nodes.map { it.toResponse(accessService) }
     }
 
     @GetMapping("/{id}")
@@ -89,7 +89,7 @@ class NodesController(
         nodesRepository.findById(id)
             .map {
                 accessService.requireCanViewNode(it)
-                it.toResponse()
+                it.toResponse(accessService)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found")
@@ -144,7 +144,7 @@ class NodesController(
             "node_create",
             listOf(ModelSyncEntityEvent("node_created", "node", requireNotNull(saved.id)))
         )
-        return saved.toResponse()
+        return saved.toResponse(accessService)
     }
 
     @PutMapping("/{id}")
@@ -212,7 +212,7 @@ class NodesController(
             "node_update",
             listOf(ModelSyncEntityEvent("node_updated", "node", requireNotNull(updated.id)))
         )
-        return updated.toResponse()
+        return updated.toResponse(accessService)
     }
 
     @DeleteMapping("/{id}")
@@ -240,19 +240,6 @@ class NodesController(
             listOf(ModelSyncEntityEvent("node_deleted", "node", id))
         )
     }
-
-    private fun Nodes.toResponse() = NodeResponse(
-        id = requireNotNull(id),
-        stableId = stableId,
-        name = name,
-        modelId = model.id!!,
-        ownerId = owner.id!!,
-        nodeTypeId = nodeType.id!!,
-        parentNodeId = parentNode?.id,
-        attrs = attrs,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
 
     private fun requireCanUseNodeTypeForModel(
         nodeType: ru.kavader.arepos.model.NodeTypes,
