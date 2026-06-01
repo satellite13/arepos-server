@@ -16,22 +16,22 @@ data class LinkTypes(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    var id: UUID? = null,
+    val id: UUID? = null,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: Instant? = null,
+    val createdAt: Instant? = null,
 
     @Column(name = "updated_at")
-    var updatedAt: Instant? = null,
+    val updatedAt: Instant? = null,
 
     @Column(name = "name", nullable = false, unique = true)
-    var name: String,
+    val name: String,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
-    var attrs: String? = null,
+    val attrs: String? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner", nullable = false)
-    var owner: Users
+    val owner: Users
 )

@@ -12,26 +12,26 @@ data class DiagramPreviewLinks(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    var id: UUID? = null,
+    val id: UUID? = null,
 
     @Column(name = "token", columnDefinition = "uuid", nullable = false, unique = true)
-    var token: UUID,
+    val token: UUID,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "diagram_id")
-    var diagram: Diagrams? = null,
+    val diagram: Diagrams? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "model_id")
-    var model: Models? = null,
+    val model: Models? = null,
 
     @Column(name = "diagram_name")
-    var diagramName: String? = null,
+    val diagramName: String? = null,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: Instant? = null,
+    val createdAt: Instant? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
-    var createdBy: Users? = null
+    val createdBy: Users? = null
 )

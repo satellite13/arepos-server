@@ -9,24 +9,24 @@ import java.util.UUID
 data class Files(
     @Id
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    var id: UUID,
+    val id: UUID,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)
-    var owner: Users,
+    val owner: Users,
 
     @Column(name = "filename", nullable = false)
-    var filename: String,
+    val filename: String,
 
     @Column(name = "content_type", nullable = false)
-    var contentType: String,
+    val contentType: String,
 
     @Column(name = "size", nullable = false)
-    var size: Long,
+    val size: Long,
 
     @Column(name = "object_key", nullable = false)
-    var objectKey: String,
+    val objectKey: String,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: Instant? = null
+    val createdAt: Instant? = null
 )

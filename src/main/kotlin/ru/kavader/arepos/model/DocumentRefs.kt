@@ -25,52 +25,52 @@ data class DocumentRefs(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    var id: UUID? = null,
+    val id: UUID? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "file_id", nullable = false)
-    var file: Files,
+    val file: Files,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
-    var createdBy: Users,
+    val createdBy: Users,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: Instant? = null,
+    val createdAt: Instant? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "node_type_id")
-    var nodeType: NodeTypes? = null,
+    val nodeType: NodeTypes? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "link_type_id")
-    var linkType: LinkTypes? = null,
+    val linkType: LinkTypes? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "notation_id")
-    var notation: Notations? = null,
+    val notation: Notations? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "component_id")
-    var component: Components? = null,
+    val component: Components? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "model_id")
-    var model: Models? = null,
+    val model: Models? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "node_id")
-    var node: Nodes? = null,
+    val node: Nodes? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "diagram_id")
-    var diagram: Diagrams? = null,
+    val diagram: Diagrams? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "relation_id")
-    var relation: Relations? = null,
+    val relation: Relations? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "node_shape_id")
-    var nodeShape: NodeShapes? = null,
+    val nodeShape: NodeShapes? = null,
 )

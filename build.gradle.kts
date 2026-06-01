@@ -12,6 +12,13 @@ group = "ru.kvader"
 version = "0.4.4"
 
 val mockitoAgent = configurations.create("mockitoAgent")
+val reflectiveAccessOpens = listOf(
+    "--enable-final-field-mutation=ALL-UNNAMED",
+    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+    "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+    "--add-opens=java.base/java.util=ALL-UNNAMED",
+    "--add-opens=java.base/java.time=ALL-UNNAMED"
+)
 
 java {
     sourceCompatibility = JavaVersion.VERSION_24
@@ -79,6 +86,10 @@ tasks {
             "-XX:+EnableDynamicAgentLoading",
             "-javaagent:${agentFile.absolutePath}"
         )
+        jvmArgs(reflectiveAccessOpens)
+    }
+    withType<JavaExec>().configureEach {
+        jvmArgs(reflectiveAccessOpens)
     }
 }
 

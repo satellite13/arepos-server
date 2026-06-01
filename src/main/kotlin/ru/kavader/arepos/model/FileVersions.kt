@@ -10,25 +10,25 @@ data class FileVersions(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    var id: UUID? = null,
+    val id: UUID? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "file_id", nullable = false)
-    var file: Files,
+    val file: Files,
 
     @Column(name = "version_id", nullable = false)
-    var versionId: String,
+    val versionId: String,
 
     @Column(name = "version_number", nullable = false)
-    var versionNumber: Int,
+    val versionNumber: Int,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: Instant? = null,
+    val createdAt: Instant? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
-    var createdBy: Users,
+    val createdBy: Users,
 
     @Column(name = "size", nullable = false)
-    var size: Long
+    val size: Long
 )

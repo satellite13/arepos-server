@@ -49,30 +49,30 @@ data class ResourceShares(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    var id: UUID? = null,
+    val id: UUID? = null,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "resource_type", nullable = false)
-    var resourceType: ShareResourceType,
+    val resourceType: ShareResourceType,
 
     @Column(name = "resource_id", columnDefinition = "uuid", nullable = false)
-    var resourceId: UUID,
+    val resourceId: UUID,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "grantee_user_id", nullable = true)
-    var granteeUser: Users?,
+    val granteeUser: Users?,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "granted_by_user_id", nullable = false)
-    var grantedByUser: Users,
+    val grantedByUser: Users,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "permission", nullable = false)
-    var permission: SharePermission = SharePermission.EDIT,
+    val permission: SharePermission = SharePermission.EDIT,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: Instant? = null,
+    val createdAt: Instant? = null,
 
     @Column(name = "updated_at")
-    var updatedAt: Instant? = null
+    val updatedAt: Instant? = null
 )

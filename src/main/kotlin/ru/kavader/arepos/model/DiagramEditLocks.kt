@@ -12,11 +12,11 @@ class DiagramEditLocks(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    var id: UUID? = null,
+    val id: UUID? = null,
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "diagram_id", nullable = false, unique = true)
-    var diagram: Diagrams,
+    val diagram: Diagrams,
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "locked_by_user_id", nullable = false)

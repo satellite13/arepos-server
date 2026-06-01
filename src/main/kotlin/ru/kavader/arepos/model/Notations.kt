@@ -16,32 +16,32 @@ data class Notations(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    var id: UUID? = null,
+    val id: UUID? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner", nullable = false)
-    var owner: Users,
+    val owner: Users,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
-    var attrs: String? = null,
+    val attrs: String? = null,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: Instant? = null,
+    val createdAt: Instant? = null,
 
     @Column(name = "updated_at")
-    var updatedAt: Instant? = null,
+    val updatedAt: Instant? = null,
 
     @Column(name = "name", nullable = false)
-    var name: String,
+    val name: String,
 
     @Column(name = "version", nullable = false, columnDefinition = "version_type")
-    var version: String,
+    val version: String,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_id")
-    var source: Notations? = null,
+    val source: Notations? = null,
 
     @Column(name = "deleted", nullable = false)
-    var deleted: Boolean = false
+    val deleted: Boolean = false
 )

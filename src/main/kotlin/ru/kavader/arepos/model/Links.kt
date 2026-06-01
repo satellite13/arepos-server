@@ -16,38 +16,38 @@ data class Links(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    var id: UUID? = null,
+    val id: UUID? = null,
 
     @Column(name = "stable_id", columnDefinition = "uuid", nullable = false)
-    var stableId: UUID,
+    val stableId: UUID,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source", nullable = false)
-    var source: Nodes,
+    val source: Nodes,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "target", nullable = false)
-    var target: Nodes,
+    val target: Nodes,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
-    var attrs: String? = null,
+    val attrs: String? = null,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: Instant? = null,
+    val createdAt: Instant? = null,
 
     @Column(name = "updated_at")
-    var updatedAt: Instant? = null,
+    val updatedAt: Instant? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner", nullable = false)
-    var owner: Users,
+    val owner: Users,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "link_type", nullable = false)
-    var linkType: LinkTypes,
+    val linkType: LinkTypes,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "model", nullable = false)
-    var model: Models
+    val model: Models
 )
