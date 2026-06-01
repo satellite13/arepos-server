@@ -1,6 +1,7 @@
 package ru.kavader.arepos.dto.model
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import ru.kavader.arepos.util.BatchDeleteListDeserializer
 import java.time.Instant
 import java.util.UUID
 

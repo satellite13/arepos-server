@@ -1,10 +1,11 @@
-package ru.kavader.arepos.dto.model
+package ru.kavader.arepos.util
 
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.JsonNode
+import ru.kavader.arepos.dto.model.BatchDeleteEntry
 import java.time.Instant
 import java.util.UUID
 
