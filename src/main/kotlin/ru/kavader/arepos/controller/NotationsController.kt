@@ -140,7 +140,7 @@ class NotationsController(
                         ResponseStatusException(HttpStatus.NOT_FOUND, "Model $modelId not found")
                     }
                     accessService.requireCanViewModel(model)
-                    if (!accessService.canReferenceNotationForModelDiagram(it, model)) {
+                    if (!accessService.canUseNotationInModelDiagramEditor(it, model)) {
                         throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
                     }
                 } else {
@@ -173,7 +173,7 @@ class NotationsController(
                         ResponseStatusException(HttpStatus.NOT_FOUND, "Model $mid not found")
                     }
                     accessService.requireCanViewModel(model)
-                    accessService.canReferenceNotationForModelDiagram(notation, model)
+                    accessService.canUseNotationInModelDiagramEditor(notation, model)
                 } ?: false
 
                 if (!canViewDirectly && !hasVisibleDiagramWithNotation && !viaModelEditor) {

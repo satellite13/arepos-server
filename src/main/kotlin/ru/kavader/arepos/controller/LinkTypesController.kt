@@ -75,7 +75,7 @@ class LinkTypesController(
                 }
                 val allowed = when (val m = resolvedModel) {
                     null -> accessService.canViewNotation(notation)
-                    else -> accessService.canReferenceNotationForModelDiagram(notation, m)
+                    else -> accessService.canUseNotationInModelDiagramEditor(notation, m)
                 }
                 if (!allowed) {
                     return@forEach

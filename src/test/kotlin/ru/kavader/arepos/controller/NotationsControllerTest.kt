@@ -13,9 +13,13 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.model.ResourceShares
+import ru.kavader.arepos.model.Diagrams
+import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.ShareResourceType
+import ru.kavader.arepos.repository.DiagramsRepository
+import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.ResourceSharesRepository
 import ru.kavader.arepos.repository.UsersRepository
@@ -40,6 +44,12 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var resourceSharesRepository: ResourceSharesRepository
+
+    @Autowired
+    lateinit var modelsRepository: ModelsRepository
+
+    @Autowired
+    lateinit var diagramsRepository: DiagramsRepository
 
     @Test
     fun `creates notation via REST`() {
@@ -177,6 +187,140 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             get("/api/v1/notations/${foreignNotation.id}")
                 .withAuth(userA.id!!, Role.USER)
+        )
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `user with model edit access can read foreign notation only when used in model diagrams`() {
+        val now = Instant.now()
+        val notationOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "notation-owner-usage@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val modelOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "model-owner-usage@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val editor = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "model-editor-usage@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val usedNotation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "shared-by-model-usage",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "model-usage",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "diagram-usage",
+                version = "1.0.0",
+                owner = modelOwner,
+                model = model,
+                notation = usedNotation,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = editor,
+                grantedByUser = modelOwner,
+                permission = SharePermission.EDIT,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/notations/${usedNotation.id}?modelId=${model.id}")
+                .withAuth(editor.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.id").value(usedNotation.id.toString()))
+    }
+
+    @Test
+    fun `user with model edit access cannot read unrelated foreign notation`() {
+        val now = Instant.now()
+        val notationOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "notation-owner-unrelated@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val modelOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "model-owner-unrelated@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val editor = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "model-editor-unrelated@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val unrelatedNotation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "foreign-unrelated-notation",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "model-unrelated",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = editor,
+                grantedByUser = modelOwner,
+                permission = SharePermission.EDIT,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/notations/${unrelatedNotation.id}?modelId=${model.id}")
+                .withAuth(editor.id!!, Role.USER)
         )
             .andExpect(status().isForbidden)
     }

@@ -12,8 +12,19 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.Components
+import ru.kavader.arepos.model.Diagrams
+import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Role
+import ru.kavader.arepos.model.ResourceShares
+import ru.kavader.arepos.model.SharePermission
+import ru.kavader.arepos.model.ShareResourceType
+import ru.kavader.arepos.repository.ComponentsRepository
+import ru.kavader.arepos.repository.DiagramsRepository
+import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
+import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.repository.ResourceSharesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import kotlin.test.assertEquals
@@ -33,6 +44,21 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var nodeTypesRepository: NodeTypesRepository
+
+    @Autowired
+    lateinit var notationsRepository: NotationsRepository
+
+    @Autowired
+    lateinit var modelsRepository: ModelsRepository
+
+    @Autowired
+    lateinit var diagramsRepository: DiagramsRepository
+
+    @Autowired
+    lateinit var componentsRepository: ComponentsRepository
+
+    @Autowired
+    lateinit var resourceSharesRepository: ResourceSharesRepository
 
     @Test
     fun `creates node type via REST`() {
@@ -227,5 +253,177 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.name").value("Directory"))
+    }
+
+    @Test
+    fun `list node types allows notation filter for editable model when notation used by diagram`() {
+        val now = Instant.now()
+        val notationOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-notation-owner@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val modelOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-model-owner@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val editor = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-model-editor@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val notation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "node-notation-used",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "node-model-used",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val nodeType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "node-type-from-notation",
+                owner = notationOwner,
+                createdAt = now
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "node-diagram-used",
+                version = "1.0.0",
+                owner = modelOwner,
+                model = model,
+                notation = notation,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        componentsRepository.save(
+            Components(
+                name = "node-component",
+                version = "1.0.0",
+                owner = notationOwner,
+                notation = notation,
+                nodeType = nodeType,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = editor,
+                grantedByUser = modelOwner,
+                permission = SharePermission.EDIT,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/node-types?notationId=${notation.id}&modelId=${model.id}&page=0&size=10")
+                .withAuth(editor.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(nodeType.id.toString()))
+    }
+
+    @Test
+    fun `list node types denies unrelated notation even with model edit access`() {
+        val now = Instant.now()
+        val notationOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-notation-owner-unrelated@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val modelOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-model-owner-unrelated@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val editor = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-model-editor-unrelated@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val notation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "node-notation-unrelated",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "node-model-unrelated",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val nodeType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "node-type-unrelated",
+                owner = notationOwner,
+                createdAt = now
+            )
+        )
+        componentsRepository.save(
+            Components(
+                name = "node-component-unrelated",
+                version = "1.0.0",
+                owner = notationOwner,
+                notation = notation,
+                nodeType = nodeType,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = editor,
+                grantedByUser = modelOwner,
+                permission = SharePermission.EDIT,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/node-types?notationId=${notation.id}&modelId=${model.id}&page=0&size=10")
+                .withAuth(editor.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content.length()").value(0))
     }
 }

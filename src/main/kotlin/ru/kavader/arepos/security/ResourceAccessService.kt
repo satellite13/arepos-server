@@ -248,6 +248,20 @@ class ResourceAccessService(
     }
 
     /**
+     * Чтение нотации в режиме редактора модели:
+     * - прямой доступ к нотации по ACL, либо
+     * - право редактировать модель и нотация реально используется активной диаграммой этой модели.
+     */
+    fun canUseNotationInModelDiagramEditor(notation: Notations, model: Models): Boolean {
+        if (canViewNotation(notation)) {
+            return true
+        }
+        val notationId = notation.id ?: return false
+        val modelId = model.id ?: return false
+        return canEditModel(model) && diagramsRepository.existsByModel_IdAndNotation_IdAndDeletedFalse(modelId, notationId)
+    }
+
+    /**
      * Создание/обновление диаграммы в модели: нотация видна по ACL нотации
      * или пользователь может редактировать модель (редактор модели без шаринга нотации).
      */

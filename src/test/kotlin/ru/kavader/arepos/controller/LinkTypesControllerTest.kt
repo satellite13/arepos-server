@@ -12,8 +12,19 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.Diagrams
+import ru.kavader.arepos.model.Models
+import ru.kavader.arepos.model.Relations
 import ru.kavader.arepos.model.Role
+import ru.kavader.arepos.model.ResourceShares
+import ru.kavader.arepos.model.SharePermission
+import ru.kavader.arepos.model.ShareResourceType
+import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.LinkTypesRepository
+import ru.kavader.arepos.repository.ModelsRepository
+import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.repository.RelationsRepository
+import ru.kavader.arepos.repository.ResourceSharesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import kotlin.test.assertEquals
@@ -33,6 +44,21 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var linkTypesRepository: LinkTypesRepository
+
+    @Autowired
+    lateinit var notationsRepository: NotationsRepository
+
+    @Autowired
+    lateinit var modelsRepository: ModelsRepository
+
+    @Autowired
+    lateinit var diagramsRepository: DiagramsRepository
+
+    @Autowired
+    lateinit var relationsRepository: RelationsRepository
+
+    @Autowired
+    lateinit var resourceSharesRepository: ResourceSharesRepository
 
     @Test
     fun `creates link type via REST`() {
@@ -193,5 +219,177 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.ownerId").value(userA.id.toString()))
+    }
+
+    @Test
+    fun `list link types allows notation filter for editable model when notation used by diagram`() {
+        val now = Instant.now()
+        val notationOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "link-notation-owner@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val modelOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "link-model-owner@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val editor = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "link-model-editor@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val notation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "link-notation-used",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "link-model-used",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val linkType = linkTypesRepository.save(
+            ru.kavader.arepos.model.LinkTypes(
+                name = "link-type-from-notation",
+                owner = notationOwner,
+                createdAt = now
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "link-diagram-used",
+                version = "1.0.0",
+                owner = modelOwner,
+                model = model,
+                notation = notation,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        relationsRepository.save(
+            Relations(
+                name = "link-relation",
+                version = "1.0.0",
+                owner = notationOwner,
+                notation = notation,
+                linkType = linkType,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = editor,
+                grantedByUser = modelOwner,
+                permission = SharePermission.EDIT,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/link-types?notationId=${notation.id}&modelId=${model.id}&page=0&size=10")
+                .withAuth(editor.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(linkType.id.toString()))
+    }
+
+    @Test
+    fun `list link types denies unrelated notation even with model edit access`() {
+        val now = Instant.now()
+        val notationOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "link-notation-owner-unrelated@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val modelOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "link-model-owner-unrelated@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val editor = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "link-model-editor-unrelated@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val notation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "link-notation-unrelated",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "link-model-unrelated",
+                version = "1.0.0",
+                owner = modelOwner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val linkType = linkTypesRepository.save(
+            ru.kavader.arepos.model.LinkTypes(
+                name = "link-type-unrelated",
+                owner = notationOwner,
+                createdAt = now
+            )
+        )
+        relationsRepository.save(
+            Relations(
+                name = "link-relation-unrelated",
+                version = "1.0.0",
+                owner = notationOwner,
+                notation = notation,
+                linkType = linkType,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = editor,
+                grantedByUser = modelOwner,
+                permission = SharePermission.EDIT,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/link-types?notationId=${notation.id}&modelId=${model.id}&page=0&size=10")
+                .withAuth(editor.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content.length()").value(0))
     }
 }
