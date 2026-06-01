@@ -230,4 +230,121 @@ class NodesControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isBadRequest)
     }
+
+    @Test
+    fun `non-admin create node ignores provided ownerId and uses current user`() {
+        val actor = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-user-${UUID.randomUUID()}@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val foreignOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-foreign-${UUID.randomUUID()}@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val actorModel = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "model-user-${UUID.randomUUID()}",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = actor
+            )
+        )
+        val actorNodeType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "node-type-user-${UUID.randomUUID()}",
+                createdAt = Instant.now(),
+                owner = actor
+            )
+        )
+        val payload = NodeRequest(
+            name = "Node-User",
+            modelId = actorModel.id!!,
+            ownerId = foreignOwner.id!!,
+            nodeTypeId = actorNodeType.id!!,
+            attrs = """{"x":1}"""
+        )
+
+        val mvcResult = mockMvc.perform(
+            post("/api/v1/nodes")
+                .withAuth(actor.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.ownerId").value(actor.id.toString()))
+            .andReturn()
+
+        val createdId = UUID.fromString(objectMapper.readTree(mvcResult.response.contentAsString).path("id").asText())
+        val createdNode = nodesRepository.findById(createdId).orElseThrow()
+        assertEquals(actor.id, createdNode.owner.id)
+    }
+
+    @Test
+    fun `admin update node can reassign owner`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-admin-${UUID.randomUUID()}@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val newOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "node-new-owner-${UUID.randomUUID()}@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val adminModel = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "model-admin-${UUID.randomUUID()}",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = admin
+            )
+        )
+        val adminNodeType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "node-type-admin-${UUID.randomUUID()}",
+                createdAt = Instant.now(),
+                owner = admin
+            )
+        )
+        val node = nodesRepository.save(
+            ru.kavader.arepos.model.Nodes(
+                stableId = UUID.randomUUID(),
+                name = "Owned by admin",
+                model = adminModel,
+                owner = admin,
+                nodeType = adminNodeType,
+                createdAt = Instant.now()
+            )
+        )
+        val payload = NodeUpdateRequest(
+            name = "Reassigned node",
+            modelId = adminModel.id!!,
+            ownerId = newOwner.id!!,
+            nodeTypeId = adminNodeType.id!!,
+            parentNodeId = null,
+            attrs = node.attrs
+        )
+
+        mockMvc.perform(
+            put("/api/v1/nodes/${node.id}")
+                .withAuth(admin.id!!, Role.ADMIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.ownerId").value(newOwner.id.toString()))
+
+        val reloaded = nodesRepository.findById(node.id!!).orElseThrow()
+        assertEquals(newOwner.id, reloaded.owner.id)
+    }
 }
