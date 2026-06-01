@@ -6,8 +6,8 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.messaging.simp.SimpMessagingTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import ru.kavader.arepos.dto.DiagramSpectatorView
-import ru.kavader.arepos.dto.ModelSyncEntityEvent
+import ru.kavader.arepos.dto.model.DiagramSpectatorView
+import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.model.ModelSyncOutbox
 import ru.kavader.arepos.repository.ModelSyncOutboxRepository
 import ru.kavader.arepos.repository.ModelsRepository

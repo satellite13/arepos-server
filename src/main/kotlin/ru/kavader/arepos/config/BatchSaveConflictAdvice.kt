@@ -4,8 +4,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
-import ru.kavader.arepos.dto.BatchSaveConflictBody
-import ru.kavader.arepos.dto.BatchSaveConflictException
+import ru.kavader.arepos.dto.model.BatchSaveConflictBody
+import ru.kavader.arepos.dto.model.BatchSaveConflictException
 
 @RestControllerAdvice
 class BatchSaveConflictAdvice {

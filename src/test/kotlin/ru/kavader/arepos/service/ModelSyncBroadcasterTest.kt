@@ -13,7 +13,7 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.invocation.InvocationOnMock
 import org.springframework.messaging.simp.SimpMessagingTemplate
-import ru.kavader.arepos.dto.ModelSyncEntityEvent
+import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.model.ModelSyncOutbox
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Users

@@ -1,5 +1,6 @@
 package ru.kavader.arepos.controller
 
+import ru.kavader.arepos.dto.file.*
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
@@ -14,25 +15,6 @@ import ru.kavader.arepos.service.DocumentRefsService
 import ru.kavader.arepos.service.FileStorageService
 import java.util.*
 
-data class FileUploadResponse(
-    val id: UUID,
-    val url: String,
-    val filename: String,
-    val contentType: String,
-    val size: Long
-)
-
-data class FileVersionResponse(
-    val versionNumber: Int,
-    val createdAt: java.time.Instant,
-    val createdBy: UUID,
-    val size: Long
-)
-
-data class UploadMarkdownRequest(
-    val content: String,
-    val filename: String = "documentation.md"
-)
 
 @RestController
 @RequestMapping("/api/v1/files")

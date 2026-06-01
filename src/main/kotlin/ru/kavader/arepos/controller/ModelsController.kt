@@ -8,7 +8,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.dto.ModelSyncEntityEvent
+import ru.kavader.arepos.dto.model.*
+import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.model.Models
@@ -500,31 +501,3 @@ class ModelsController(
     }
 }
 
-data class ModelRequest(
-    @field:NotBlank val name: String,
-    @field:NotBlank val version: String,
-    val ownerId: UUID? = null,
-    val attrs: String? = null
-)
-
-data class ModelUpdateRequest(
-    val name: String? = null,
-    val version: String? = null,
-    val ownerId: UUID? = null,
-    val attrs: String? = null
-)
-
-data class ModelResponse(
-    val id: UUID,
-    val name: String,
-    val version: String,
-    val ownerId: UUID,
-    val accessPermission: String? = null,
-    val attrs: String?,
-    val createdAt: Instant?,
-    val updatedAt: Instant?,
-    val sourceId: UUID? = null
-)
-
-data class GroupedEntityResponse<T>(val groups: List<EntityGroupResponse<T>>)
-data class EntityGroupResponse<T>(val name: String, val versions: List<T>)

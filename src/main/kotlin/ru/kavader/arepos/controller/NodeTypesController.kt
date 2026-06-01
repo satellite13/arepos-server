@@ -1,5 +1,6 @@
 package ru.kavader.arepos.controller
 
+import ru.kavader.arepos.dto.notation.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -204,25 +205,3 @@ class NodeTypesController(
     )
 
 }
-
-data class NodeTypeRequest(
-    val name: String,
-    val ownerId: UUID? = null,
-    val attrs: String? = null
-)
-
-data class NodeTypeUpdateRequest(
-    val name: String? = null,
-    val ownerId: UUID? = null,
-    val attrs: String? = null
-)
-
-data class NodeTypeResponse(
-    val id: UUID,
-    val name: String,
-    val ownerId: UUID,
-    val accessPermission: String? = null,
-    val attrs: String?,
-    val createdAt: Instant?,
-    val updatedAt: Instant?
-)

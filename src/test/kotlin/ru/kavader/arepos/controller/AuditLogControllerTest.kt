@@ -1,4 +1,6 @@
 package ru.kavader.arepos.controller
+import ru.kavader.arepos.dto.auth.*
+import ru.kavader.arepos.dto.system.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.hamcrest.Matchers.greaterThan

@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import ru.kavader.arepos.dto.DiagramLockStatusResponse
-import ru.kavader.arepos.dto.DiagramPointerRequest
+import ru.kavader.arepos.dto.model.DiagramLockStatusResponse
+import ru.kavader.arepos.dto.model.DiagramPointerRequest
 import ru.kavader.arepos.service.DiagramCollaborationService
 import ru.kavader.arepos.service.DiagramEditLockConflictException
 import ru.kavader.arepos.service.DiagramEditLockService

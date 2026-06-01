@@ -1,4 +1,5 @@
 package ru.kavader.arepos.controller
+import ru.kavader.arepos.dto.auth.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test

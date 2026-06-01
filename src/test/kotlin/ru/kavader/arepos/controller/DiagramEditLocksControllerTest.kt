@@ -1,4 +1,5 @@
 package ru.kavader.arepos.controller
+import ru.kavader.arepos.dto.model.*
 
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper

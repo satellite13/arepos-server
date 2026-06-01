@@ -6,7 +6,8 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.dto.ModelSyncEntityEvent
+import ru.kavader.arepos.dto.model.*
+import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.LinksRepository
@@ -295,34 +296,3 @@ class LinksController(
         typeValidator.isLinkTypeUsedInModelDiagramNotations(linkTypeId, requireNotNull(model.id))
 }
 
-data class LinkRequest(
-    val sourceId: UUID,
-    val targetId: UUID,
-    val modelId: UUID,
-    val ownerId: UUID? = null,
-    val linkTypeId: UUID,
-    val attrs: String? = null,
-    val stableId: UUID? = null
-)
-
-data class LinkUpdateRequest(
-    val sourceId: UUID? = null,
-    val targetId: UUID? = null,
-    val modelId: UUID? = null,
-    val ownerId: UUID? = null,
-    val linkTypeId: UUID? = null,
-    val attrs: String? = null
-)
-
-data class LinkResponse(
-    val id: UUID,
-    val stableId: UUID,
-    val sourceId: UUID,
-    val targetId: UUID,
-    val modelId: UUID,
-    val ownerId: UUID,
-    val linkTypeId: UUID,
-    val attrs: String?,
-    val createdAt: Instant?,
-    val updatedAt: Instant?
-)

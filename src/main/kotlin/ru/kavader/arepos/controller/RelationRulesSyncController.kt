@@ -1,5 +1,6 @@
 package ru.kavader.arepos.controller
 
+import ru.kavader.arepos.dto.system.*
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
@@ -128,18 +129,3 @@ class RelationRulesSyncController(
     }
 }
 
-data class RelationRulesSyncRequest(
-    val rules: List<RelationRuleSyncItem>
-)
-
-data class RelationRuleSyncItem(
-    val fromComponentId: UUID,
-    val toComponentId: UUID,
-    val allowedRelationIds: List<UUID>
-)
-
-data class RelationRulesSyncResponse(
-    val created: Int,
-    val deleted: Int,
-    val total: Int
-)

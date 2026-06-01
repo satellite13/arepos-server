@@ -9,7 +9,8 @@ import org.springframework.http.ResponseEntity
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.dto.ModelSyncEntityEvent
+import ru.kavader.arepos.dto.model.*
+import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.model.DiagramPreviewLinks
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Models
@@ -476,47 +477,3 @@ class DiagramsController(
     )
 }
 
-data class DiagramRequest(
-    @field:NotBlank val name: String,
-    @field:NotBlank val version: String,
-    val ownerId: UUID? = null,
-    @field:NotNull val modelId: UUID,
-    val nodeId: UUID? = null,
-    val notationId: UUID,
-    val attrs: String? = null
-)
-
-data class DiagramUpdateRequest(
-    val name: String? = null,
-    val version: String? = null,
-    val ownerId: UUID? = null,
-    val modelId: UUID? = null,
-    val nodeId: UUID? = null,
-    val notationId: UUID? = null,
-    val attrs: String? = null
-)
-
-data class DiagramResponse(
-    val id: UUID,
-    val name: String,
-    val version: String,
-    val ownerId: UUID,
-    val modelId: UUID,
-    val nodeId: UUID?,
-    val notationId: UUID,
-    val attrs: String?,
-    val createdAt: Instant?,
-    val updatedAt: Instant?
-)
-
-data class DiagramShareLinkRequest(
-    val diagramId: UUID? = null,
-    val modelId: UUID? = null,
-    val diagramName: String? = null,
-    val latest: Boolean? = null
-)
-
-data class DiagramShareLinkResponse(
-    val url: String,
-    val token: UUID
-)

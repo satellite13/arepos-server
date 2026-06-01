@@ -1,4 +1,4 @@
-package ru.kavader.arepos.dto
+package ru.kavader.arepos.dto.model
 
 import java.time.Instant
 import java.util.UUID

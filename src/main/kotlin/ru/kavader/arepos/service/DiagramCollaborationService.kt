@@ -6,8 +6,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.dto.DiagramPointerRequest
-import ru.kavader.arepos.dto.DiagramSpectatorView
+import ru.kavader.arepos.dto.model.DiagramPointerRequest
+import ru.kavader.arepos.dto.model.DiagramSpectatorView
 import ru.kavader.arepos.model.DiagramEditLocks
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.repository.DiagramEditLocksRepository

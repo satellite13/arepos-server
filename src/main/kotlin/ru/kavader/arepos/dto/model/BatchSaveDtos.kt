@@ -1,4 +1,4 @@
-package ru.kavader.arepos.dto
+package ru.kavader.arepos.dto.model
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import java.time.Instant

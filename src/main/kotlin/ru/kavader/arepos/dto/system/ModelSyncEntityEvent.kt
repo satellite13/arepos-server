@@ -1,4 +1,4 @@
-package ru.kavader.arepos.dto
+package ru.kavader.arepos.dto.system
 
 import java.util.UUID
 

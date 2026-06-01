@@ -10,7 +10,9 @@ import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.metrics.CustomMetricsService
+import ru.kavader.arepos.dto.auth.*
 import ru.kavader.arepos.security.JwtTokenProvider
+import ru.kavader.arepos.service.UserProfileAttrsService
 import java.time.Instant
 import java.util.*
 
@@ -168,49 +170,3 @@ class AuthController(
     }
 }
 
-data class RegisterRequest(
-    val email: String,
-    val password: String,
-    val firstName: String,
-    val lastName: String,
-    val middleName: String? = null,
-    val position: String? = null
-)
-
-data class LoginRequest(
-    val email: String,
-    val password: String
-)
-
-data class RefreshRequest(
-    val refreshToken: String
-)
-
-data class AdminRegisterRequest(
-    val email: String,
-    val password: String,
-    val firstName: String,
-    val lastName: String,
-    val middleName: String? = null,
-    val position: String? = null,
-    val adminSecret: String
-)
-
-data class AuthResponse(
-    val accessToken: String,
-    val refreshToken: String,
-    val user: UserInfoResponse
-)
-
-data class UserInfoResponse(
-    val id: UUID,
-    val email: String,
-    val role: String,
-    val firstName: String?,
-    val lastName: String?,
-    val middleName: String?,
-    val position: String?,
-    val attrs: String?,
-    val createdAt: Instant?,
-    val updatedAt: Instant?
-)

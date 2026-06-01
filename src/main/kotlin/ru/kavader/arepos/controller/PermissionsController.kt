@@ -1,5 +1,6 @@
 package ru.kavader.arepos.controller
 
+import ru.kavader.arepos.dto.access.*
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -16,35 +17,6 @@ import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import java.util.UUID
 
-enum class PermissionResourceType {
-    MODEL,
-    NOTATION,
-    DIAGRAM,
-    NODE_TYPE,
-    LINK_TYPE,
-    NODE_SHAPE,
-    FILE,
-    SHARE,
-    ADMIN_PANEL
-}
-
-enum class PermissionAction {
-    VIEW,
-    EDIT,
-    MANAGE
-}
-
-data class PermissionCheckRequest(
-    val resourceType: PermissionResourceType? = null,
-    val resourceId: UUID? = null,
-    val actions: List<PermissionAction> = listOf(PermissionAction.VIEW)
-)
-
-data class PermissionCheckResponse(
-    val resourceType: PermissionResourceType,
-    val resourceId: UUID,
-    val decisions: Map<String, Boolean>
-)
 
 @RestController
 @RequestMapping("/api/v1/permissions")

@@ -1,5 +1,6 @@
 package ru.kavader.arepos.controller
 
+import ru.kavader.arepos.dto.access.*
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -169,21 +170,3 @@ class AccessSharesController(
         updatedAt = updatedAt
     )
 }
-
-data class AccessShareRequest(
-    val resourceType: ShareResourceType? = null,
-    val resourceId: UUID? = null,
-    val granteeUserId: UUID? = null,
-    val permission: SharePermission? = null
-)
-
-data class AccessShareResponse(
-    val id: UUID,
-    val resourceType: ShareResourceType,
-    val resourceId: UUID,
-    val granteeUserId: UUID?,
-    val grantedByUserId: UUID,
-    val permission: String,
-    val createdAt: Instant?,
-    val updatedAt: Instant?
-)

@@ -1,5 +1,6 @@
 package ru.kavader.arepos.controller
 
+import ru.kavader.arepos.dto.system.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -115,15 +116,4 @@ class AuditLogController(
         changedAt = changedAt
     )
 }
-
-data class AuditLogResponse(
-    val id: UUID,
-    val tableName: String,
-    val operation: String,
-    val rowId: UUID,
-    val oldValues: String?,
-    val newValues: String?,
-    val changedById: UUID?,
-    val changedAt: java.time.Instant?
-)
 

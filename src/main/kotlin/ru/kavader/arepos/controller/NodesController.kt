@@ -6,7 +6,8 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.dto.ModelSyncEntityEvent
+import ru.kavader.arepos.dto.model.*
+import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
@@ -284,34 +285,3 @@ class NodesController(
 
 }
 
-data class NodeRequest(
-    @field:NotBlank val name: String,
-    @field:NotNull val modelId: UUID,
-    val ownerId: UUID? = null,
-    @field:NotNull val nodeTypeId: UUID,
-    val parentNodeId: UUID? = null,
-    val attrs: String? = null,
-    val stableId: UUID? = null
-)
-
-data class NodeUpdateRequest(
-    val name: String? = null,
-    val modelId: UUID? = null,
-    val ownerId: UUID? = null,
-    val nodeTypeId: UUID? = null,
-    val parentNodeId: UUID? = null,
-    val attrs: String? = null
-)
-
-data class NodeResponse(
-    val id: UUID,
-    val stableId: UUID,
-    val name: String,
-    val modelId: UUID,
-    val ownerId: UUID,
-    val nodeTypeId: UUID,
-    val parentNodeId: UUID?,
-    val attrs: String?,
-    val createdAt: Instant?,
-    val updatedAt: Instant?
-)

@@ -1,29 +1,17 @@
-package ru.kavader.arepos.controller
+package ru.kavader.arepos.service
 
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.http.HttpStatus
+import ru.kavader.arepos.dto.user.UserProfileData
+import ru.kavader.arepos.dto.user.UserProfilePatch
 
 private const val FIRST_NAME_KEY = "firstName"
 private const val LAST_NAME_KEY = "lastName"
 private const val MIDDLE_NAME_KEY = "middleName"
 private const val POSITION_KEY = "position"
-
-data class UserProfileData(
-    val firstName: String?,
-    val lastName: String?,
-    val middleName: String?,
-    val position: String?
-)
-
-data class UserProfilePatch(
-    val firstName: String?,
-    val lastName: String?,
-    val middleName: String?,
-    val position: String?
-)
 
 @Component
 class UserProfileAttrsService(
