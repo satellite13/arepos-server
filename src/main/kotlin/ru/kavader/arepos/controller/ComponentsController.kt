@@ -24,7 +24,8 @@ class ComponentsController(
     private val nodeTypesRepository: NodeTypesRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
-    private val mdFileLinkValidator: MdFileLinkValidator
+    private val mdFileLinkValidator: MdFileLinkValidator,
+    private val notationMapper: NotationMapper
 ) {
 
     @GetMapping
@@ -50,7 +51,7 @@ class ComponentsController(
                 currentUserId = currentUserId,
                 diagramEditorModelId = modelId,
                 pageable = pageable
-            ).map { it.toResponse(accessService) }
+            ).map { notationMapper.toResponse(it) }
         }
 
         val components = componentsRepository.findByFilters(
@@ -60,7 +61,7 @@ class ComponentsController(
             tagsJson = tagsJson,
             pageable = pageable
         )
-        return components.map { it.toResponse(accessService) }
+        return components.map { notationMapper.toResponse(it) }
     }
 
     @GetMapping("/{id}")
@@ -68,7 +69,7 @@ class ComponentsController(
         componentsRepository.findById(id)
             .map {
                 accessService.requireCanViewComponent(it)
-                it.toResponse(accessService)
+                notationMapper.toResponse(it)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Component $id not found")
@@ -102,7 +103,7 @@ class ComponentsController(
                 nodeType = nodeType
             )
         )
-        return saved.toResponse(accessService)
+        return notationMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
@@ -143,7 +144,7 @@ class ComponentsController(
                 nodeType = nodeType
             )
         )
-        return updated.toResponse(accessService)
+        return notationMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")

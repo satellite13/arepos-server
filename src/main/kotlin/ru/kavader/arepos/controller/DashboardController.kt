@@ -26,7 +26,8 @@ class DashboardController(
     private val linkTypesRepository: LinkTypesRepository,
     private val auditLogRepository: AuditLogRepository,
     private val usersRepository: UsersRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val auditMapper: AuditMapper
 ) {
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
@@ -89,8 +90,8 @@ class DashboardController(
         }
 
         return DashboardRecentResponse(
-            models = models.map { it.toRecentItem() },
-            notations = notations.map { it.toRecentItem() },
+            models = models.map { auditMapper.toRecentItem(it) },
+            notations = notations.map { auditMapper.toRecentItem(it) },
             activity = activity.map {
                 DashboardActivityItem(
                     id = it.id!!,

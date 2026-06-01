@@ -1,5 +1,6 @@
 package ru.kavader.arepos.dto.notation
 
+import org.springframework.stereotype.Component
 import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.model.NodeShapes
@@ -11,103 +12,109 @@ import ru.kavader.arepos.repository.RelationRuleListLightProjection
 import ru.kavader.arepos.repository.RelationRuleListProjection
 import ru.kavader.arepos.security.ResourceAccessService
 
-fun Notations.toResponse(accessService: ResourceAccessService): NotationResponse = NotationResponse(
-    id = requireNotNull(id),
-    name = name,
-    version = version,
-    ownerId = owner.id!!,
-    accessPermission = accessService.notationAccessPermission(this),
-    attrs = attrs,
-    createdAt = createdAt,
-    updatedAt = updatedAt,
-    sourceId = source?.id
-)
+@Component
+class NotationMapper(
+    private val accessService: ResourceAccessService
+) {
+    fun toResponse(notation: Notations): NotationResponse = NotationResponse(
+        id = requireNotNull(notation.id),
+        name = notation.name,
+        version = notation.version,
+        ownerId = notation.owner.id!!,
+        accessPermission = accessService.notationAccessPermission(notation),
+        attrs = notation.attrs,
+        createdAt = notation.createdAt,
+        updatedAt = notation.updatedAt,
+        sourceId = notation.source?.id
+    )
 
-fun Components.toResponse(accessService: ResourceAccessService): ComponentResponse = ComponentResponse(
-    id = requireNotNull(id),
-    name = name,
-    version = version,
-    notationId = notation.id!!,
-    ownerId = owner.id!!,
-    nodeTypeId = nodeType.id!!,
-    attrs = attrs,
-    createdAt = createdAt,
-    updatedAt = updatedAt
-)
+    fun toResponse(component: Components): ComponentResponse = ComponentResponse(
+        id = requireNotNull(component.id),
+        name = component.name,
+        version = component.version,
+        notationId = component.notation.id!!,
+        ownerId = component.owner.id!!,
+        nodeTypeId = component.nodeType.id!!,
+        attrs = component.attrs,
+        createdAt = component.createdAt,
+        updatedAt = component.updatedAt
+    )
 
-fun Relations.toResponse(accessService: ResourceAccessService): RelationResponse = RelationResponse(
-    id = requireNotNull(id),
-    name = name,
-    version = version,
-    notationId = notation.id!!,
-    ownerId = owner.id!!,
-    linkTypeId = linkType.id!!,
-    attrs = attrs,
-    createdAt = createdAt,
-    updatedAt = updatedAt
-)
+    fun toResponse(relation: Relations): RelationResponse = RelationResponse(
+        id = requireNotNull(relation.id),
+        name = relation.name,
+        version = relation.version,
+        notationId = relation.notation.id!!,
+        ownerId = relation.owner.id!!,
+        linkTypeId = relation.linkType.id!!,
+        attrs = relation.attrs,
+        createdAt = relation.createdAt,
+        updatedAt = relation.updatedAt
+    )
 
-fun RelationRules.toResponse(accessService: ResourceAccessService): RelationRuleResponse = RelationRuleResponse(
-    id = requireNotNull(id),
-    relationId = relation.id!!,
-    fromComponentId = fromComponent.id!!,
-    toComponentId = toComponent.id!!,
-    ownerId = owner.id!!,
-    attrs = attrs,
-    createdAt = createdAt,
-    updatedAt = updatedAt
-)
+    fun toResponse(relationRule: RelationRules): RelationRuleResponse = RelationRuleResponse(
+        id = requireNotNull(relationRule.id),
+        relationId = relationRule.relation.id!!,
+        fromComponentId = relationRule.fromComponent.id!!,
+        toComponentId = relationRule.toComponent.id!!,
+        ownerId = relationRule.owner.id!!,
+        attrs = relationRule.attrs,
+        createdAt = relationRule.createdAt,
+        updatedAt = relationRule.updatedAt
+    )
 
-fun RelationRuleListProjection.toResponse(includeAttrs: Boolean): RelationRuleResponse = RelationRuleResponse(
-    id = id,
-    relationId = relationId,
-    fromComponentId = fromComponentId,
-    toComponentId = toComponentId,
-    ownerId = ownerId,
-    attrs = if (includeAttrs) attrs else null,
-    createdAt = createdAt,
-    updatedAt = updatedAt
-)
+    fun toResponse(relationRule: RelationRuleListProjection, includeAttrs: Boolean): RelationRuleResponse =
+        RelationRuleResponse(
+            id = relationRule.id,
+            relationId = relationRule.relationId,
+            fromComponentId = relationRule.fromComponentId,
+            toComponentId = relationRule.toComponentId,
+            ownerId = relationRule.ownerId,
+            attrs = if (includeAttrs) relationRule.attrs else null,
+            createdAt = relationRule.createdAt,
+            updatedAt = relationRule.updatedAt
+        )
 
-fun RelationRuleListLightProjection.toResponse(): RelationRuleResponse = RelationRuleResponse(
-    id = id,
-    relationId = relationId,
-    fromComponentId = fromComponentId,
-    toComponentId = toComponentId,
-    ownerId = ownerId,
-    attrs = null,
-    createdAt = createdAt,
-    updatedAt = updatedAt
-)
+    fun toResponse(relationRule: RelationRuleListLightProjection): RelationRuleResponse = RelationRuleResponse(
+        id = relationRule.id,
+        relationId = relationRule.relationId,
+        fromComponentId = relationRule.fromComponentId,
+        toComponentId = relationRule.toComponentId,
+        ownerId = relationRule.ownerId,
+        attrs = null,
+        createdAt = relationRule.createdAt,
+        updatedAt = relationRule.updatedAt
+    )
 
-fun NodeTypes.toResponse(accessService: ResourceAccessService): NodeTypeResponse = NodeTypeResponse(
-    id = requireNotNull(id),
-    name = name,
-    ownerId = owner.id!!,
-    accessPermission = accessService.nodeTypeAccessPermission(this),
-    attrs = attrs,
-    createdAt = createdAt,
-    updatedAt = updatedAt
-)
+    fun toResponse(nodeType: NodeTypes): NodeTypeResponse = NodeTypeResponse(
+        id = requireNotNull(nodeType.id),
+        name = nodeType.name,
+        ownerId = nodeType.owner.id!!,
+        accessPermission = accessService.nodeTypeAccessPermission(nodeType),
+        attrs = nodeType.attrs,
+        createdAt = nodeType.createdAt,
+        updatedAt = nodeType.updatedAt
+    )
 
-fun LinkTypes.toResponse(accessService: ResourceAccessService): LinkTypeResponse = LinkTypeResponse(
-    id = requireNotNull(id),
-    name = name,
-    ownerId = owner.id!!,
-    accessPermission = accessService.linkTypeAccessPermission(this),
-    attrs = attrs,
-    createdAt = createdAt,
-    updatedAt = updatedAt
-)
+    fun toResponse(linkType: LinkTypes): LinkTypeResponse = LinkTypeResponse(
+        id = requireNotNull(linkType.id),
+        name = linkType.name,
+        ownerId = linkType.owner.id!!,
+        accessPermission = accessService.linkTypeAccessPermission(linkType),
+        attrs = linkType.attrs,
+        createdAt = linkType.createdAt,
+        updatedAt = linkType.updatedAt
+    )
 
-fun NodeShapes.toResponse(accessService: ResourceAccessService): NodeShapeResponse = NodeShapeResponse(
-    id = requireNotNull(id),
-    name = name,
-    ownerId = owner.id!!,
-    outline = outline,
-    contentArea = contentArea,
-    attrs = attrs,
-    createdAt = createdAt,
-    updatedAt = updatedAt,
-    canEdit = accessService.canEditNodeShape(this)
-)
+    fun toResponse(nodeShape: NodeShapes): NodeShapeResponse = NodeShapeResponse(
+        id = requireNotNull(nodeShape.id),
+        name = nodeShape.name,
+        ownerId = nodeShape.owner.id!!,
+        outline = nodeShape.outline,
+        contentArea = nodeShape.contentArea,
+        attrs = nodeShape.attrs,
+        createdAt = nodeShape.createdAt,
+        updatedAt = nodeShape.updatedAt,
+        canEdit = accessService.canEditNodeShape(nodeShape)
+    )
+}

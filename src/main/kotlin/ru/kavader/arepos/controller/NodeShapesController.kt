@@ -27,7 +27,8 @@ import java.util.UUID
 class NodeShapesController(
     private val nodeShapesRepository: NodeShapesRepository,
     private val usersRepository: UsersRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val notationMapper: NotationMapper
 ) {
 
     @GetMapping
@@ -51,7 +52,7 @@ class NodeShapesController(
             .asSequence()
             .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
             .toList()
-        return visibleShapes.toPage(pageable).map { it.toResponse(accessService) }
+        return visibleShapes.toPage(pageable).map { notationMapper.toResponse(it) }
     }
 
     @GetMapping("/{id}")
@@ -61,7 +62,7 @@ class NodeShapesController(
             ResponseStatusException(HttpStatus.NOT_FOUND, "NodeShape $id not found")
         }
         accessService.requireCanViewNodeShape(shape)
-        return shape.toResponse(accessService)
+        return notationMapper.toResponse(shape)
     }
 
     @PostMapping
@@ -83,7 +84,7 @@ class NodeShapesController(
                 updatedAt = now
             )
         )
-        return saved.toResponse(accessService)
+        return notationMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
@@ -104,7 +105,7 @@ class NodeShapesController(
                 updatedAt = Instant.now()
             )
         )
-        return updated.toResponse(accessService)
+        return notationMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")

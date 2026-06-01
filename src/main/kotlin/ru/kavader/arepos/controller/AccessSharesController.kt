@@ -36,7 +36,8 @@ class AccessSharesController(
     private val nodeTypesRepository: NodeTypesRepository,
     private val nodeShapesRepository: NodeShapesRepository,
     private val linkTypesRepository: LinkTypesRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val accessMapper: AccessMapper
 ) {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -82,7 +83,7 @@ class AccessSharesController(
         if (existing.isNotEmpty()) {
             val current = existing.first()
             if (current.permission == requestedPermission) {
-                return current.toResponse()
+                return accessMapper.toResponse(current)
             }
 
             // Enforce one effective permission per user/resource by replacing stale rows.
@@ -90,7 +91,7 @@ class AccessSharesController(
             val updated = resourceSharesRepository.save(
                 current.copy(permission = requestedPermission)
             )
-            return updated.toResponse()
+            return accessMapper.toResponse(updated)
         }
         val now = Instant.now()
         val saved = resourceSharesRepository.save(
@@ -104,7 +105,7 @@ class AccessSharesController(
                 updatedAt = now
             )
         )
-        return saved.toResponse()
+        return accessMapper.toResponse(saved)
     }
 
     @GetMapping("/{resourceType}/{resourceId}")
@@ -119,7 +120,7 @@ class AccessSharesController(
         return resourceSharesRepository.findByResourceTypeAndResourceId(
             resourceType = resourceType,
             resourceId = resourceId
-        ).map { it.toResponse() }
+        ).map { accessMapper.toResponse(it) }
     }
 
     @DeleteMapping("/{shareId}")

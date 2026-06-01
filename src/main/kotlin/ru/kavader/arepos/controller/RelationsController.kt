@@ -30,7 +30,8 @@ class RelationsController(
     private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
-    private val mdFileLinkValidator: MdFileLinkValidator
+    private val mdFileLinkValidator: MdFileLinkValidator,
+    private val notationMapper: NotationMapper
 ) {
 
     @GetMapping
@@ -56,7 +57,7 @@ class RelationsController(
                 currentUserId = currentUserId,
                 diagramEditorModelId = modelId,
                 pageable = pageable
-            ).map { it.toResponse(accessService) }
+            ).map { notationMapper.toResponse(it) }
         }
 
         val relations = relationsRepository.findByFilters(
@@ -66,7 +67,7 @@ class RelationsController(
             tagsJson = tagsJson,
             pageable = pageable
         )
-        return relations.map { it.toResponse(accessService) }
+        return relations.map { notationMapper.toResponse(it) }
     }
 
     @GetMapping("/{id}")
@@ -74,7 +75,7 @@ class RelationsController(
         relationsRepository.findById(id)
             .map {
                 accessService.requireCanViewRelation(it)
-                it.toResponse(accessService)
+                notationMapper.toResponse(it)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $id not found")
@@ -108,7 +109,7 @@ class RelationsController(
                 linkType = linkType
             )
         )
-        return saved.toResponse(accessService)
+        return notationMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
@@ -149,7 +150,7 @@ class RelationsController(
                 linkType = linkType
             )
         )
-        return updated.toResponse(accessService)
+        return notationMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")

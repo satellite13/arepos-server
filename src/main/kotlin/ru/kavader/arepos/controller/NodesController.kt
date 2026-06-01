@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.model.ModelMapper
 import ru.kavader.arepos.dto.model.*
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.model.Nodes
@@ -36,7 +37,8 @@ class NodesController(
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
-    private val typeValidator: ModelDiagramTypeValidator
+    private val typeValidator: ModelDiagramTypeValidator,
+    private val modelMapper: ModelMapper
 ) {
 
     @GetMapping
@@ -54,7 +56,7 @@ class NodesController(
                 name = name?.trim()?.takeIf { it.isNotEmpty() },
                 currentUserId = currentUserId,
                 pageable = pageable
-            ).map { it.toResponse(accessService) }
+            ).map { modelMapper.toResponse(it) }
         }
 
         val nodes = when {
@@ -81,7 +83,7 @@ class NodesController(
                 nodesRepository.findAll(pageable)
             }
         }
-        return nodes.map { it.toResponse(accessService) }
+        return nodes.map { modelMapper.toResponse(it) }
     }
 
     @GetMapping("/{id}")
@@ -89,7 +91,7 @@ class NodesController(
         nodesRepository.findById(id)
             .map {
                 accessService.requireCanViewNode(it)
-                it.toResponse(accessService)
+                modelMapper.toResponse(it)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Node $id not found")
@@ -144,7 +146,7 @@ class NodesController(
             "node_create",
             listOf(ModelSyncEntityEvent("node_created", "node", requireNotNull(saved.id)))
         )
-        return saved.toResponse(accessService)
+        return modelMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
@@ -212,7 +214,7 @@ class NodesController(
             "node_update",
             listOf(ModelSyncEntityEvent("node_updated", "node", requireNotNull(updated.id)))
         )
-        return updated.toResponse(accessService)
+        return modelMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")

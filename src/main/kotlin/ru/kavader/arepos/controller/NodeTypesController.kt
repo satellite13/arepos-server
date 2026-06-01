@@ -33,7 +33,8 @@ class NodeTypesController(
     private val nodesRepository: NodesRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
-    private val mdFileLinkValidator: MdFileLinkValidator
+    private val mdFileLinkValidator: MdFileLinkValidator,
+    private val notationMapper: NotationMapper
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(NodeTypesController::class.java)
@@ -58,7 +59,7 @@ class NodeTypesController(
                     name = normalizedName,
                     viewPermissions = viewPermissions,
                     pageable = pageable
-                ).map { it.toResponse(accessService) }
+                ).map { notationMapper.toResponse(it) }
             }
 
             val resolvedModel = modelId?.let { mid ->
@@ -111,7 +112,7 @@ class NodeTypesController(
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
                 .toList()
-            return filtered.toPage(pageable).map { it.toResponse(accessService) }
+            return filtered.toPage(pageable).map { notationMapper.toResponse(it) }
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -125,7 +126,7 @@ class NodeTypesController(
             else ->
                 nodeTypesRepository.findAll(pageable)
         }
-        return nodeTypes.map { it.toResponse(accessService) }
+        return nodeTypes.map { notationMapper.toResponse(it) }
     }
 
     @GetMapping("/{id}")
@@ -135,7 +136,7 @@ class NodeTypesController(
                 if (!accessService.canViewNodeType(it) && !accessService.canUseNodeType(it)) {
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
                 }
-                it.toResponse(accessService)
+                notationMapper.toResponse(it)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
@@ -156,7 +157,7 @@ class NodeTypesController(
                 owner = owner
             )
         )
-        return saved.toResponse(accessService)
+        return notationMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
@@ -178,7 +179,7 @@ class NodeTypesController(
                 owner = owner
             )
         )
-        return updated.toResponse(accessService)
+        return notationMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")

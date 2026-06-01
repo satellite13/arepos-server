@@ -8,11 +8,11 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.user.*
-import ru.kavader.arepos.service.UserProfileAttrsService
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.UserProfileAttrsService
 import java.time.Instant
 import java.util.UUID
 
@@ -22,7 +22,8 @@ class UsersController(
     private val usersRepository: UsersRepository,
     private val passwordEncoder: PasswordEncoder,
     private val userProfileAttrsService: UserProfileAttrsService,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val userMapper: UserMapper
 ) {
 
     @GetMapping
@@ -36,14 +37,14 @@ class UsersController(
         } else {
             usersRepository.findAll(pageable)
         }
-        return users.map { it.toResponse(userProfileAttrsService) }
+        return users.map { userMapper.toResponse(it) }
     }
 
     @GetMapping("/{id}")
     fun getUser(@PathVariable id: UUID): UserResponse {
         accessService.requireCanManageUsers()
         return usersRepository.findById(id)
-            .map { it.toResponse(userProfileAttrsService) }
+            .map { userMapper.toResponse(it) }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
             }
@@ -55,7 +56,7 @@ class UsersController(
         usersRepository.findById(id)
             .map {
                 requirePublicUserVisible(it)
-                it.toPublicResponse(userProfileAttrsService)
+                userMapper.toPublicResponse(it)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $id not found")
@@ -72,7 +73,7 @@ class UsersController(
         val user = usersRepository.findByEmailIgnoreCase(normalizedEmail)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User with email $normalizedEmail not found")
         requirePublicUserVisible(user)
-        return user.toPublicResponse(userProfileAttrsService)
+        return userMapper.toPublicResponse(user)
     }
 
     @GetMapping("/public/search")
@@ -87,7 +88,7 @@ class UsersController(
         }
 
         return usersRepository.findByEmailContainingIgnoreCaseAndRoleNot(normalizedEmail, Role.ADMIN, pageable)
-            .map { it.toPublicResponse(userProfileAttrsService) }
+            .map { userMapper.toPublicResponse(it) }
     }
 
     @PostMapping("/public/batch")
@@ -97,7 +98,7 @@ class UsersController(
         val ids = request.ids.distinct().take(100)
         return usersRepository.findAllById(ids)
             .filter { it.role != Role.ADMIN }
-            .associate { requireNotNull(it.id) to it.toPublicResponse(userProfileAttrsService) }
+            .associate { requireNotNull(it.id) to userMapper.toPublicResponse(it) }
     }
 
     @GetMapping("/me/profile")
@@ -106,7 +107,7 @@ class UsersController(
         val currentUserId = accessService.currentUserId()
 
         return usersRepository.findById(currentUserId)
-            .map { it.toPublicResponse(userProfileAttrsService) }
+            .map { userMapper.toPublicResponse(it) }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $currentUserId not found")
             }
@@ -129,7 +130,7 @@ class UsersController(
                 updatedAt = now
             )
         )
-        return saved.toResponse(userProfileAttrsService)
+        return userMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
@@ -173,7 +174,7 @@ class UsersController(
                 passwordHash = request.password?.let(passwordEncoder::encode) ?: user.passwordHash
             )
         )
-        return updated.toResponse(userProfileAttrsService)
+        return userMapper.toResponse(updated)
     }
 
     @PutMapping("/me/profile")
@@ -200,7 +201,7 @@ class UsersController(
             )
         )
 
-        return updated.toPublicResponse(userProfileAttrsService)
+        return userMapper.toPublicResponse(updated)
     }
 
     @DeleteMapping("/{id}")

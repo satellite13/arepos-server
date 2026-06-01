@@ -1,14 +1,18 @@
 package ru.kavader.arepos.dto.access
 
+import org.springframework.stereotype.Component
 import ru.kavader.arepos.model.ResourceShares
 
-fun ResourceShares.toResponse(): AccessShareResponse = AccessShareResponse(
-    id = id!!,
-    resourceType = resourceType,
-    resourceId = resourceId,
-    granteeUserId = granteeUser?.id,
-    grantedByUserId = grantedByUser.id!!,
-    permission = permission.name,
-    createdAt = createdAt,
-    updatedAt = updatedAt
-)
+@Component
+class AccessMapper {
+    fun toResponse(share: ResourceShares): AccessShareResponse = AccessShareResponse(
+        id = requireNotNull(share.id),
+        resourceType = share.resourceType,
+        resourceId = share.resourceId,
+        granteeUserId = share.granteeUser?.id,
+        grantedByUserId = share.grantedByUser.id!!,
+        permission = share.permission.name,
+        createdAt = share.createdAt,
+        updatedAt = share.updatedAt
+    )
+}

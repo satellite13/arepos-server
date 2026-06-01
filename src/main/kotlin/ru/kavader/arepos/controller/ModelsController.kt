@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.*
+import ru.kavader.arepos.dto.model.ModelMapper
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Links
@@ -47,7 +48,8 @@ class ModelsController(
     private val ownerResolutionService: OwnerResolutionService,
     private val objectMapper: ObjectMapper,
     private val mdFileLinkValidator: MdFileLinkValidator,
-    private val modelSyncBroadcaster: ModelSyncBroadcaster
+    private val modelSyncBroadcaster: ModelSyncBroadcaster,
+    private val modelMapper: ModelMapper
 ) {
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
@@ -70,7 +72,7 @@ class ModelsController(
                 name = name?.trim().orEmpty(),
                 viewPermissions = viewPermissions,
                 pageable = pageable
-            ).map { it.toResponse(accessService) }
+            ).map { modelMapper.toResponse(it) }
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -84,7 +86,7 @@ class ModelsController(
             else ->
                 modelsRepository.findAll(pageable)
         }
-        return models.map { it.toResponse(accessService) }
+        return models.map { modelMapper.toResponse(it) }
     }
 
     @GetMapping("/deleted")
@@ -92,7 +94,7 @@ class ModelsController(
         if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
         }
-        return modelsRepository.findByDeletedTrue(pageable).map { it.toResponse(accessService) }
+        return modelsRepository.findByDeletedTrue(pageable).map { modelMapper.toResponse(it) }
     }
 
     @DeleteMapping("/{id}/permanent")
@@ -129,7 +131,7 @@ class ModelsController(
                 val sorted = models.sortedWith(compareModelsByVersionDesc)
                 EntityGroupResponse(
                     name = sorted.first().name.trim(),
-                    versions = sorted.map { it.toResponse(accessService) }
+                    versions = sorted.map { modelMapper.toResponse(it) }
                 )
             }
             .sortedBy { it.name.lowercase() }
@@ -142,7 +144,7 @@ class ModelsController(
         modelsRepository.findById(id)
             .map {
                 accessService.requireCanViewModel(it)
-                it.toResponse(accessService)
+                modelMapper.toResponse(it)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
@@ -166,7 +168,7 @@ class ModelsController(
         }
         return filtered
             .sortedWith(compareModelsByVersionDesc)
-            .map { it.toResponse(accessService) }
+            .map { modelMapper.toResponse(it) }
     }
 
     private val compareModelsByVersionDesc = VersionUtils.semverDescComparator<Models> { it.version }
@@ -211,7 +213,7 @@ class ModelsController(
         )
         val attrsWithRoot = mergeModelAttrsWithRootNodeId(saved.attrs, requireNotNull(rootNode.id))
         val updatedModel = modelsRepository.save(saved.copy(attrs = attrsWithRoot))
-        return updatedModel.toResponse(accessService)
+        return modelMapper.toResponse(updatedModel)
     }
 
     @PutMapping("/{id}")
@@ -249,7 +251,7 @@ class ModelsController(
             "model_update",
             listOf(ModelSyncEntityEvent("model_updated", "model", id))
         )
-        return updated.toResponse(accessService)
+        return modelMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")
@@ -410,7 +412,9 @@ class ModelsController(
             )
         }
 
-        return modelsRepository.findById(newModel.id!!).orElseThrow { IllegalStateException("New model not found") }.toResponse(accessService)
+        return modelMapper.toResponse(
+            modelsRepository.findById(newModel.id!!).orElseThrow { IllegalStateException("New model not found") }
+        )
     }
 
     private fun remapDiagramAttrs(

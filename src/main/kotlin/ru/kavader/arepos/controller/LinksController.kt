@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.*
+import ru.kavader.arepos.dto.model.ModelMapper
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.repository.DiagramsRepository
@@ -41,7 +42,8 @@ class LinksController(
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
-    private val typeValidator: ModelDiagramTypeValidator
+    private val typeValidator: ModelDiagramTypeValidator,
+    private val modelMapper: ModelMapper
 ) {
 
     @GetMapping
@@ -63,7 +65,7 @@ class LinksController(
                 linkTypeId = linkTypeId,
                 currentUserId = currentUserId,
                 pageable = pageable
-            ).map { it.toResponse(accessService) }
+            ).map { modelMapper.toResponse(it) }
         }
 
         val links = when {
@@ -120,7 +122,7 @@ class LinksController(
                 linksRepository.findAll(pageable)
             }
         }
-        return links.map { it.toResponse(accessService) }
+        return links.map { modelMapper.toResponse(it) }
     }
 
     @GetMapping("/{id}")
@@ -128,7 +130,7 @@ class LinksController(
         linksRepository.findById(id)
             .map {
                 accessService.requireCanViewLink(it)
-                it.toResponse(accessService)
+                modelMapper.toResponse(it)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Link $id not found")
@@ -178,7 +180,7 @@ class LinksController(
             "link_create",
             listOf(ModelSyncEntityEvent("link_created", "link", requireNotNull(saved.id)))
         )
-        return saved.toResponse(accessService)
+        return modelMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
@@ -238,7 +240,7 @@ class LinksController(
             "link_update",
             listOf(ModelSyncEntityEvent("link_updated", "link", requireNotNull(updated.id)))
         )
-        return updated.toResponse(accessService)
+        return modelMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")

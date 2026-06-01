@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.*
+import ru.kavader.arepos.dto.model.ModelMapper
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.model.DiagramPreviewLinks
 import ru.kavader.arepos.model.Diagrams
@@ -46,7 +47,8 @@ class DiagramsController(
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val diagramSvgStorage: DiagramSvgStorage,
     private val diagramPreviewLinksRepository: DiagramPreviewLinksRepository,
-    private val modelSyncBroadcaster: ModelSyncBroadcaster
+    private val modelSyncBroadcaster: ModelSyncBroadcaster,
+    private val modelMapper: ModelMapper
 ) {
 
     @GetMapping
@@ -68,7 +70,7 @@ class DiagramsController(
                 name = name?.trim()?.takeIf { it.isNotEmpty() },
                 currentUserId = currentUserId,
                 pageable = pageable
-            ).map { it.toResponse(accessService) }
+            ).map { modelMapper.toResponse(it) }
         }
 
         return diagramsRepository.findByFilters(
@@ -78,7 +80,7 @@ class DiagramsController(
             notationId = notationId,
             name = name.orEmpty(),
             pageable = pageable
-        ).map { it.toResponse(accessService) }
+        ).map { modelMapper.toResponse(it) }
     }
 
     @GetMapping("/{id}")
@@ -86,7 +88,7 @@ class DiagramsController(
         diagramsRepository.findById(id)
             .map {
                 accessService.requireCanViewDiagram(it)
-                it.toResponse(accessService)
+                modelMapper.toResponse(it)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
@@ -141,7 +143,7 @@ class DiagramsController(
             "diagram_create",
             listOf(ModelSyncEntityEvent("diagram_created", "diagram", requireNotNull(saved.id)))
         )
-        return saved.toResponse(accessService)
+        return modelMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
@@ -214,7 +216,7 @@ class DiagramsController(
             "diagram_update",
             listOf(ModelSyncEntityEvent("diagram_updated", "diagram", requireNotNull(updated.id)))
         )
-        return updated.toResponse(accessService)
+        return modelMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")
@@ -419,7 +421,7 @@ class DiagramsController(
             "diagram_baseline",
             listOf(ModelSyncEntityEvent("diagram_created", "diagram", requireNotNull(saved.id)))
         )
-        return saved.toResponse(accessService)
+        return modelMapper.toResponse(saved)
     }
 
     /** Bumps minor version and resets patch: 1.2.3 -> 1.3.0 */

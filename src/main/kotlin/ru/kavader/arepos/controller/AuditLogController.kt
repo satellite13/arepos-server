@@ -18,7 +18,8 @@ import java.util.UUID
 class AuditLogController(
     private val auditLogRepository: AuditLogRepository,
     private val usersRepository: UsersRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val auditMapper: AuditMapper
 ) {
 
     @GetMapping
@@ -55,7 +56,7 @@ class AuditLogController(
                 }
             }
             val filtered = auditLogs.content.filter { it.changedBy?.id == currentUserId }
-            return PageImpl(filtered, pageable, filtered.size.toLong()).map { it.toResponse() }
+            return PageImpl(filtered, pageable, filtered.size.toLong()).map { auditMapper.toResponse(it) }
         }
 
         val auditLogs = when {
@@ -83,7 +84,7 @@ class AuditLogController(
                 auditLogRepository.findAll(pageable)
             }
         }
-        return auditLogs.map { it.toResponse() }
+        return auditLogs.map { auditMapper.toResponse(it) }
     }
 
     @GetMapping("/{id}")
@@ -91,7 +92,7 @@ class AuditLogController(
         auditLogRepository.findById(id)
             .map {
                 checkAuditLogReadable(it)
-                it.toResponse()
+                auditMapper.toResponse(it)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "AuditLog $id not found")

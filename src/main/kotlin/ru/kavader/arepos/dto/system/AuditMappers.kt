@@ -1,34 +1,38 @@
 package ru.kavader.arepos.dto.system
 
+import org.springframework.stereotype.Component
 import ru.kavader.arepos.model.AuditLog
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.dto.dashboard.DashboardActivityItem
 import ru.kavader.arepos.dto.dashboard.DashboardRecentItem
 
-fun AuditLog.toResponse(): AuditLogResponse = AuditLogResponse(
-    id = requireNotNull(id),
-    tableName = tableName,
-    operation = operation,
-    rowId = rowId,
-    oldValues = oldValues,
-    newValues = newValues,
-    changedById = changedBy?.id,
-    changedAt = changedAt
-)
+@Component
+class AuditMapper {
+    fun toResponse(auditLog: AuditLog): AuditLogResponse = AuditLogResponse(
+        id = requireNotNull(auditLog.id),
+        tableName = auditLog.tableName,
+        operation = auditLog.operation,
+        rowId = auditLog.rowId,
+        oldValues = auditLog.oldValues,
+        newValues = auditLog.newValues,
+        changedById = auditLog.changedBy?.id,
+        changedAt = auditLog.changedAt
+    )
 
-fun Models.toRecentItem(): DashboardRecentItem = DashboardRecentItem(
-    id = id!!,
-    name = name,
-    version = version,
-    ownerId = owner.id!!,
-    updatedAt = updatedAt
-)
+    fun toRecentItem(model: Models): DashboardRecentItem = DashboardRecentItem(
+        id = requireNotNull(model.id),
+        name = model.name,
+        version = model.version,
+        ownerId = model.owner.id!!,
+        updatedAt = model.updatedAt
+    )
 
-fun Notations.toRecentItem(): DashboardRecentItem = DashboardRecentItem(
-    id = id!!,
-    name = name,
-    version = version,
-    ownerId = owner.id!!,
-    updatedAt = updatedAt
-)
+    fun toRecentItem(notation: Notations): DashboardRecentItem = DashboardRecentItem(
+        id = requireNotNull(notation.id),
+        name = notation.name,
+        version = notation.version,
+        ownerId = notation.owner.id!!,
+        updatedAt = notation.updatedAt
+    )
+}

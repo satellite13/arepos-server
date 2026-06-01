@@ -33,7 +33,8 @@ class LinkTypesController(
     private val linksRepository: LinksRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
-    private val mdFileLinkValidator: MdFileLinkValidator
+    private val mdFileLinkValidator: MdFileLinkValidator,
+    private val notationMapper: NotationMapper
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(LinkTypesController::class.java)
@@ -58,7 +59,7 @@ class LinkTypesController(
                     name = normalizedName,
                     viewPermissions = viewPermissions,
                     pageable = pageable
-                ).map { it.toResponse(accessService) }
+                ).map { notationMapper.toResponse(it) }
             }
 
             val resolvedModel = modelId?.let { mid ->
@@ -111,7 +112,7 @@ class LinkTypesController(
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
                 .toList()
-            return filtered.toPage(pageable).map { it.toResponse(accessService) }
+            return filtered.toPage(pageable).map { notationMapper.toResponse(it) }
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -125,7 +126,7 @@ class LinkTypesController(
             else ->
                 linkTypesRepository.findAll(pageable)
         }
-        return linkTypes.map { it.toResponse(accessService) }
+        return linkTypes.map { notationMapper.toResponse(it) }
     }
 
     @GetMapping("/{id}")
@@ -135,7 +136,7 @@ class LinkTypesController(
                 if (!accessService.canViewLinkType(it) && !accessService.canUseLinkType(it)) {
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
                 }
-                it.toResponse(accessService)
+                notationMapper.toResponse(it)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
@@ -156,7 +157,7 @@ class LinkTypesController(
                 owner = owner
             )
         )
-        return saved.toResponse(accessService)
+        return notationMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
@@ -178,7 +179,7 @@ class LinkTypesController(
                 owner = owner
             )
         )
-        return updated.toResponse(accessService)
+        return notationMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")

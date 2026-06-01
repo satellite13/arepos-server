@@ -7,9 +7,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.RelationRules
-import ru.kavader.arepos.repository.RelationRuleListLightProjection
 import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.RelationRuleListProjection
 import ru.kavader.arepos.repository.RelationRulesRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
@@ -29,7 +27,8 @@ class RelationRulesController(
     private val componentsRepository: ComponentsRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
-    private val mdFileLinkValidator: MdFileLinkValidator
+    private val mdFileLinkValidator: MdFileLinkValidator,
+    private val notationMapper: NotationMapper
 ) {
 
     @GetMapping
@@ -51,7 +50,7 @@ class RelationRulesController(
                     currentUserId = currentUserId,
                     diagramEditorModelId = modelId,
                     pageable = pageable
-                ).map { it.toResponse(includeAttrs = true) }
+                ).map { notationMapper.toResponse(it, includeAttrs = true) }
             } else {
                 relationRulesRepository.findProjectedLightByFiltersForUser(
                     relationId = relationId,
@@ -60,7 +59,7 @@ class RelationRulesController(
                     currentUserId = currentUserId,
                     diagramEditorModelId = modelId,
                     pageable = pageable
-                ).map { it.toResponse() }
+                ).map { notationMapper.toResponse(it) }
             }
         }
 
@@ -71,7 +70,7 @@ class RelationRulesController(
                 notationId = notationId,
                 pageable = pageable
             )
-            relationRules.map { it.toResponse(includeAttrs = true) }
+            relationRules.map { notationMapper.toResponse(it, includeAttrs = true) }
         } else {
             val relationRules = relationRulesRepository.findProjectedLightByFilters(
                 relationId = relationId,
@@ -79,7 +78,7 @@ class RelationRulesController(
                 notationId = notationId,
                 pageable = pageable
             )
-            relationRules.map { it.toResponse() }
+            relationRules.map { notationMapper.toResponse(it) }
         }
     }
 
@@ -88,7 +87,7 @@ class RelationRulesController(
         relationRulesRepository.findById(id)
             .map {
                 accessService.requireCanViewRelationRule(it)
-                it.toResponse(accessService)
+                notationMapper.toResponse(it)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "RelationRule $id not found")
@@ -132,7 +131,7 @@ class RelationRulesController(
                 toComponent = toComponent
             )
         )
-        return saved.toResponse(accessService)
+        return notationMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
@@ -192,7 +191,7 @@ class RelationRulesController(
                 toComponent = toComponent
             )
         )
-        return updated.toResponse(accessService)
+        return notationMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")
