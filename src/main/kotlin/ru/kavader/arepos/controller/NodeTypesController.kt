@@ -17,6 +17,7 @@ import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
@@ -31,6 +32,7 @@ class NodeTypesController(
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
     private val accessService: ResourceAccessService,
+    private val ownerResolutionService: OwnerResolutionService,
     private val mdFileLinkValidator: MdFileLinkValidator
 ) {
     companion object {
@@ -142,7 +144,7 @@ class NodeTypesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createNodeType(@RequestBody request: NodeTypeRequest): NodeTypeResponse {
-        val owner = accessService.resolveOwnerForCreate(request.ownerId)
+        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = nodeTypesRepository.save(
@@ -167,7 +169,7 @@ class NodeTypesController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
             }
         accessService.requireCanEditNodeType(nodeType)
-        val owner = accessService.resolveOwnerForUpdate(request.ownerId, nodeType.owner)
+        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, nodeType.owner)
 
         val updated = nodeTypesRepository.save(
             nodeType.copy(
@@ -190,7 +192,7 @@ class NodeTypesController(
     }
 
     private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? =
-        accessService.resolveReadableOwner(ownerId) { oid, uid ->
+        ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
             nodeTypesRepository.findAccessibleForUser(uid, oid, "", viewPermissions, Pageable.ofSize(1)).hasContent()
         }
 

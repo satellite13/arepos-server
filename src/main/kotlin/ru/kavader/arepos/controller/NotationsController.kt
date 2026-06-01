@@ -22,6 +22,7 @@ import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
@@ -40,6 +41,7 @@ class NotationsController(
     private val relationsRepository: RelationsRepository,
     private val relationRulesRepository: RelationRulesRepository,
     private val accessService: ResourceAccessService,
+    private val ownerResolutionService: OwnerResolutionService,
     private val mdFileLinkValidator: MdFileLinkValidator
 ) {
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
@@ -203,7 +205,7 @@ class NotationsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createNotation(@RequestBody @Valid request: NotationRequest): NotationResponse {
-        val owner = accessService.resolveOwnerForCreate(request.ownerId)
+        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
         // Конфликт только с неудалёнными: версия, занятая удалённой нотацией, допустима
         if (notationsRepository.existsByNameAndVersion(request.name, request.version)) {
@@ -238,7 +240,7 @@ class NotationsController(
             }
         accessService.requireCanEditNotation(notation)
 
-        val owner = accessService.resolveOwnerForUpdate(request.ownerId, notation.owner)
+        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, notation.owner)
 
         mdFileLinkValidator.validate(request.attrs)
         val updated = notationsRepository.save(
@@ -272,7 +274,7 @@ class NotationsController(
                 "Notation with name '${request.name}' and version '${request.version}' already exists"
             )
         }
-        val owner = accessService.resolveOwnerForCreate(request.ownerId)
+        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
 
         mdFileLinkValidator.validate(request.attrs ?: source.attrs)
         val now = Instant.now()
@@ -372,7 +374,7 @@ class NotationsController(
     private val compareNotationsByVersionDesc = VersionUtils.semverDescComparator<Notations> { it.version }
 
     private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? =
-        accessService.resolveReadableOwner(ownerId) { oid, uid ->
+        ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
             notationsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
         }
 

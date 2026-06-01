@@ -15,6 +15,7 @@ import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
@@ -27,6 +28,7 @@ class RelationRulesController(
     private val relationsRepository: RelationsRepository,
     private val componentsRepository: ComponentsRepository,
     private val accessService: ResourceAccessService,
+    private val ownerResolutionService: OwnerResolutionService,
     private val mdFileLinkValidator: MdFileLinkValidator
 ) {
 
@@ -95,7 +97,7 @@ class RelationRulesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createRelationRule(@RequestBody request: RelationRuleRequest): RelationRuleResponse {
-        val owner = accessService.resolveOwnerForCreate(request.ownerId)
+        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         val relation = relationsRepository.findById(request.relationId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Relation ${request.relationId} not found")
@@ -144,7 +146,7 @@ class RelationRulesController(
             }
         accessService.requireCanEditRelationRule(relationRule)
 
-        val owner = accessService.resolveOwnerForUpdate(request.ownerId, relationRule.owner)
+        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, relationRule.owner)
         val relation = request.relationId?.let {
             relationsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $it not found")

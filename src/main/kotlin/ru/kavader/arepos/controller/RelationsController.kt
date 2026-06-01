@@ -15,6 +15,7 @@ import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
@@ -28,6 +29,7 @@ class RelationsController(
     private val linkTypesRepository: LinkTypesRepository,
     private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService,
+    private val ownerResolutionService: OwnerResolutionService,
     private val mdFileLinkValidator: MdFileLinkValidator
 ) {
 
@@ -81,7 +83,7 @@ class RelationsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createRelation(@RequestBody request: RelationRequest): RelationResponse {
-        val owner = accessService.resolveOwnerForCreate(request.ownerId)
+        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         val notation = notationsRepository.findById(request.notationId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${request.notationId} not found")
@@ -120,7 +122,7 @@ class RelationsController(
             }
         accessService.requireCanEditRelation(relation)
 
-        val owner = accessService.resolveOwnerForUpdate(request.ownerId, relation.owner)
+        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, relation.owner)
         val notation = request.notationId?.let {
             notationsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")

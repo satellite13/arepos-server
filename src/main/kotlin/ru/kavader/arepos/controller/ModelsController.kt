@@ -25,6 +25,7 @@ import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.ModelSyncBroadcaster
 import jakarta.validation.Valid
@@ -43,6 +44,7 @@ class ModelsController(
     private val linksRepository: LinksRepository,
     private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService,
+    private val ownerResolutionService: OwnerResolutionService,
     private val objectMapper: ObjectMapper,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val modelSyncBroadcaster: ModelSyncBroadcaster
@@ -179,7 +181,7 @@ class ModelsController(
                 "Model with name '${request.name}' and version '${request.version}' already exists"
             )
         }
-        val owner = accessService.resolveOwnerForCreate(request.ownerId)
+        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = modelsRepository.save(
@@ -232,7 +234,7 @@ class ModelsController(
                 "Model with name '$newName' and version '$newVersion' already exists"
             )
         }
-        val owner = accessService.resolveOwnerForUpdate(request.ownerId, model.owner)
+        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, model.owner)
 
         val updated = modelsRepository.save(
             model.copy(
@@ -284,7 +286,7 @@ class ModelsController(
                 "Model with name '${request.name}' and version '${request.version}' already exists"
             )
         }
-        val owner = accessService.resolveOwnerForCreate(request.ownerId)
+        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
 
@@ -453,7 +455,7 @@ class ModelsController(
     }
 
     private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? =
-        accessService.resolveReadableOwner(ownerId) { oid, uid ->
+        ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
             modelsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
         }
 

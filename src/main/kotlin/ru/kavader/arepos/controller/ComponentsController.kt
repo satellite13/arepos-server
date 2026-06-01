@@ -11,6 +11,7 @@ import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
@@ -22,6 +23,7 @@ class ComponentsController(
     private val notationsRepository: NotationsRepository,
     private val nodeTypesRepository: NodeTypesRepository,
     private val accessService: ResourceAccessService,
+    private val ownerResolutionService: OwnerResolutionService,
     private val mdFileLinkValidator: MdFileLinkValidator
 ) {
 
@@ -75,7 +77,7 @@ class ComponentsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createComponent(@RequestBody request: ComponentRequest): ComponentResponse {
-        val owner = accessService.resolveOwnerForCreate(request.ownerId)
+        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         val notation = notationsRepository.findById(request.notationId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${request.notationId} not found")
@@ -114,7 +116,7 @@ class ComponentsController(
             }
         accessService.requireCanEditComponent(component)
 
-        val owner = accessService.resolveOwnerForUpdate(request.ownerId, component.owner)
+        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, component.owner)
         val notation = request.notationId?.let {
             notationsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")

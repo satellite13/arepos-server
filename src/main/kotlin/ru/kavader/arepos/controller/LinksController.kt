@@ -18,6 +18,7 @@ import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.ModelDiagramTypeValidator
@@ -36,6 +37,7 @@ class LinksController(
     private val diagramsRepository: DiagramsRepository,
     private val relationsRepository: RelationsRepository,
     private val accessService: ResourceAccessService,
+    private val ownerResolutionService: OwnerResolutionService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
@@ -135,7 +137,7 @@ class LinksController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createLink(@RequestBody request: LinkRequest): LinkResponse {
-        val owner = accessService.resolveOwnerForCreate(request.ownerId)
+        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         val model = modelsRepository.findById(request.modelId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
@@ -190,7 +192,7 @@ class LinksController(
             }
         accessService.requireCanEditLink(link)
 
-        val owner = accessService.resolveOwnerForUpdate(request.ownerId, link.owner)
+        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, link.owner)
         val model = request.modelId?.let {
             modelsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")

@@ -22,6 +22,7 @@ import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.service.DiagramSvgStorage
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.ModelSyncBroadcaster
@@ -41,6 +42,7 @@ class DiagramsController(
     private val nodesRepository: NodesRepository,
     private val notationsRepository: NotationsRepository,
     private val accessService: ResourceAccessService,
+    private val ownerResolutionService: OwnerResolutionService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val diagramSvgStorage: DiagramSvgStorage,
     private val diagramPreviewLinksRepository: DiagramPreviewLinksRepository,
@@ -93,7 +95,7 @@ class DiagramsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createDiagram(@RequestBody @Valid request: DiagramRequest): DiagramResponse {
-        val owner = accessService.resolveOwnerForCreate(request.ownerId)
+        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         val model = modelsRepository.findById(request.modelId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
@@ -154,7 +156,7 @@ class DiagramsController(
         accessService.requireCanEditDiagram(diagram)
         requireLatestDiagramVersion(diagram, "updated")
 
-        val owner = accessService.resolveOwnerForUpdate(request.ownerId, diagram.owner)
+        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, diagram.owner)
         val model = request.modelId?.let {
             modelsRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
