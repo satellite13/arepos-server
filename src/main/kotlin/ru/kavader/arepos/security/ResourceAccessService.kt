@@ -1,6 +1,7 @@
 package ru.kavader.arepos.security
 
 import org.slf4j.LoggerFactory
+import org.springframework.context.annotation.Lazy
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.context.request.RequestAttributes
@@ -35,7 +36,8 @@ class ResourceAccessService(
     private val relationsRepository: RelationsRepository,
     private val usersRepository: UsersRepository,
     private val cerbosDecisionService: CerbosDecisionService,
-    private val authzObservabilityService: AuthzObservabilityService
+    private val authzObservabilityService: AuthzObservabilityService,
+    @Lazy private val ownerResolutionService: OwnerResolutionService
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(ResourceAccessService::class.java)
@@ -60,8 +62,7 @@ class ResourceAccessService(
         val shareFlags: ShareFlags
     )
 
-    fun currentUserId(): UUID = CurrentUser.getId()
-        ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+    fun currentUserId(): UUID = ownerResolutionService.currentUserId()
 
     fun canEditModel(model: Models): Boolean = canEditTopLevel(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
 

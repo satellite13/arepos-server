@@ -187,10 +187,10 @@ data class NodeShapeResponse(
     val id: UUID,
     val name: String,
     val ownerId: UUID,
+    val accessPermission: String? = null,
     val outline: String?,
     val contentArea: String?,
     val attrs: String?,
     val createdAt: Instant?,
-    val updatedAt: Instant?,
-    val canEdit: Boolean
+    val updatedAt: Instant?
 )

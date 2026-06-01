@@ -110,11 +110,11 @@ class NotationMapper(
         id = requireNotNull(nodeShape.id),
         name = nodeShape.name,
         ownerId = nodeShape.owner.id!!,
+        accessPermission = accessService.nodeShapeAccessPermission(nodeShape),
         outline = nodeShape.outline,
         contentArea = nodeShape.contentArea,
         attrs = nodeShape.attrs,
         createdAt = nodeShape.createdAt,
-        updatedAt = nodeShape.updatedAt,
-        canEdit = accessService.canEditNodeShape(nodeShape)
+        updatedAt = nodeShape.updatedAt
     )
 }

@@ -1,6 +1,7 @@
 package ru.kavader.arepos.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import jakarta.persistence.EntityManager
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.ArgumentCaptor
@@ -37,6 +38,9 @@ class ModelSyncBroadcasterTest {
     @Mock
     lateinit var outboxRepository: ModelSyncOutboxRepository
 
+    @Mock
+    lateinit var entityManager: EntityManager
+
     private val objectMapper = ObjectMapper()
 
     private fun newBroadcaster(outbox: Boolean): ModelSyncBroadcaster =
@@ -45,6 +49,7 @@ class ModelSyncBroadcasterTest {
             modelsRepository,
             objectMapper,
             outboxRepository,
+            entityManager,
             outbox
         )
 

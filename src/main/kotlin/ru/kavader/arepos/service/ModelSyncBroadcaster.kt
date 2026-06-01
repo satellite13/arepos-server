@@ -2,6 +2,7 @@ package ru.kavader.arepos.service
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import jakarta.persistence.EntityManager
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.messaging.simp.SimpMessagingTemplate
 import org.springframework.stereotype.Service
@@ -28,6 +29,7 @@ class ModelSyncBroadcaster(
     private val modelsRepository: ModelsRepository,
     private val objectMapper: ObjectMapper,
     private val outboxRepository: ModelSyncOutboxRepository,
+    private val entityManager: EntityManager,
     @param:Value("\${arepos.model-sync.outbox-enabled:false}") private val outboxEnabled: Boolean
 ) {
 
@@ -37,6 +39,8 @@ class ModelSyncBroadcaster(
         if (bumped == 0) {
             return
         }
+        entityManager.flush()
+        entityManager.clear()
         val model = modelsRepository.findById(modelId).orElse(null) ?: return
         val revision = model.syncRevision
         val eventId = UUID.randomUUID()

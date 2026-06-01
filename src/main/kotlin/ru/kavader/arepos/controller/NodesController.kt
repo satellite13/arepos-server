@@ -14,6 +14,7 @@ import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
@@ -33,6 +34,7 @@ class NodesController(
     private val nodeTypesRepository: NodeTypesRepository,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
+    private val ownerResolutionService: OwnerResolutionService,
     private val objectMapper: ObjectMapper,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
@@ -105,16 +107,7 @@ class NodesController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
             }
         accessService.requireCanEditModel(model)
-        val currentUserId = accessService.currentUserId()
-        val resolvedOwnerId = if (accessService.canViewAdminPanel()) {
-            request.ownerId ?: currentUserId
-        } else {
-            currentUserId
-        }
-        val owner = usersRepository.findById(resolvedOwnerId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $resolvedOwnerId not found")
-            }
+        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         val nodeType = nodeTypesRepository.findById(request.nodeTypeId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${request.nodeTypeId} not found")
@@ -171,15 +164,7 @@ class NodesController(
             accessService.requireCanEditModel(newModel)
         } ?: node.model
 
-        val owner = if (accessService.canViewAdminPanel()) {
-            request.ownerId?.let {
-                usersRepository.findById(it).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Owner $it not found")
-                }
-            } ?: node.owner
-        } else {
-            node.owner
-        }
+        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, node.owner)
 
         val nodeType = request.nodeTypeId?.let {
             nodeTypesRepository.findById(it).orElseThrow {

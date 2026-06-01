@@ -35,4 +35,13 @@ class AuditMapper {
         ownerId = notation.owner.id!!,
         updatedAt = notation.updatedAt
     )
+
+    fun toActivityItem(auditLog: AuditLog): DashboardActivityItem = DashboardActivityItem(
+        id = requireNotNull(auditLog.id),
+        tableName = auditLog.tableName,
+        operation = auditLog.operation,
+        rowId = auditLog.rowId,
+        changedById = auditLog.changedBy?.id,
+        changedAt = auditLog.changedAt
+    )
 }

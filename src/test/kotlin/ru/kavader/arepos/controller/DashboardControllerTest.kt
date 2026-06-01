@@ -6,8 +6,8 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.test.mock.mockito.SpyBean
 import org.mockito.Mockito.doAnswer
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -35,7 +35,7 @@ class DashboardControllerTest : ControllerIntegrationTest() {
     @Autowired
     lateinit var auditLogRepository: AuditLogRepository
 
-    @SpyBean
+    @MockitoSpyBean
     lateinit var accessService: ResourceAccessService
 
     @BeforeEach

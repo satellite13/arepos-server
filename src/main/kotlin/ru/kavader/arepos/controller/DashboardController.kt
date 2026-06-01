@@ -92,16 +92,7 @@ class DashboardController(
         return DashboardRecentResponse(
             models = models.map { auditMapper.toRecentItem(it) },
             notations = notations.map { auditMapper.toRecentItem(it) },
-            activity = activity.map {
-                DashboardActivityItem(
-                    id = it.id!!,
-                    tableName = it.tableName,
-                    operation = it.operation,
-                    rowId = it.rowId,
-                    changedById = it.changedBy?.id,
-                    changedAt = it.changedAt
-                )
-            }
+            activity = activity.map { auditMapper.toActivityItem(it) }
         )
     }
 
