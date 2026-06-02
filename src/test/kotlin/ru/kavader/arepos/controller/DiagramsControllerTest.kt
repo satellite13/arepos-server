@@ -14,12 +14,16 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.model.ResourceShares
 import ru.kavader.arepos.model.Role
+import ru.kavader.arepos.model.SharePermission
+import ru.kavader.arepos.model.ShareResourceType
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.repository.ResourceSharesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import java.util.UUID
@@ -52,6 +56,9 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var diagramsRepository: DiagramsRepository
+
+    @Autowired
+    lateinit var resourceSharesRepository: ResourceSharesRepository
 
     @Test
     fun `creates diagram via REST`() {
@@ -374,6 +381,76 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `user with model edit access cannot create diagram with unrelated foreign notation`() {
+        val now = Instant.now()
+        val notationOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "diagram-notation-owner@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val modelOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "diagram-model-owner@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val editor = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "diagram-model-editor@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val model = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "diagram-guardrail-model",
+                createdAt = now,
+                version = "1.0.0",
+                owner = modelOwner
+            )
+        )
+        val foreignNotation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "diagram-guardrail-foreign-notation",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now
+            )
+        )
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = editor,
+                grantedByUser = modelOwner,
+                permission = SharePermission.EDIT,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        val payload = DiagramRequest(
+            name = "diagram-guardrail-create",
+            version = "1.0.0",
+            ownerId = editor.id!!,
+            modelId = model.id!!,
+            notationId = foreignNotation.id!!,
+            attrs = null
+        )
+
+        mockMvc.perform(
+            post("/api/v1/diagrams")
+                .withAuth(editor.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
     fun `lists diagrams with filters`() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
@@ -594,5 +671,14 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
                 .content("{}")
         )
             .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `public svg endpoint returns unified error envelope for missing token`() {
+        mockMvc.perform(get("/api/v1/diagrams/svg/public/${UUID.randomUUID()}"))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.error").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("Share link not found or expired"))
+            .andExpect(jsonPath("$.traceId").isNotEmpty)
     }
 }

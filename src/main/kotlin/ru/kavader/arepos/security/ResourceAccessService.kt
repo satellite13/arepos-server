@@ -262,11 +262,15 @@ class ResourceAccessService(
     }
 
     /**
-     * Создание/обновление диаграммы в модели: нотация видна по ACL нотации
-     * или пользователь может редактировать модель (редактор модели без шаринга нотации).
+     * Создание/обновление диаграммы в модели:
+     * - прямой доступ к нотации по ACL, либо
+     * - право редактировать модель и нотация уже используется активной диаграммой этой модели.
+     *
+     * Это guardrail от подстановки произвольной чужой нотации по `notationId` при наличии
+     * прав только на модель.
      */
     fun canReferenceNotationForModelDiagram(notation: Notations, model: Models): Boolean =
-        canViewNotation(notation) || canEditModel(model)
+        canUseNotationInModelDiagramEditor(notation, model)
 
     fun requireCanReferenceNotationForModelDiagram(notation: Notations, model: Models) {
         if (!canReferenceNotationForModelDiagram(notation, model)) {
@@ -462,17 +466,52 @@ class ResourceAccessService(
     fun modelAccessPermission(model: Models): String? =
         topLevelAccessPermission(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
 
+    fun modelAccessPermissions(models: Collection<Models>): Map<UUID, String?> =
+        topLevelAccessPermissions(
+            entries = models.mapNotNull { model ->
+                model.id?.let { id -> Triple(model.owner.id!!, ShareResourceType.MODEL, id) }
+            }
+        )
+
     fun notationAccessPermission(notation: Notations): String? =
         topLevelAccessPermission(notation.owner.id!!, ShareResourceType.NOTATION, notation.id!!)
+
+    fun notationAccessPermissions(notations: Collection<Notations>): Map<UUID, String?> =
+        topLevelAccessPermissions(
+            entries = notations.mapNotNull { notation ->
+                notation.id?.let { id -> Triple(notation.owner.id!!, ShareResourceType.NOTATION, id) }
+            }
+        )
 
     fun nodeTypeAccessPermission(nodeType: NodeTypes): String? =
         topLevelAccessPermission(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, nodeType.id!!)
 
+    fun nodeTypeAccessPermissions(nodeTypes: Collection<NodeTypes>): Map<UUID, String?> =
+        topLevelAccessPermissions(
+            entries = nodeTypes.mapNotNull { nodeType ->
+                nodeType.id?.let { id -> Triple(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, id) }
+            }
+        )
+
     fun linkTypeAccessPermission(linkType: LinkTypes): String? =
         topLevelAccessPermission(linkType.owner.id!!, ShareResourceType.LINK_TYPE, linkType.id!!)
 
+    fun linkTypeAccessPermissions(linkTypes: Collection<LinkTypes>): Map<UUID, String?> =
+        topLevelAccessPermissions(
+            entries = linkTypes.mapNotNull { linkType ->
+                linkType.id?.let { id -> Triple(linkType.owner.id!!, ShareResourceType.LINK_TYPE, id) }
+            }
+        )
+
     fun nodeShapeAccessPermission(shape: NodeShapes): String? =
         topLevelAccessPermission(shape.owner.id!!, ShareResourceType.NODE_SHAPE, shape.id!!)
+
+    fun nodeShapeAccessPermissions(shapes: Collection<NodeShapes>): Map<UUID, String?> =
+        topLevelAccessPermissions(
+            entries = shapes.mapNotNull { shape ->
+                shape.id?.let { id -> Triple(shape.owner.id!!, ShareResourceType.NODE_SHAPE, id) }
+            }
+        )
 
     private fun canEditTopLevel(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): Boolean {
         val userId = CurrentUser.getId()
@@ -853,6 +892,29 @@ class ResourceAccessService(
             return if (ownerId == userId) "OWNER" else "VIEW"
         }
         return null
+    }
+
+    private fun topLevelAccessPermissions(
+        entries: Collection<Triple<UUID, ShareResourceType, UUID>>
+    ): Map<UUID, String?> {
+        if (entries.isEmpty()) return emptyMap()
+
+        if (canViewAdminPanel()) {
+            return entries.associate { (_, _, resourceId) -> resourceId to "ADMIN" }
+        }
+
+        val currentUserId = CurrentUser.getId()
+        val editDecisions = evaluateTopLevelBatch(entries, CerbosAction.EDIT)
+        val viewDecisions = evaluateTopLevelBatch(entries, CerbosAction.VIEW)
+
+        return entries.associate { (ownerId, _, resourceId) ->
+            val permission = when {
+                editDecisions[resourceId] == true -> if (ownerId == currentUserId) "OWNER" else "EDIT"
+                viewDecisions[resourceId] == true -> if (ownerId == currentUserId) "OWNER" else "VIEW"
+                else -> null
+            }
+            resourceId to permission
+        }
     }
 
     private fun isCommonType(owner: ru.kavader.arepos.model.Users): Boolean {

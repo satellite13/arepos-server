@@ -2,6 +2,7 @@ package ru.kavader.arepos.model
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
+import org.hibernate.annotations.BatchSize
 import org.hibernate.annotations.DynamicUpdate
 import org.hibernate.annotations.JdbcTypeCode
 import java.time.Instant
@@ -10,7 +11,17 @@ import org.hibernate.type.SqlTypes
 
 @Entity
 @DynamicUpdate
-@Table(name = "nodes", schema = "public")
+@BatchSize(size = 50)
+@Table(
+    name = "nodes",
+    schema = "public",
+    indexes = [
+        Index(name = "nodes_parent_node_idx", columnList = "parent_node"),
+        Index(name = "nodes_model_idx", columnList = "model"),
+        Index(name = "nodes_owner_idx", columnList = "owner"),
+        Index(name = "nodes_node_type_idx", columnList = "node_type")
+    ]
+)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Nodes(
     @Id
