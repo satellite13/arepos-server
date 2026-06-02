@@ -1,4 +1,15 @@
 #!/bin/bash
+#
+# Precheck перед promote Cerbos в prod: запускает parity-check локального и infra values.
+# Используйте перед выкладкой policy, чтобы убедиться в согласованности конфигурации.
+#
+# Примеры:
+#   INFRA_VALUES_FILE=../infra/arepos-values.yaml ./scripts/cerbos-promote-precheck.sh
+#   LOCAL_VALUES_FILE=deploy-values.yaml INFRA_VALUES_FILE=../infra/values.yaml ./scripts/cerbos-promote-precheck.sh
+#   INCLUDE_ENDPOINT=true INFRA_VALUES_FILE=../infra/values.yaml ./scripts/cerbos-promote-precheck.sh
+#
+# Переменные: NAMESPACE, LOCAL_VALUES_FILE, INFRA_VALUES_FILE (обязательный),
+# INCLUDE_ENDPOINT, PARITY_SCRIPT.
 
 set -euo pipefail
 

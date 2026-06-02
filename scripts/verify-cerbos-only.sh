@@ -1,4 +1,12 @@
 #!/bin/bash
+#
+# Статическая проверка Cerbos-only авторизации: отсутствие role-bypass в контроллерах,
+# legacy-флагов Cerbos, наличие policy-файлов; компиляция и Cerbos-фокусные unit-тесты.
+#
+# Примеры:
+#   ./scripts/verify-cerbos-only.sh
+#
+# Требования: rg, bash, ./gradlew.
 
 set -euo pipefail
 

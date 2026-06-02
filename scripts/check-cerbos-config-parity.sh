@@ -1,4 +1,15 @@
 #!/bin/bash
+#
+# Сравнение Cerbos-конфигурации между локальным и infra values через helm template:
+# проверяет совпадение ключевых env-переменных (timeout, bundleVersion, опционально endpoint).
+#
+# Примеры:
+#   INFRA_VALUES_FILE=../infra/arepos-values.yaml ./scripts/check-cerbos-config-parity.sh
+#   LOCAL_VALUES_FILE=deploy-values.yaml INFRA_VALUES_FILE=../infra/values.yaml ./scripts/check-cerbos-config-parity.sh
+#   INCLUDE_ENDPOINT=true INFRA_VALUES_FILE=../infra/values.yaml ./scripts/check-cerbos-config-parity.sh
+#
+# Переменные: LOCAL_VALUES_FILE, INFRA_VALUES_FILE (обязательный), CHART_PATH, NAMESPACE,
+# INCLUDE_ENDPOINT (false).
 
 set -euo pipefail
 

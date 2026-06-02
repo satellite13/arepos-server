@@ -1,4 +1,19 @@
 #!/bin/bash
+#
+# Деплой arepos-server в Kubernetes через Helm.
+# Собирает Docker-образ, создаёт namespace и секреты JWT/Admin, разворачивает PostgreSQL,
+# MinIO и Cerbos; поддерживает blue/green и проверку health/version после rollout.
+#
+# Примеры:
+#   ./scripts/deploy.sh
+#   SKIP_CONFIRM=true ./scripts/deploy.sh
+#   BUILD_IMAGE=false IMAGE_TAG=0.2.5 ./scripts/deploy.sh
+#   BLUE_GREEN=true BG_SWITCH=true ./scripts/deploy.sh
+#   CHECK_CERBOS_PARITY=true CERBOS_INFRA_VALUES_FILE=../infra/values.yaml ./scripts/deploy.sh
+#
+# Переменные: NAMESPACE, RELEASE_NAME, VALUES_FILE, POSTGRESQL_ENABLED, BUILD_IMAGE,
+# IMAGE_BUILD_MODE (buildpack|dockerfile), IMAGE_TAG, BLUE_GREEN, BG_SWITCH, CERBOS_DEPLOY,
+# CERBOS_BUNDLE_VERSION, JWT_SECRET, ADMIN_SECRET, SKIP_CONFIRM.
 
 set -e
 

@@ -1,4 +1,18 @@
 #!/bin/bash
+#
+# Релиз Cerbos policy: валидация (cerbos compile), сборка tar.gz bundle с SHA256,
+# синхронизация policy в Helm chart; опционально локальный или prod deploy.
+#
+# Примеры:
+#   ./scripts/release-cerbos-policies.sh
+#   BUNDLE_VERSION=policy-v1.2.3 ./scripts/release-cerbos-policies.sh
+#   DEPLOY_TARGET=local ./scripts/release-cerbos-policies.sh
+#   DEPLOY_TARGET=prod BUNDLE_VERSION=policy-v1.2.3 ./scripts/release-cerbos-policies.sh
+#   DRY_RUN=true DEPLOY_TARGET=local ./scripts/release-cerbos-policies.sh
+#   ALLOW_DIRTY=true ./scripts/release-cerbos-policies.sh
+#
+# Переменные: POLICY_DIR, RELEASE_DIR, BUNDLE_VERSION, DRY_RUN, ALLOW_DIRTY,
+# DEPLOY_TARGET (none|local|prod), SKIP_POLICY_TESTS, CERBOS_IMAGE, NAMESPACE, RELEASE_NAME, VALUES_FILE.
 
 set -euo pipefail
 

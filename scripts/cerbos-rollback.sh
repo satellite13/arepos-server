@@ -1,4 +1,15 @@
 #!/bin/bash
+#
+# Откат Cerbos на указанную версию policy bundle: печатает или выполняет команду
+# deploy/helm upgrade с cerbos.enabled=true и cerbos.bundleVersion.
+#
+# Примеры:
+#   BUNDLE_VERSION=policy-abc1234 ./scripts/cerbos-rollback.sh
+#   TARGET=local BUNDLE_VERSION=policy-abc1234 PRINT_ONLY=false ./scripts/cerbos-rollback.sh
+#   TARGET=infra BUNDLE_VERSION=policy-abc1234 APPLY=true VALUES_FILE=../infra/values.yaml ./scripts/cerbos-rollback.sh
+#
+# Переменные: TARGET (local|infra), BUNDLE_VERSION, PRINT_ONLY (true), APPLY (false),
+# NAMESPACE, RELEASE_NAME, VALUES_FILE, CHART_PATH.
 
 set -euo pipefail
 

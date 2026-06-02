@@ -1,4 +1,13 @@
 #!/bin/bash
+#
+# Удаление arepos-server из Kubernetes: снимает Helm release и опционально PVC PostgreSQL.
+#
+# Примеры:
+#   ./scripts/undeploy.sh
+#   NAMESPACE=arch ./scripts/undeploy.sh
+#   DELETE_PVC=true ./scripts/undeploy.sh
+#
+# Переменные: NAMESPACE (по умолчанию arch), RELEASE_NAME (arepos-server), DELETE_PVC (false).
 
 set -e
 

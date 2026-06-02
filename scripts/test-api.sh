@@ -1,4 +1,14 @@
 #!/bin/bash
+#
+# Smoke-тесты REST API arepos-server: health check и CRUD по основным сущностям
+# (users, models, notations, nodes, links, relations и др.) внутри кластера.
+#
+# Примеры:
+#   ./scripts/test-api.sh
+#   NAMESPACE=arch ./scripts/test-api.sh
+#
+# Переменные: NAMESPACE (по умолчанию arch); BASE_URL формируется как
+# http://arepos-server.<NAMESPACE>.svc.cluster.local:8080.
 
 set -e
 

@@ -1,4 +1,13 @@
 #!/bin/bash
+#
+# Создание пользователя через REST API arepos-server (POST /api/v1/users).
+# По умолчанию обращается к in-cluster URL; для локального доступа задайте BASE_URL.
+#
+# Примеры:
+#   ./scripts/create-user.sh user@example.com
+#   BASE_URL=http://localhost:8080 ./scripts/create-user.sh admin@example.com
+#
+# Переменные: BASE_URL (по умолчанию http://arepos-server.arch.svc.cluster.local:8080).
 
 BASE_URL="${BASE_URL:-http://arepos-server.arch.svc.cluster.local:8080}"
 
