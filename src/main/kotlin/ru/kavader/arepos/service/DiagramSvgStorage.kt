@@ -3,7 +3,15 @@ package ru.kavader.arepos.service
 import java.util.UUID
 
 sealed interface DiagramSvgReadResult {
-    data class Found(val bytes: ByteArray) : DiagramSvgReadResult
+    data class Found(val bytes: ByteArray) : DiagramSvgReadResult {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is Found) return false
+            return bytes.contentEquals(other.bytes)
+        }
+
+        override fun hashCode(): Int = bytes.contentHashCode()
+    }
     data object NotFound : DiagramSvgReadResult
     data class StorageError(val message: String? = null) : DiagramSvgReadResult
 }

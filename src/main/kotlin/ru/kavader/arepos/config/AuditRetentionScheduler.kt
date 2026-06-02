@@ -12,13 +12,13 @@ import java.time.Instant
 @Component
 class AuditRetentionScheduler(
     private val auditLogRepository: AuditLogRepository,
-    @param:Value("\${arepos.audit.retention:PT24H}")
+    @param:Value($$"${arepos.audit.retention:PT24H}")
     private val retention: Duration
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     @Transactional
-    @Scheduled(cron = "\${arepos.audit.cleanup-cron:0 0 * * * *}")
+    @Scheduled(cron = $$"${arepos.audit.cleanup-cron:0 0 * * * *}")
     fun cleanupExpiredAuditLogs() {
         MdcRequestId.withGeneratedIfMissing("audit-cleanup") {
             val cutoff = Instant.now().minus(retention)

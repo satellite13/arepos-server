@@ -12,7 +12,7 @@ class DiagramSpectatorCleanupScheduler(
 ) {
     private val running = AtomicBoolean(false)
 
-    @Scheduled(fixedDelayString = "\${arepos.diagram-spectator.cleanup-ms:15000}")
+    @Scheduled(fixedDelayString = $$"${arepos.diagram-spectator.cleanup-ms:15000}")
     @SchedulerLock(name = "DiagramSpectatorCleanupScheduler.purgeStaleSpectators", lockAtMostFor = "PT1M", lockAtLeastFor = "PT1S")
     fun purgeStaleSpectators() {
         MdcRequestId.withGeneratedIfMissing("diagram-spectator-cleanup") {

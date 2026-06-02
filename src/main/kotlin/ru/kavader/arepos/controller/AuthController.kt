@@ -34,7 +34,7 @@ class AuthController(
     private val jwtTokenProvider: JwtTokenProvider,
     private val userProfileAttrsService: UserProfileAttrsService,
     private val metrics: CustomMetricsService,
-    @param:Value("\${arepos.admin-secret:}") private val adminSecret: String
+    @param:Value($$"${arepos.admin-secret:}") private val adminSecret: String
 ) {
     private val dummyPasswordHash by lazy {
         passwordEncoder.encode("dummy-password-for-timing-equalization")

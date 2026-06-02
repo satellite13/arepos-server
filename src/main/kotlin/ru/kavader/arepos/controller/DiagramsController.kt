@@ -59,7 +59,7 @@ class DiagramsController(
     private val diagramPreviewLinksRepository: DiagramPreviewLinksRepository,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val modelMapper: ModelMapper,
-    @Value("\${arepos.public-url-base:}") private val publicUrlBase: String = ""
+    @Value($$"${arepos.public-url-base:}") private val publicUrlBase: String = ""
 ) {
     companion object {
         private const val PUBLIC_SVG_URL_PREFIX = "/api/v1/diagrams/svg/public/"

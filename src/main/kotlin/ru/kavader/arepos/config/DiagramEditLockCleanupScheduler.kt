@@ -13,7 +13,7 @@ class DiagramEditLockCleanupScheduler(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     @Transactional
-    @Scheduled(fixedDelayString = "\${arepos.diagram-lock.cleanup-ms:45000}")
+    @Scheduled(fixedDelayString = $$"${arepos.diagram-lock.cleanup-ms:45000}")
     fun deleteExpiredDiagramLocks() {
         MdcRequestId.withGeneratedIfMissing("diagram-lock-cleanup") {
             val deleted = diagramEditLockService.deleteExpiredLocks()

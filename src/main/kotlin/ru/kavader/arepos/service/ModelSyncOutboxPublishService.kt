@@ -20,8 +20,8 @@ class ModelSyncOutboxPublishService(
     private val objectMapper: ObjectMapper,
     private val metrics: ModelSyncMetrics,
     private val transactionTemplate: TransactionTemplate,
-    @param:Value("\${arepos.model-sync.outbox-enabled:false}") private val enabled: Boolean,
-    @param:Value("\${arepos.model-sync.outbox-batch-size:50}") private val batchSize: Int
+    @param:Value($$"${arepos.model-sync.outbox-enabled:false}") private val enabled: Boolean,
+    @param:Value($$"${arepos.model-sync.outbox-batch-size:50}") private val batchSize: Int
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val maxAttempts = 25

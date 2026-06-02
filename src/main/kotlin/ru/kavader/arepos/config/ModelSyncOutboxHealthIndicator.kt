@@ -11,7 +11,7 @@ import java.time.Instant
 @Component("modelSyncOutbox")
 class ModelSyncOutboxHealthIndicator(
     private val modelSyncOutboxRepository: ModelSyncOutboxRepository,
-    @param:Value("\${arepos.model-sync.outbox-enabled:false}") private val outboxEnabled: Boolean
+    @param:Value($$"${arepos.model-sync.outbox-enabled:false}") private val outboxEnabled: Boolean
 ) : HealthIndicator {
     override fun health(): Health {
         if (!outboxEnabled) {

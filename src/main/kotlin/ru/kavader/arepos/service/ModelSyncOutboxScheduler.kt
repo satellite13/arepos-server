@@ -8,10 +8,10 @@ import ru.kavader.arepos.config.MdcRequestId
 @Component
 class ModelSyncOutboxScheduler(
     private val publishService: ModelSyncOutboxPublishService,
-    @param:Value("\${arepos.model-sync.outbox-enabled:false}") private val outboxEnabled: Boolean
+    @param:Value($$"${arepos.model-sync.outbox-enabled:false}") private val outboxEnabled: Boolean
 ) {
 
-    @Scheduled(fixedDelayString = "\${arepos.model-sync.outbox-publish-interval-ms:500}")
+    @Scheduled(fixedDelayString = $$"${arepos.model-sync.outbox-publish-interval-ms:500}")
     fun publishOutbox() {
         MdcRequestId.withGeneratedIfMissing("outbox-scheduler") {
             if (!outboxEnabled) {
