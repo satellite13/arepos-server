@@ -11,6 +11,18 @@ import ru.kavader.arepos.security.ResourceAccessService
 class ModelMapper(
     private val accessService: ResourceAccessService
 ) {
+    fun toResponse(model: Models, accessPermission: String?): ModelResponse = ModelResponse(
+        id = requireNotNull(model.id),
+        name = model.name,
+        version = model.version,
+        ownerId = model.owner.id!!,
+        accessPermission = accessPermission,
+        attrs = model.attrs,
+        createdAt = model.createdAt,
+        updatedAt = model.updatedAt,
+        sourceId = model.source?.id
+    )
+
     fun toResponse(model: Models): ModelResponse = ModelResponse(
         id = requireNotNull(model.id),
         name = model.name,

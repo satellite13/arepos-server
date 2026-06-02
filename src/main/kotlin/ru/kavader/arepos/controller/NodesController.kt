@@ -1,6 +1,8 @@
 package ru.kavader.arepos.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -8,7 +10,9 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.ModelMapper
 import ru.kavader.arepos.dto.model.*
+import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
+import ru.kavader.arepos.dto.system.ModelSyncEventType
 import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
@@ -28,6 +32,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/nodes")
+@Tag(name = "Nodes", description = "Model nodes management endpoints")
 class NodesController(
     private val nodesRepository: NodesRepository,
     private val modelsRepository: ModelsRepository,
@@ -44,6 +49,7 @@ class NodesController(
 ) {
 
     @GetMapping
+    @Operation(summary = "List nodes")
     fun listNodes(
         pageable: Pageable,
         @RequestParam(required = false) modelId: UUID?,
@@ -89,6 +95,7 @@ class NodesController(
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get node by id")
     fun getNode(@PathVariable id: UUID): NodeResponse =
         nodesRepository.findById(id)
             .map {
@@ -100,6 +107,7 @@ class NodesController(
             }
 
     @PostMapping
+    @Operation(summary = "Create node")
     @ResponseStatus(HttpStatus.CREATED)
     fun createNode(@RequestBody @Valid request: NodeRequest): NodeResponse {
         val model = modelsRepository.findById(request.modelId)
@@ -136,13 +144,20 @@ class NodesController(
         )
         modelSyncBroadcaster.broadcastModelChanged(
             requireNotNull(model.id),
-            "node_create",
-            listOf(ModelSyncEntityEvent("node_created", "node", requireNotNull(saved.id)))
+            ModelSyncChangeType.NODE_CREATE.wireValue,
+            listOf(
+                ModelSyncEntityEvent(
+                    ModelSyncEventType.NODE_CREATED.wireValue,
+                    ModelSyncEventType.NODE_CREATED.entity,
+                    requireNotNull(saved.id)
+                )
+            )
         )
         return modelMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update node")
     fun updateNode(
         @PathVariable id: UUID,
         @RequestBody request: NodeUpdateRequest
@@ -196,13 +211,20 @@ class NodesController(
         )
         modelSyncBroadcaster.broadcastModelChanged(
             requireNotNull(model.id),
-            "node_update",
-            listOf(ModelSyncEntityEvent("node_updated", "node", requireNotNull(updated.id)))
+            ModelSyncChangeType.NODE_UPDATE.wireValue,
+            listOf(
+                ModelSyncEntityEvent(
+                    ModelSyncEventType.NODE_UPDATED.wireValue,
+                    ModelSyncEventType.NODE_UPDATED.entity,
+                    requireNotNull(updated.id)
+                )
+            )
         )
         return modelMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete node")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteNode(@PathVariable id: UUID) {
         val node = nodesRepository.findById(id)
@@ -223,8 +245,8 @@ class NodesController(
         )
         modelSyncBroadcaster.broadcastModelChanged(
             modelId,
-            "node_delete",
-            listOf(ModelSyncEntityEvent("node_deleted", "node", id))
+            ModelSyncChangeType.NODE_DELETE.wireValue,
+            listOf(ModelSyncEntityEvent(ModelSyncEventType.NODE_DELETED.wireValue, ModelSyncEventType.NODE_DELETED.entity, id))
         )
     }
 

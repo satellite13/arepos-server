@@ -20,10 +20,12 @@ class AuditRetentionScheduler(
     @Transactional
     @Scheduled(cron = "\${arepos.audit.cleanup-cron:0 0 * * * *}")
     fun cleanupExpiredAuditLogs() {
-        val cutoff = Instant.now().minus(retention)
-        val deletedRows = auditLogRepository.deleteByChangedAtBefore(cutoff)
-        if (deletedRows > 0) {
-            logger.info("Deleted {} audit log rows older than {}", deletedRows, cutoff)
+        MdcRequestId.withGeneratedIfMissing("audit-cleanup") {
+            val cutoff = Instant.now().minus(retention)
+            val deletedRows = auditLogRepository.deleteByChangedAtBefore(cutoff)
+            if (deletedRows > 0) {
+                logger.info("Deleted {} audit log rows older than {}", deletedRows, cutoff)
+            }
         }
     }
 }

@@ -1,5 +1,9 @@
 package ru.kavader.arepos.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
+import ru.kavader.arepos.dto.common.ListResponse
+import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.dto.system.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
@@ -15,6 +19,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/audit-log")
+@Tag(name = "Audit Log", description = "Audit log browsing endpoints")
 class AuditLogController(
     private val auditLogRepository: AuditLogRepository,
     private val usersRepository: UsersRepository,
@@ -23,13 +28,14 @@ class AuditLogController(
 ) {
 
     @GetMapping
+    @Operation(summary = "List audit log entries")
     fun listAuditLogs(
         pageable: Pageable,
         @RequestParam(required = false) tableName: String?,
         @RequestParam(required = false) operation: String?,
         @RequestParam(required = false) changedById: UUID?,
         @RequestParam(required = false) rowId: UUID?
-    ): Page<AuditLogResponse> {
+    ): ListResponse<AuditLogResponse> {
         if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
             if (changedById != null && changedById != currentUserId) {
@@ -56,7 +62,9 @@ class AuditLogController(
                 }
             }
             val filtered = auditLogs.content.filter { it.changedBy?.id == currentUserId }
-            return PageImpl(filtered, pageable, filtered.size.toLong()).map { auditMapper.toResponse(it) }
+            return PageImpl(filtered, pageable, filtered.size.toLong())
+                .map { auditMapper.toResponse(it) }
+                .toListResponse()
         }
 
         val auditLogs = when {
@@ -84,10 +92,11 @@ class AuditLogController(
                 auditLogRepository.findAll(pageable)
             }
         }
-        return auditLogs.map { auditMapper.toResponse(it) }
+        return auditLogs.map { auditMapper.toResponse(it) }.toListResponse()
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get audit log entry by id")
     fun getAuditLog(@PathVariable id: UUID): AuditLogResponse =
         auditLogRepository.findById(id)
             .map {

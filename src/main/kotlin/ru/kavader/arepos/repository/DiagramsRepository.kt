@@ -63,7 +63,7 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
     @Query("SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END FROM Diagrams d WHERE d.id = :id AND d.deleted = false")
     override fun existsById(id: UUID): Boolean
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Diagrams d SET d.deleted = true WHERE d.id = :id")
     fun softDeleteById(id: UUID): Int
 

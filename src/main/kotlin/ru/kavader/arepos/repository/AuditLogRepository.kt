@@ -19,7 +19,7 @@ interface AuditLogRepository : JpaRepository<AuditLog, UUID> {
     fun findByRowId(rowId: UUID, pageable: Pageable): Page<AuditLog>
     fun findByTableNameAndRowId(tableName: String, rowId: UUID, pageable: Pageable): Page<AuditLog>
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from AuditLog a where a.changedAt < :cutoff")
     fun deleteByChangedAtBefore(cutoff: Instant): Int
 }

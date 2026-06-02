@@ -8,6 +8,7 @@ import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.LinksRepository
 import ru.kavader.arepos.repository.NodesRepository
 import java.time.Instant
+import java.util.UUID
 
 @Component
 class BatchConflictCollector(
@@ -19,6 +20,23 @@ class BatchConflictCollector(
         if (request.force) return emptyList()
         val modelId = requireNotNull(model.id) { "Model id required" }
         val conflicts = mutableListOf<BatchConflictItem>()
+
+        val requestedNodeStableIds = request.nodes.create
+            .mapNotNull { create -> create.tempId.toUUIDOrNull() }
+            .toSet()
+        if (requestedNodeStableIds.isNotEmpty()) {
+            val existingNodes = nodesRepository.findByModel_IdAndStableIdIn(modelId, requestedNodeStableIds)
+            existingNodes.forEach { node ->
+                conflicts.add(
+                    BatchConflictItem(
+                        kind = "node",
+                        id = requireNotNull(node.id),
+                        serverUpdatedAt = node.updatedAt,
+                        clientBaseUpdatedAt = null
+                    )
+                )
+            }
+        }
 
         for (upd in request.nodes.update) {
             val base = upd.baseUpdatedAt ?: continue
@@ -76,4 +94,11 @@ class BatchConflictCollector(
         if (server == null) return true
         return server.toEpochMilli() != clientBase.toEpochMilli()
     }
+
+    private fun String.toUUIDOrNull(): UUID? =
+        try {
+            UUID.fromString(this)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
 }

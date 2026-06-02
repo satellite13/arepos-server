@@ -8,7 +8,7 @@ import java.util.UUID
 @ConditionalOnProperty(name = ["arepos.files.storage"], havingValue = "disabled", matchIfMissing = true)
 class NoOpDiagramSvgStorage : DiagramSvgStorage {
 
-    override fun putSvg(diagramId: UUID, svgContent: String): Boolean = false
+    override fun putSvg(diagramId: UUID, svgContent: String): DiagramSvgWriteResult = DiagramSvgWriteResult.Unavailable
 
-    override fun getSvg(diagramId: UUID): ByteArray? = null
+    override fun getSvg(diagramId: UUID): DiagramSvgReadResult = DiagramSvgReadResult.NotFound
 }

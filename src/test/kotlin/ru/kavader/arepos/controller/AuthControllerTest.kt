@@ -2,6 +2,7 @@ package ru.kavader.arepos.controller
 import ru.kavader.arepos.dto.auth.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -96,8 +97,24 @@ class AuthControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(LoginRequest("nonexist@test.com", "wrong")))
+                .content(objectMapper.writeValueAsString(LoginRequest("nonexist@test.com", "wrongpass")))
         ).andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `returns 400 for invalid register payload`() {
+        val payload = mapOf(
+            "email" to "not-an-email",
+            "password" to "short",
+            "firstName" to "",
+            "lastName" to ""
+        )
+
+        mockMvc.perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        ).andExpect(status().isBadRequest)
     }
 
     @Test
@@ -113,7 +130,7 @@ class AuthControllerTest : ControllerIntegrationTest() {
 
         val authResponse = objectMapper.readValue(registerJson, AuthResponse::class.java)
 
-        mockMvc.perform(
+        val refreshJson = mockMvc.perform(
             post("/api/v1/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(RefreshRequest(authResponse.refreshToken)))
@@ -121,6 +138,48 @@ class AuthControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accessToken").isNotEmpty)
             .andExpect(jsonPath("$.refreshToken").isNotEmpty)
+            .andReturn()
+            .response.contentAsString
+
+        val refreshed = objectMapper.readValue(refreshJson, AuthResponse::class.java)
+        assertNotEquals(authResponse.refreshToken, refreshed.refreshToken)
+    }
+
+    @Test
+    fun `rejects reused refresh token`() {
+        val registerJson = mockMvc.perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registerRequest("refresh-replay@test.com")))
+        )
+            .andExpect(status().isCreated)
+            .andReturn()
+            .response.contentAsString
+
+        val authResponse = objectMapper.readValue(registerJson, AuthResponse::class.java)
+
+        val firstRefreshJson = mockMvc.perform(
+            post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(RefreshRequest(authResponse.refreshToken)))
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+            .response.contentAsString
+
+        val firstRefresh = objectMapper.readValue(firstRefreshJson, AuthResponse::class.java)
+
+        mockMvc.perform(
+            post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(RefreshRequest(authResponse.refreshToken)))
+        ).andExpect(status().isUnauthorized)
+
+        mockMvc.perform(
+            post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(RefreshRequest(firstRefresh.refreshToken)))
+        ).andExpect(status().isOk)
     }
 
     @Test

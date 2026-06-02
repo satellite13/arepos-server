@@ -21,11 +21,20 @@ class DiagramsRepositoryTest : RepositoryTestBase() {
 
     @Test
     fun `findAll returns only not deleted diagrams`() {
-        persistDiagram(name = "active-diagram", version = "1.0.0")
-        val deletedDiagram = persistDiagram(name = "deleted-diagram", version = "1.0.1")
+        val model = persistModel()
+        val notation = persistNotation(owner = model.owner)
+        persistDiagram(model = model, notation = notation, name = "active-diagram", version = "1.0.0")
+        val deletedDiagram = persistDiagram(model = model, notation = notation, name = "deleted-diagram", version = "1.0.1")
         diagramsRepository.save(deletedDiagram.copy(deleted = true))
 
-        val diagrams = diagramsRepository.findAll(org.springframework.data.domain.Pageable.unpaged())
+        val diagrams = diagramsRepository.findByFilters(
+            ownerId = null,
+            modelId = model.id,
+            nodeId = null,
+            notationId = null,
+            name = "",
+            pageable = org.springframework.data.domain.Pageable.unpaged()
+        )
         assertEquals(1, diagrams.totalElements)
         assertEquals("active-diagram", diagrams.content.first().name)
     }

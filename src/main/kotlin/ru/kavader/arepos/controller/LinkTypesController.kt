@@ -1,7 +1,10 @@
 package ru.kavader.arepos.controller
 
 import ru.kavader.arepos.dto.notation.*
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.slf4j.LoggerFactory
@@ -24,6 +27,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/link-types")
+@Tag(name = "Link Types", description = "Link type catalog endpoints")
 class LinkTypesController(
     private val linkTypesRepository: LinkTypesRepository,
     private val usersRepository: UsersRepository,
@@ -42,6 +46,7 @@ class LinkTypesController(
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
     @GetMapping
+    @Operation(summary = "List link types")
     fun listLinkTypes(
         pageable: Pageable,
         @RequestParam(required = false) ownerId: UUID?,
@@ -53,13 +58,14 @@ class LinkTypesController(
             val currentUserId = accessService.currentUserId()
             val normalizedName = name?.trim().orEmpty()
             if (notationId.isNullOrEmpty() && modelId == null) {
-                return linkTypesRepository.findAccessibleForUser(
+                val page = linkTypesRepository.findAccessibleForUser(
                     userId = currentUserId,
                     ownerId = ownerId,
                     name = normalizedName,
                     viewPermissions = viewPermissions,
                     pageable = pageable
-                ).map { notationMapper.toResponse(it) }
+                )
+                return mapLinkTypesPage(page)
             }
 
             val resolvedModel = modelId?.let { mid ->
@@ -112,7 +118,7 @@ class LinkTypesController(
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
                 .toList()
-            return filtered.toPage(pageable).map { notationMapper.toResponse(it) }
+            return mapLinkTypesPage(filtered.toPage(pageable))
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -126,10 +132,11 @@ class LinkTypesController(
             else ->
                 linkTypesRepository.findAll(pageable)
         }
-        return linkTypes.map { notationMapper.toResponse(it) }
+        return mapLinkTypesPage(linkTypes)
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get link type by id")
     fun getLinkType(@PathVariable id: UUID): LinkTypeResponse =
         linkTypesRepository.findById(id)
             .map {
@@ -144,6 +151,7 @@ class LinkTypesController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create link type")
     fun createLinkType(@RequestBody request: LinkTypeRequest): LinkTypeResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
@@ -161,6 +169,7 @@ class LinkTypesController(
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update link type")
     fun updateLinkType(
         @PathVariable id: UUID,
         @RequestBody request: LinkTypeUpdateRequest
@@ -184,6 +193,7 @@ class LinkTypesController(
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete link type")
     fun deleteLinkType(@PathVariable id: UUID) {
         val linkType = linkTypesRepository.findById(id).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
@@ -196,5 +206,14 @@ class LinkTypesController(
         ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
             linkTypesRepository.findAccessibleForUser(uid, oid, "", viewPermissions, Pageable.ofSize(1)).hasContent()
         }
+
+    private fun mapLinkTypesPage(page: Page<LinkTypes>): Page<LinkTypeResponse> {
+        val permissions = accessService.linkTypeAccessPermissions(page.content)
+        val mapped = page.content.map { linkType ->
+            val linkTypeId = requireNotNull(linkType.id)
+            notationMapper.toResponse(linkType, permissions[linkTypeId])
+        }
+        return PageImpl(mapped, page.pageable, page.totalElements)
+    }
 
 }

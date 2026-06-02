@@ -5,7 +5,14 @@ import java.time.Instant
 import java.util.UUID
 
 @Entity
-@Table(name = "file_versions", schema = "public")
+@Table(
+    name = "file_versions",
+    schema = "public",
+    indexes = [
+        Index(name = "file_versions_file_id_idx", columnList = "file_id"),
+        Index(name = "file_versions_created_by_idx", columnList = "created_by")
+    ]
+)
 data class FileVersions(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

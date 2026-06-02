@@ -1,7 +1,11 @@
 package ru.kavader.arepos.controller
 
 import ru.kavader.arepos.dto.file.*
+import ru.kavader.arepos.dto.common.ListResponse
+import ru.kavader.arepos.dto.common.toListResponse
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -9,24 +13,41 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
+import jakarta.validation.Valid
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.DocumentRefsService
 import ru.kavader.arepos.service.FileStorageService
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.*
 
 
 @RestController
 @RequestMapping("/api/v1/files")
 @ConditionalOnBean(FileStorageService::class)
+@Tag(name = "Files", description = "File upload, download and versioning endpoints")
 class FilesController(
     private val fileStorageService: FileStorageService,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
     private val documentRefsService: DocumentRefsService
 ) {
+    companion object {
+        internal fun buildInlineContentDisposition(filename: String): String {
+            val safeName = filename
+                .replace(Regex("[\\r\\n\\u0000-\\u001F\\u007F]"), "")
+                .replace("\"", "")
+                .ifBlank { "file" }
+                .take(255)
+            val encoded = URLEncoder.encode(safeName, StandardCharsets.UTF_8).replace("+", "%20")
+            return "inline; filename=\"$safeName\"; filename*=UTF-8''$encoded"
+        }
+    }
+
 
     @PostMapping("/upload")
+    @Operation(summary = "Upload binary file")
     fun upload(@RequestParam("file") file: MultipartFile): FileUploadResponse {
         val userId = accessService.currentUserId()
         val owner = usersRepository.findById(userId)
@@ -45,7 +66,8 @@ class FilesController(
     }
 
     @PostMapping("/upload-markdown")
-    fun uploadMarkdown(@RequestBody request: UploadMarkdownRequest): FileUploadResponse {
+    @Operation(summary = "Upload markdown content as file")
+    fun uploadMarkdown(@RequestBody @Valid request: UploadMarkdownRequest): FileUploadResponse {
         val userId = accessService.currentUserId()
         val owner = usersRepository.findById(userId)
             .orElseThrow {
@@ -63,9 +85,10 @@ class FilesController(
     }
 
     @PutMapping("/{id}/markdown")
+    @Operation(summary = "Update markdown file content")
     fun updateMarkdown(
         @PathVariable id: UUID,
-        @RequestBody request: UploadMarkdownRequest
+        @RequestBody @Valid request: UploadMarkdownRequest
     ): FileUploadResponse {
         val userId = accessService.currentUserId()
         val owner = usersRepository.findById(userId)
@@ -88,6 +111,7 @@ class FilesController(
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Download file by id")
     fun getFile(@PathVariable id: UUID): ResponseEntity<org.springframework.core.io.Resource> {
         val fileMetadata = fileStorageService.getFileMetadata(id)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
@@ -97,13 +121,14 @@ class FilesController(
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(file.contentType))
-            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"${file.filename}\"")
+            .header(HttpHeaders.CONTENT_DISPOSITION, buildInlineContentDisposition(file.filename))
             .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
             .body(resource)
     }
 
     @GetMapping("/{id}/versions")
-    fun listVersions(@PathVariable id: UUID): List<FileVersionResponse> {
+    @Operation(summary = "List file versions")
+    fun listVersions(@PathVariable id: UUID): ListResponse<FileVersionResponse> {
         val file = fileStorageService.getFileMetadata(id)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
         accessService.requireCanViewFile(file)
@@ -115,10 +140,11 @@ class FilesController(
                 createdBy = version.createdBy,
                 size = version.size
             )
-        }
+        }.toListResponse()
     }
 
     @GetMapping("/{id}/versions/{versionNumber}")
+    @Operation(summary = "Download specific file version")
     fun getFileVersion(
         @PathVariable id: UUID,
         @PathVariable versionNumber: Int
@@ -131,7 +157,7 @@ class FilesController(
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File or version not found")
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(file.contentType))
-            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"${file.filename}\"")
+            .header(HttpHeaders.CONTENT_DISPOSITION, buildInlineContentDisposition(file.filename))
             .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
             .body(resource)
     }

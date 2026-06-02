@@ -128,8 +128,8 @@ class ModelsControllerTest : ControllerIntegrationTest() {
                 .withAuth(owner.id!!)
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.content.length()").value(2))
-            .andExpect(jsonPath("$.page.totalElements").value(2))
+            .andExpect(jsonPath("$.items.length()").value(2))
+            .andExpect(jsonPath("$.total").value(2))
     }
 
     @Test
@@ -170,8 +170,8 @@ class ModelsControllerTest : ControllerIntegrationTest() {
                 .withAuth(userA.id!!, Role.USER)
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.content.length()").value(1))
-            .andExpect(jsonPath("$.content[0].id").value(ownModel.id.toString()))
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].id").value(ownModel.id.toString()))
     }
 
     @Test

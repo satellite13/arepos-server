@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.ModelSyncOutbox
+import java.time.Instant
 import java.util.UUID
 
 @Repository
@@ -23,4 +24,7 @@ interface ModelSyncOutboxRepository : JpaRepository<ModelSyncOutbox, UUID> {
     fun findPendingForPublish(pageable: Pageable): List<ModelSyncOutbox>
 
     fun countByPublishedAtIsNull(): Long
+
+    @Query("SELECT MIN(o.createdAt) FROM ModelSyncOutbox o WHERE o.publishedAt IS NULL")
+    fun findOldestPendingCreatedAt(): Instant?
 }

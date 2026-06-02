@@ -7,5 +7,7 @@ import java.time.Duration
 data class CerbosProperties(
     val endpoint: String = "http://localhost:3592",
     val requestTimeout: Duration = Duration.ofMillis(200),
-    val bundleVersion: String = ""
+    val bundleVersion: String = "",
+    val circuitFailureThreshold: Int = 5,
+    val circuitOpenDuration: Duration = Duration.ofSeconds(30)
 )

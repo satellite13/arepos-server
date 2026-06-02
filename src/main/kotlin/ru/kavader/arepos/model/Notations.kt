@@ -2,6 +2,8 @@ package ru.kavader.arepos.model
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
+import org.hibernate.annotations.Cache
+import org.hibernate.annotations.CacheConcurrencyStrategy
 import org.hibernate.annotations.DynamicUpdate
 import org.hibernate.annotations.JdbcTypeCode
 import java.time.Instant
@@ -10,7 +12,15 @@ import org.hibernate.type.SqlTypes
 
 @Entity
 @DynamicUpdate
-@Table(name = "notations", schema = "public")
+@Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
+@Table(
+    name = "notations",
+    schema = "public",
+    indexes = [
+        Index(name = "notations_owner_idx", columnList = "owner"),
+        Index(name = "notations_source_id_idx", columnList = "source_id")
+    ]
+)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Notations(
     @Id

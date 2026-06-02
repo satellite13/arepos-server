@@ -1,6 +1,9 @@
 package ru.kavader.arepos.service
 
 import org.springframework.http.HttpStatus
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.orm.ObjectOptimisticLockingFailureException
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
@@ -27,6 +30,7 @@ class DiagramEditLockService(
     private val accessService: ResourceAccessService,
     private val metrics: CustomMetricsService
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     companion object {
         val LOCK_TTL: Duration = Duration.ofSeconds(180)
@@ -46,32 +50,63 @@ class DiagramEditLockService(
 
         val row = locksRepository.lockByDiagramIdForUpdate(diagramId)
         if (row == null) {
-            locksRepository.save(
-                DiagramEditLocks(
-                    diagram = diagram,
-                    lockedBy = me,
-                    lockedAt = now,
-                    lastHeartbeatAt = now,
-                    expiresAt = newExpiry
+            try {
+                locksRepository.saveAndFlush(
+                    DiagramEditLocks(
+                        diagram = diagram,
+                        lockedBy = me,
+                        lockedAt = now,
+                        lastHeartbeatAt = now,
+                        expiresAt = newExpiry
+                    )
                 )
-            )
+            } catch (_: DataIntegrityViolationException) {
+                val conflictRow = locksRepository.findActiveWithDiagram(diagramId, now)
+                if (conflictRow != null) {
+                    throw DiagramEditLockConflictException(toConflictResponse(diagram, conflictRow))
+                }
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Diagram lock already exists")
+            }
             metrics.editLockAcquire.increment()
+            log.info("diagram lock acquired: diagramId={}, userId={}, mode=new", diagramId, meId)
             return toHeldResponse(diagram, me, newExpiry, null)
         }
         if (row.expiresAt.isBefore(now)) {
-            row.lockedBy = me
-            row.lockedAt = now
-            row.lastHeartbeatAt = now
-            row.expiresAt = newExpiry
+            try {
+                row.lockedBy = me
+                row.lockedAt = now
+                row.lastHeartbeatAt = now
+                row.expiresAt = newExpiry
+                locksRepository.saveAndFlush(row)
+            } catch (_: ObjectOptimisticLockingFailureException) {
+                val conflictRow = locksRepository.findActiveWithDiagram(diagramId, now)
+                if (conflictRow != null) {
+                    throw DiagramEditLockConflictException(toConflictResponse(diagram, conflictRow))
+                }
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Diagram lock changed concurrently")
+            }
             metrics.editLockAcquire.increment()
+            log.info("diagram lock acquired: diagramId={}, userId={}, mode=expired_retake", diagramId, meId)
             return toHeldResponse(diagram, me, newExpiry, null)
         }
         if (row.lockedBy.id == meId) {
-            row.lastHeartbeatAt = now
-            row.expiresAt = newExpiry
+            try {
+                row.lastHeartbeatAt = now
+                row.expiresAt = newExpiry
+                locksRepository.saveAndFlush(row)
+            } catch (_: ObjectOptimisticLockingFailureException) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Diagram lock changed concurrently")
+            }
             metrics.editLockAcquire.increment()
+            log.debug("diagram lock heartbeat via acquire: diagramId={}, userId={}", diagramId, meId)
             return toHeldResponse(diagram, me, newExpiry, null)
         }
+        log.warn(
+            "diagram lock conflict: diagramId={}, requestedBy={}, heldBy={}",
+            diagramId,
+            meId,
+            row.lockedBy.id
+        )
         throw DiagramEditLockConflictException(toConflictResponse(diagram, row))
     }
 
@@ -93,6 +128,7 @@ class DiagramEditLockService(
         }
         row.lastHeartbeatAt = now
         row.expiresAt = newExpiry
+        log.debug("diagram lock heartbeat: diagramId={}, userId={}", diagramId, meId)
         return toHeldResponse(diagram, row.lockedBy, newExpiry, null)
     }
 
@@ -106,6 +142,7 @@ class DiagramEditLockService(
         val row = locksRepository.lockByDiagramIdForUpdate(diagramId) ?: return
         if (row.expiresAt.isBefore(now)) {
             locksRepository.delete(row)
+            log.info("diagram lock removed on release due to expiry: diagramId={}", diagramId)
             return
         }
         if (row.lockedBy.id != meId) {
@@ -113,6 +150,7 @@ class DiagramEditLockService(
         }
         metrics.editLockRelease.increment()
         locksRepository.delete(row)
+        log.info("diagram lock released: diagramId={}, userId={}", diagramId, meId)
     }
 
     @Transactional
@@ -122,6 +160,7 @@ class DiagramEditLockService(
         }
         loadDiagram(diagramId)
         locksRepository.deleteByDiagramId(diagramId)
+        log.warn("diagram lock force released: diagramId={}", diagramId)
     }
 
     @Transactional(readOnly = true)

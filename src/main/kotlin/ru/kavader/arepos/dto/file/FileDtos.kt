@@ -1,5 +1,7 @@
 package ru.kavader.arepos.dto.file
 
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import java.time.Instant
 import java.util.UUID
 
@@ -19,6 +21,9 @@ data class FileVersionResponse(
 )
 
 data class UploadMarkdownRequest(
+    @field:Size(max = 5_000_000)
     val content: String,
+    @field:NotBlank
+    @field:Size(max = 255)
     val filename: String = "documentation.md"
 )

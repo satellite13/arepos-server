@@ -19,6 +19,7 @@ import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.ShareResourceType
 import ru.kavader.arepos.repository.DiagramsRepository
+import ru.kavader.arepos.repository.DiagramEditLocksRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NodesRepository
@@ -58,6 +59,9 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var diagramsRepository: DiagramsRepository
+
+    @Autowired
+    lateinit var diagramEditLocksRepository: DiagramEditLocksRepository
 
     @Autowired
     lateinit var resourceSharesRepository: ResourceSharesRepository
@@ -146,7 +150,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `second user gets 200 with LOCKED_BY_OTHER`() {
+    fun `second user gets 409 when lock held by other`() {
         val s = createDiagramFixture()
         mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))
             .andExpect(status().isOk)
@@ -172,10 +176,10 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         )
 
         mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(other.id!!, Role.USER))
-            .andExpect(status().isOk)
-            .andExpect(jsonPath("$.reason").value("LOCKED_BY_OTHER"))
-            .andExpect(jsonPath("$.lockedByUserId").value(s.ownerId.toString()))
-            .andExpect(jsonPath("$.diagramUpdatedAt").exists())
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.error").value("CONFLICT"))
+            .andExpect(jsonPath("$.message").value("Diagram lock is held by another user"))
+            .andExpect(jsonPath("$.traceId").isNotEmpty)
     }
 
     @Test
@@ -226,7 +230,11 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             .response
             .contentAsString
 
-        val list = objectMapper.readValue(json, object : TypeReference<List<Map<String, Any?>>>() {})
+        val envelope = objectMapper.readTree(json)
+        val list = objectMapper.convertValue(
+            envelope.path("items"),
+            object : TypeReference<List<Map<String, Any?>>>() {}
+        )
         assertEquals(1, list.size)
         assertEquals(s.diagramId.toString(), list[0]["diagramId"])
         assertEquals(true, list[0]["isLocked"])
@@ -255,7 +263,8 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             .andReturn()
             .response
             .contentAsString
-        val list = objectMapper.readValue(json, object : TypeReference<List<Any>>() {})
+        val envelope = objectMapper.readTree(json)
+        val list = objectMapper.convertValue(envelope.path("items"), object : TypeReference<List<Any>>() {})
         assertTrue(list.isEmpty())
     }
 
@@ -269,6 +278,27 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.isLocked").value(true))
             .andExpect(jsonPath("$.lockedByUserId").value(s.ownerId.toString()))
+    }
+
+    @Test
+    fun `heartbeat increments lock entity version`() {
+        val s = createDiagramFixture()
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))
+            .andExpect(status().isOk)
+
+        val before = diagramEditLocksRepository.findByDiagram_Id(s.diagramId)
+        assertNotNull(before)
+        val versionBefore = before.version
+
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/heartbeat").withAuth(s.ownerId))
+            .andExpect(status().isOk)
+
+        val after = diagramEditLocksRepository.findByDiagram_Id(s.diagramId)
+        assertNotNull(after)
+        assertTrue(
+            after.version > versionBefore,
+            "Expected lock version to increase after heartbeat, before=$versionBefore after=${after.version}"
+        )
     }
 
     @Test
@@ -347,7 +377,11 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             .response
             .contentAsString
 
-        val list = objectMapper.readValue(json, object : TypeReference<List<Map<String, Any?>>>() {})
+        val envelope = objectMapper.readTree(json)
+        val list = objectMapper.convertValue(
+            envelope.path("items"),
+            object : TypeReference<List<Map<String, Any?>>>() {}
+        )
         assertEquals(1, list.size)
         assertEquals(s.diagramId.toString(), list[0]["diagramId"])
     }
@@ -366,7 +400,10 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             .response
             .contentAsString
         val listBefore =
-            objectMapper.readValue(lockJsonBefore, object : TypeReference<List<Map<String, Any?>>>() {})
+            objectMapper.convertValue(
+                objectMapper.readTree(lockJsonBefore).path("items"),
+                object : TypeReference<List<Map<String, Any?>>>() {}
+            )
         assertEquals(1, listBefore.size)
         val atBefore = listBefore[0]["diagramUpdatedAt"] as String?
         assertNotNull(atBefore)
@@ -392,7 +429,10 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             .response
             .contentAsString
         val listAfter =
-            objectMapper.readValue(lockJsonAfter, object : TypeReference<List<Map<String, Any?>>>() {})
+            objectMapper.convertValue(
+                objectMapper.readTree(lockJsonAfter).path("items"),
+                object : TypeReference<List<Map<String, Any?>>>() {}
+            )
         assertEquals(1, listAfter.size)
         val atAfter = listAfter[0]["diagramUpdatedAt"] as String?
         assertNotNull(atAfter)

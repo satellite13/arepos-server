@@ -131,7 +131,7 @@ interface ModelsRepository : JpaRepository<Models, UUID> {
     ): Boolean
 
     // Метод для мягкого удаления
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Models m SET m.deleted = true WHERE m.id = :id")
     fun softDeleteById(id: UUID): Int
 

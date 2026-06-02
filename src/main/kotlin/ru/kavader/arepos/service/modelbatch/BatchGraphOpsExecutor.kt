@@ -168,7 +168,7 @@ class BatchGraphOpsExecutor(
                 requireCanUseNodeTypeForModel(nodeType, model)
                 val saved = nodesRepository.save(
                     Nodes(
-                        stableId = UUID.randomUUID(),
+                        stableId = resolveStableId(item.tempId),
                         name = item.name,
                         model = model,
                         owner = owner,
@@ -222,7 +222,7 @@ class BatchGraphOpsExecutor(
             requireCanUseLinkTypeForModel(linkType, model)
             val saved = linksRepository.save(
                 Links(
-                    stableId = UUID.randomUUID(),
+                    stableId = resolveStableId(item.tempId),
                     source = source,
                     target = target,
                     attrs = item.attrs,
@@ -355,6 +355,13 @@ class BatchGraphOpsExecutor(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot resolve $label reference: $ref")
         }
     }
+
+    private fun resolveStableId(tempId: String): UUID =
+        try {
+            UUID.fromString(tempId)
+        } catch (_: IllegalArgumentException) {
+            UUID.randomUUID()
+        }
 
     private fun resolveParentNode(ref: String?, nodeIdMap: Map<String, UUID>): Nodes? {
         if (ref == null) return null

@@ -1,12 +1,15 @@
 package ru.kavader.arepos.controller
 
-import org.springframework.data.domain.Page
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.common.ListResponse
+import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.dto.user.*
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
@@ -18,6 +21,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/users")
+@Tag(name = "Users", description = "User management and profile endpoints")
 class UsersController(
     private val usersRepository: UsersRepository,
     private val passwordEncoder: PasswordEncoder,
@@ -27,20 +31,22 @@ class UsersController(
 ) {
 
     @GetMapping
+    @Operation(summary = "List users")
     fun listUsers(
         pageable: Pageable,
         @RequestParam(required = false) email: String?
-    ): Page<UserResponse> {
+    ): ListResponse<UserResponse> {
         accessService.requireCanManageUsers()
         val users = if (email != null) {
             usersRepository.findByEmailContainingIgnoreCase(email, pageable)
         } else {
             usersRepository.findAll(pageable)
         }
-        return users.map { userMapper.toResponse(it) }
+        return users.map { userMapper.toResponse(it) }.toListResponse()
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get user by id")
     fun getUser(@PathVariable id: UUID): UserResponse {
         accessService.requireCanManageUsers()
         return usersRepository.findById(id)
@@ -51,6 +57,7 @@ class UsersController(
     }
 
     @GetMapping("/{id}/public")
+    @Operation(summary = "Get public user profile by id")
     @PreAuthorize("isAuthenticated()")
     fun getUserPublic(@PathVariable id: UUID): UserPublicResponse =
         usersRepository.findById(id)
@@ -63,6 +70,7 @@ class UsersController(
             }
 
     @GetMapping("/public/by-email")
+    @Operation(summary = "Get public user profile by email")
     @PreAuthorize("isAuthenticated()")
     fun getUserPublicByEmail(@RequestParam email: String): UserPublicResponse {
         val normalizedEmail = email.trim()
@@ -77,11 +85,12 @@ class UsersController(
     }
 
     @GetMapping("/public/search")
+    @Operation(summary = "Search public user profiles")
     @PreAuthorize("isAuthenticated()")
     fun searchUsersPublic(
         pageable: Pageable,
         @RequestParam email: String
-    ): Page<UserPublicResponse> {
+    ): ListResponse<UserPublicResponse> {
         val normalizedEmail = email.trim()
         if (normalizedEmail.isEmpty()) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required")
@@ -89,19 +98,23 @@ class UsersController(
 
         return usersRepository.findByEmailContainingIgnoreCaseAndRoleNot(normalizedEmail, Role.ADMIN, pageable)
             .map { userMapper.toPublicResponse(it) }
+            .toListResponse()
     }
 
     @PostMapping("/public/batch")
+    @Operation(summary = "Get public user profiles in batch")
     @PreAuthorize("isAuthenticated()")
-    fun getUsersBatch(@RequestBody request: BatchUserPublicRequest): Map<UUID, UserPublicResponse> {
-        if (request.ids.isEmpty()) return emptyMap()
+    fun getUsersBatch(@RequestBody request: BatchUserPublicRequest): ListResponse<UserPublicResponse> {
+        if (request.ids.isEmpty()) return emptyList<UserPublicResponse>().toListResponse()
         val ids = request.ids.distinct().take(100)
         return usersRepository.findAllById(ids)
             .filter { it.role != Role.ADMIN }
-            .associate { requireNotNull(it.id) to userMapper.toPublicResponse(it) }
+            .map { userMapper.toPublicResponse(it) }
+            .toListResponse()
     }
 
     @GetMapping("/me/profile")
+    @Operation(summary = "Get current user profile")
     @PreAuthorize("isAuthenticated()")
     fun getCurrentUserProfile(): UserPublicResponse {
         val currentUserId = accessService.currentUserId()
@@ -114,6 +127,7 @@ class UsersController(
     }
 
     @PostMapping
+    @Operation(summary = "Create user")
     @ResponseStatus(HttpStatus.CREATED)
     fun createUser(@RequestBody request: UserRequest): UserResponse {
         accessService.requireCanManageUsers()
@@ -134,6 +148,7 @@ class UsersController(
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update user")
     fun updateUser(
         @PathVariable id: UUID,
         @RequestBody request: UserUpdateRequest
@@ -178,6 +193,7 @@ class UsersController(
     }
 
     @PutMapping("/me/profile")
+    @Operation(summary = "Update current user profile")
     @PreAuthorize("isAuthenticated()")
     fun updateMyProfile(@RequestBody request: UserProfileUpdateRequest): UserPublicResponse {
         val currentUserId = accessService.currentUserId()
@@ -205,6 +221,7 @@ class UsersController(
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete user")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteUser(@PathVariable id: UUID) {
         accessService.requireCanManageUsers()

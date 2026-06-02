@@ -78,6 +78,6 @@ class AuditLogControllerTest : ControllerIntegrationTest() {
                 .withAuth(admin.id!!)
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.page.totalElements").value(greaterThan(0)))
+            .andExpect(jsonPath("$.total").value(greaterThan(0)))
     }
 }

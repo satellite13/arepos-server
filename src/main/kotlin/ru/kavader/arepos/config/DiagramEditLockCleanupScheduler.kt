@@ -15,9 +15,11 @@ class DiagramEditLockCleanupScheduler(
     @Transactional
     @Scheduled(fixedDelayString = "\${arepos.diagram-lock.cleanup-ms:45000}")
     fun deleteExpiredDiagramLocks() {
-        val deleted = diagramEditLockService.deleteExpiredLocks()
-        if (deleted > 0) {
-            logger.debug("Removed {} expired diagram edit lock(s)", deleted)
+        MdcRequestId.withGeneratedIfMissing("diagram-lock-cleanup") {
+            val deleted = diagramEditLockService.deleteExpiredLocks()
+            if (deleted > 0) {
+                logger.debug("Removed {} expired diagram edit lock(s)", deleted)
+            }
         }
     }
 }

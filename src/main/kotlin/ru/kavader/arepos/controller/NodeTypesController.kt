@@ -1,7 +1,10 @@
 package ru.kavader.arepos.controller
 
 import ru.kavader.arepos.dto.notation.*
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.slf4j.LoggerFactory
@@ -24,6 +27,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/node-types")
+@Tag(name = "Node Types", description = "Node type catalog endpoints")
 class NodeTypesController(
     private val nodeTypesRepository: NodeTypesRepository,
     private val usersRepository: UsersRepository,
@@ -42,6 +46,7 @@ class NodeTypesController(
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
     @GetMapping
+    @Operation(summary = "List node types")
     fun listNodeTypes(
         pageable: Pageable,
         @RequestParam(required = false) ownerId: UUID?,
@@ -53,13 +58,14 @@ class NodeTypesController(
             val currentUserId = accessService.currentUserId()
             val normalizedName = name?.trim().orEmpty()
             if (notationId.isNullOrEmpty() && modelId == null) {
-                return nodeTypesRepository.findAccessibleForUser(
+                val page = nodeTypesRepository.findAccessibleForUser(
                     userId = currentUserId,
                     ownerId = ownerId,
                     name = normalizedName,
                     viewPermissions = viewPermissions,
                     pageable = pageable
-                ).map { notationMapper.toResponse(it) }
+                )
+                return mapNodeTypesPage(page)
             }
 
             val resolvedModel = modelId?.let { mid ->
@@ -112,7 +118,7 @@ class NodeTypesController(
                 .filter { ownerId == null || it.owner.id == ownerId }
                 .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
                 .toList()
-            return filtered.toPage(pageable).map { notationMapper.toResponse(it) }
+            return mapNodeTypesPage(filtered.toPage(pageable))
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -126,10 +132,11 @@ class NodeTypesController(
             else ->
                 nodeTypesRepository.findAll(pageable)
         }
-        return nodeTypes.map { notationMapper.toResponse(it) }
+        return mapNodeTypesPage(nodeTypes)
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get node type by id")
     fun getNodeType(@PathVariable id: UUID): NodeTypeResponse =
         nodeTypesRepository.findById(id)
             .map {
@@ -144,6 +151,7 @@ class NodeTypesController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create node type")
     fun createNodeType(@RequestBody request: NodeTypeRequest): NodeTypeResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
@@ -161,6 +169,7 @@ class NodeTypesController(
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update node type")
     fun updateNodeType(
         @PathVariable id: UUID,
         @RequestBody request: NodeTypeUpdateRequest
@@ -184,6 +193,7 @@ class NodeTypesController(
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete node type")
     fun deleteNodeType(@PathVariable id: UUID) {
         val nodeType = nodeTypesRepository.findById(id).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
@@ -196,5 +206,14 @@ class NodeTypesController(
         ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
             nodeTypesRepository.findAccessibleForUser(uid, oid, "", viewPermissions, Pageable.ofSize(1)).hasContent()
         }
+
+    private fun mapNodeTypesPage(page: Page<NodeTypes>): Page<NodeTypeResponse> {
+        val permissions = accessService.nodeTypeAccessPermissions(page.content)
+        val mapped = page.content.map { nodeType ->
+            val nodeTypeId = requireNotNull(nodeType.id)
+            notationMapper.toResponse(nodeType, permissions[nodeTypeId])
+        }
+        return PageImpl(mapped, page.pageable, page.totalElements)
+    }
 
 }

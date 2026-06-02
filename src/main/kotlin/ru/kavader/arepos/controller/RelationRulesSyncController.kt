@@ -1,5 +1,7 @@
 package ru.kavader.arepos.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import ru.kavader.arepos.dto.system.*
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -19,6 +21,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/notations/{notationId}/relation-rules")
+@Tag(name = "Relation Rules Sync", description = "Bulk relation rules synchronization endpoints")
 class RelationRulesSyncController(
     private val relationRulesRepository: RelationRulesRepository,
     private val componentsRepository: ComponentsRepository,
@@ -29,6 +32,7 @@ class RelationRulesSyncController(
 ) {
 
     @PutMapping("/sync")
+    @Operation(summary = "Synchronize relation rules for notation")
     @Transactional
     fun syncRelationRules(
         @PathVariable notationId: UUID,

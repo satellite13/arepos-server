@@ -1,5 +1,7 @@
 package ru.kavader.arepos.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -14,6 +16,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/models")
+@Tag(name = "Model Diff", description = "Model comparison endpoints")
 class ModelDiffController(
     private val modelDiffService: ModelDiffService,
     private val modelsRepository: ModelsRepository,
@@ -21,6 +24,7 @@ class ModelDiffController(
 ) {
 
     @GetMapping("/{baseId}/diff/{targetId}")
+    @Operation(summary = "Compare two model versions")
     fun diffModels(
         @PathVariable baseId: UUID,
         @PathVariable targetId: UUID

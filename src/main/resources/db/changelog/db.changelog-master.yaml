@@ -316,3 +316,43 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 035-diagram-edit-locks-version
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/035-diagram-edit-locks-version.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
+  - changeSet:
+      id: 036-add-missing-fk-indexes
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/036-add-missing-fk-indexes.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
+  - changeSet:
+      id: 037-add-shedlock-table
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/037-add-shedlock-table.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
+  - changeSet:
+      id: 038-add-refresh-tokens
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/038-add-refresh-tokens.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

@@ -15,10 +15,12 @@ class CerbosConfig(
 
     init {
         log.info(
-            "Cerbos authz config loaded: endpoint={}, requestTimeout={}, bundleVersion={}",
+            "Cerbos authz config loaded: endpoint={}, requestTimeout={}, bundleVersion={}, circuitFailureThreshold={}, circuitOpenDuration={}",
             cerbosProperties.endpoint,
             cerbosProperties.requestTimeout,
-            cerbosProperties.bundleVersion
+            cerbosProperties.bundleVersion,
+            cerbosProperties.circuitFailureThreshold,
+            cerbosProperties.circuitOpenDuration
         )
     }
 }

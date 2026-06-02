@@ -5,7 +5,13 @@ import java.time.Instant
 import java.util.UUID
 
 @Entity
-@Table(name = "files", schema = "public")
+@Table(
+    name = "files",
+    schema = "public",
+    indexes = [
+        Index(name = "files_owner_id_idx", columnList = "owner_id")
+    ]
+)
 data class Files(
     @Id
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)

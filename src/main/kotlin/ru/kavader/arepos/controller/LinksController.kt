@@ -1,5 +1,7 @@
 package ru.kavader.arepos.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -8,7 +10,9 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.*
 import ru.kavader.arepos.dto.model.ModelMapper
+import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
+import ru.kavader.arepos.dto.system.ModelSyncEventType
 import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.LinksRepository
@@ -29,6 +33,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/links")
+@Tag(name = "Links", description = "Model links management endpoints")
 class LinksController(
     private val linksRepository: LinksRepository,
     private val usersRepository: UsersRepository,
@@ -47,6 +52,7 @@ class LinksController(
 ) {
 
     @GetMapping
+    @Operation(summary = "List links")
     fun listLinks(
         pageable: Pageable,
         @RequestParam(required = false) modelId: UUID?,
@@ -126,6 +132,7 @@ class LinksController(
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get link by id")
     fun getLink(@PathVariable id: UUID): LinkResponse =
         linksRepository.findById(id)
             .map {
@@ -137,6 +144,7 @@ class LinksController(
             }
 
     @PostMapping
+    @Operation(summary = "Create link")
     @ResponseStatus(HttpStatus.CREATED)
     fun createLink(@RequestBody request: LinkRequest): LinkResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
@@ -177,13 +185,20 @@ class LinksController(
         )
         modelSyncBroadcaster.broadcastModelChanged(
             requireNotNull(model.id),
-            "link_create",
-            listOf(ModelSyncEntityEvent("link_created", "link", requireNotNull(saved.id)))
+            ModelSyncChangeType.LINK_CREATE.wireValue,
+            listOf(
+                ModelSyncEntityEvent(
+                    ModelSyncEventType.LINK_CREATED.wireValue,
+                    ModelSyncEventType.LINK_CREATED.entity,
+                    requireNotNull(saved.id)
+                )
+            )
         )
         return modelMapper.toResponse(saved)
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update link")
     fun updateLink(
         @PathVariable id: UUID,
         @RequestBody request: LinkUpdateRequest
@@ -237,13 +252,20 @@ class LinksController(
         )
         modelSyncBroadcaster.broadcastModelChanged(
             requireNotNull(model.id),
-            "link_update",
-            listOf(ModelSyncEntityEvent("link_updated", "link", requireNotNull(updated.id)))
+            ModelSyncChangeType.LINK_UPDATE.wireValue,
+            listOf(
+                ModelSyncEntityEvent(
+                    ModelSyncEventType.LINK_UPDATED.wireValue,
+                    ModelSyncEventType.LINK_UPDATED.entity,
+                    requireNotNull(updated.id)
+                )
+            )
         )
         return modelMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete link")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteLink(@PathVariable id: UUID) {
         val link = linksRepository.findById(id)
@@ -261,8 +283,8 @@ class LinksController(
         )
         modelSyncBroadcaster.broadcastModelChanged(
             modelId,
-            "link_delete",
-            listOf(ModelSyncEntityEvent("link_deleted", "link", id))
+            ModelSyncChangeType.LINK_DELETE.wireValue,
+            listOf(ModelSyncEntityEvent(ModelSyncEventType.LINK_DELETED.wireValue, ModelSyncEventType.LINK_DELETED.entity, id))
         )
     }
 

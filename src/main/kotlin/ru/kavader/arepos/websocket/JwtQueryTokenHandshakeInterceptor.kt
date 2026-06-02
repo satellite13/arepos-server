@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component
 import org.springframework.web.socket.WebSocketHandler
 import org.springframework.web.socket.server.HandshakeInterceptor
 import ru.kavader.arepos.security.JwtTokenProvider
+import ru.kavader.arepos.security.TokenType
 
 @Component
 class JwtQueryTokenHandshakeInterceptor(
@@ -24,7 +25,7 @@ class JwtQueryTokenHandshakeInterceptor(
         if (!jwtTokenProvider.validateToken(token)) {
             return false
         }
-        if (jwtTokenProvider.getTokenType(token) != "access") {
+        if (jwtTokenProvider.getTokenType(token) != TokenType.ACCESS) {
             return false
         }
         attributes[ModelSyncStompHandshakeHandler.JWT_ATTR] = token

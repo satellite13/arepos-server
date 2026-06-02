@@ -39,14 +39,15 @@ class AuditInterceptor : PreInsertEventListener, PreUpdateEventListener, PreDele
         }
         
         /**
-         * Получает идентификатор текущего пользователя из ThreadLocal или HTTP-заголовка.
+         * Получает идентификатор текущего пользователя.
+         * Приоритет у SecurityContext, чтобы избежать утечек из stale ThreadLocal.
          */
         private fun getCurrentUserId(): UUID? {
-            return threadLocalUserId.get() ?: try {
+            return try {
                 SecurityContextHolder.getContext().authentication?.principal as? UUID
             } catch (_: Exception) {
-                null
-            }
+                threadLocalUserId.get()
+            } ?: threadLocalUserId.get()
         }
     }
 

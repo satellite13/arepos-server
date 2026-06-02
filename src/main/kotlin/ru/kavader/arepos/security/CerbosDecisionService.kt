@@ -1,13 +1,18 @@
 package ru.kavader.arepos.security
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.github.resilience4j.circuitbreaker.CircuitBreaker
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig
+import okhttp3.ConnectionPool
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import ru.kavader.arepos.config.CerbosProperties
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 import java.util.UUID
 
 data class CerbosAccessRequest(
@@ -35,9 +40,26 @@ class CerbosDecisionService(
         private val log = LoggerFactory.getLogger(CerbosDecisionService::class.java)
     }
 
-    private val httpClient: HttpClient = HttpClient.newBuilder()
+    private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(cerbosProperties.requestTimeout)
+        .readTimeout(cerbosProperties.requestTimeout)
+        .callTimeout(cerbosProperties.requestTimeout)
+        .retryOnConnectionFailure(true)
+        .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
         .build()
+    private val cerbosCheckMediaType = "application/json".toMediaType()
+    private val circuitBreaker: CircuitBreaker = CircuitBreaker.of(
+        "cerbos-authz",
+        CircuitBreakerConfig.custom()
+            .failureRateThreshold(50f)
+            .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
+            .slidingWindowSize(cerbosProperties.circuitFailureThreshold.coerceAtLeast(2))
+            .minimumNumberOfCalls(cerbosProperties.circuitFailureThreshold.coerceAtLeast(2))
+            .waitDurationInOpenState(cerbosProperties.circuitOpenDuration)
+            .permittedNumberOfCallsInHalfOpenState(1)
+            .recordExceptions(Exception::class.java)
+            .build()
+    )
 
     fun check(request: CerbosAccessRequest): Boolean {
         return checkBatch(
@@ -87,21 +109,48 @@ class CerbosDecisionService(
         )
 
         val payload = objectMapper.writeValueAsString(requestBody)
-        val response = httpClient.send(
-            HttpRequest.newBuilder()
-                .uri(URI.create("${cerbosProperties.endpoint.trimEnd('/')}/api/check/resources"))
-                .timeout(cerbosProperties.requestTimeout)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload))
-                .build(),
-            HttpResponse.BodyHandlers.ofString()
-        )
-
-        if (response.statusCode() !in 200..299) {
-            throw IllegalStateException("Cerbos request failed with status ${response.statusCode()}")
+        val responseBody = try {
+            val executeWithCircuit = CircuitBreaker.decorateSupplier(circuitBreaker) {
+                executeCerbosRequest(payload)
+            }
+            executeWithCircuit.get()
+        } catch (ex: Exception) {
+            log.warn(
+                "Cerbos check failed, applying default-deny fallback: state={}, reason={}, requests={}",
+                circuitBreaker.state,
+                ex::class.simpleName ?: "UnknownException",
+                requests.size,
+                ex
+            )
+            return defaultDeny(requests)
         }
 
-        return parseBatchDecisions(response.body(), requests)
+        return try {
+            parseBatchDecisions(responseBody, requests)
+        } catch (ex: Exception) {
+            log.warn(
+                "Cerbos response parse failed, applying default-deny fallback: state={}, requests={}",
+                circuitBreaker.state,
+                requests.size,
+                ex
+            )
+            defaultDeny(requests)
+        }
+    }
+
+    private fun executeCerbosRequest(payload: String): String {
+        val request = Request.Builder()
+            .url("${cerbosProperties.endpoint.trimEnd('/')}/api/check/resources")
+            .header("Content-Type", "application/json")
+            .post(payload.toRequestBody(cerbosCheckMediaType))
+            .build()
+        httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("Cerbos request failed with status ${response.code}")
+            }
+            return response.body?.string()
+                ?: throw IOException("Cerbos response body is empty")
+        }
     }
 
     private fun parseBatchDecisions(
@@ -147,4 +196,7 @@ class CerbosDecisionService(
             else -> throw IllegalStateException("Unknown Cerbos effect received: $effect")
         }
     }
+
+    private fun defaultDeny(requests: List<CerbosBatchAccessRequest>): Map<UUID, Boolean> =
+        requests.associate { it.resourceId to false }
 }

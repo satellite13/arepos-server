@@ -1,5 +1,7 @@
 package ru.kavader.arepos.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import ru.kavader.arepos.dto.access.*
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PostMapping
@@ -20,6 +22,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/permissions")
+@Tag(name = "Permissions", description = "Permission evaluation endpoints")
 class PermissionsController(
     private val modelsRepository: ModelsRepository,
     private val notationsRepository: NotationsRepository,
@@ -31,6 +34,7 @@ class PermissionsController(
     private val accessService: ResourceAccessService
 ) {
     @PostMapping("/check")
+    @Operation(summary = "Check resource permissions")
     fun check(@RequestBody request: PermissionCheckRequest): PermissionCheckResponse {
         val resourceType = request.resourceType ?: throw ResponseStatusException(
             HttpStatus.BAD_REQUEST,

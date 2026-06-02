@@ -6,7 +6,13 @@ import java.time.Instant
 import java.util.UUID
 
 @Entity
-@Table(name = "diagram_edit_locks", schema = "public")
+@Table(
+    name = "diagram_edit_locks",
+    schema = "public",
+    indexes = [
+        Index(name = "diagram_edit_locks_locked_by_user_id_idx", columnList = "locked_by_user_id")
+    ]
+)
 @JsonIgnoreProperties(ignoreUnknown = true)
 class DiagramEditLocks(
     @Id
@@ -29,5 +35,9 @@ class DiagramEditLocks(
     var lastHeartbeatAt: Instant,
 
     @Column(name = "expires_at", nullable = false)
-    var expiresAt: Instant
+    var expiresAt: Instant,
+
+    @Version
+    @Column(name = "version", nullable = false)
+    var version: Long = 0
 )

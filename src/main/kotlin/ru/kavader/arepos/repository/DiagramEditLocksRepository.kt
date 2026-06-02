@@ -10,6 +10,7 @@ import java.time.Instant
 import java.util.UUID
 
 interface DiagramEditLocksRepository : JpaRepository<DiagramEditLocks, UUID> {
+    fun findByDiagram_Id(diagramId: UUID): DiagramEditLocks?
 
     @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT l FROM DiagramEditLocks l WHERE l.diagram.id = :diagramId")
@@ -27,11 +28,11 @@ interface DiagramEditLocksRepository : JpaRepository<DiagramEditLocks, UUID> {
     )
     fun findAllActive(@Param("now") now: Instant): List<DiagramEditLocks>
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM DiagramEditLocks l WHERE l.expiresAt < :cutoff")
     fun deleteExpiredBefore(@Param("cutoff") cutoff: Instant): Int
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM DiagramEditLocks l WHERE l.diagram.id = :diagramId")
     fun deleteByDiagramId(@Param("diagramId") diagramId: UUID): Int
 

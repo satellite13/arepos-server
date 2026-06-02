@@ -1,6 +1,10 @@
 package ru.kavader.arepos.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import ru.kavader.arepos.dto.access.*
+import ru.kavader.arepos.dto.common.ListResponse
+import ru.kavader.arepos.dto.common.toListResponse
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -28,6 +32,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/access/shares")
+@Tag(name = "Access Shares", description = "Resource sharing and permission grant endpoints")
 class AccessSharesController(
     private val resourceSharesRepository: ResourceSharesRepository,
     private val usersRepository: UsersRepository,
@@ -40,6 +45,7 @@ class AccessSharesController(
     private val accessMapper: AccessMapper
 ) {
     @PostMapping
+    @Operation(summary = "Grant or update resource share")
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
     fun grantShare(@RequestBody request: AccessShareRequest): AccessShareResponse {
@@ -109,10 +115,11 @@ class AccessSharesController(
     }
 
     @GetMapping("/{resourceType}/{resourceId}")
+    @Operation(summary = "List shares for resource")
     fun listResourceShares(
         @PathVariable resourceType: ShareResourceType,
         @PathVariable resourceId: UUID
-    ): List<AccessShareResponse> {
+    ): ListResponse<AccessShareResponse> {
         val ownerId = resolveOwnerId(resourceType, resourceId)
         if (!accessService.canManageShares(ownerId)) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
@@ -120,10 +127,11 @@ class AccessSharesController(
         return resourceSharesRepository.findByResourceTypeAndResourceId(
             resourceType = resourceType,
             resourceId = resourceId
-        ).map { accessMapper.toResponse(it) }
+        ).map { accessMapper.toResponse(it) }.toListResponse()
     }
 
     @DeleteMapping("/{shareId}")
+    @Operation(summary = "Revoke share by id")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun revokeShare(@PathVariable shareId: UUID) {
         val share = resourceSharesRepository.findById(shareId).orElseThrow {

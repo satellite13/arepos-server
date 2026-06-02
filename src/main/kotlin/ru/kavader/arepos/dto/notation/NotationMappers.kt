@@ -16,6 +16,18 @@ import ru.kavader.arepos.security.ResourceAccessService
 class NotationMapper(
     private val accessService: ResourceAccessService
 ) {
+    fun toResponse(notation: Notations, accessPermission: String?): NotationResponse = NotationResponse(
+        id = requireNotNull(notation.id),
+        name = notation.name,
+        version = notation.version,
+        ownerId = notation.owner.id!!,
+        accessPermission = accessPermission,
+        attrs = notation.attrs,
+        createdAt = notation.createdAt,
+        updatedAt = notation.updatedAt,
+        sourceId = notation.source?.id
+    )
+
     fun toResponse(notation: Notations): NotationResponse = NotationResponse(
         id = requireNotNull(notation.id),
         name = notation.name,
@@ -26,6 +38,16 @@ class NotationMapper(
         createdAt = notation.createdAt,
         updatedAt = notation.updatedAt,
         sourceId = notation.source?.id
+    )
+
+    fun toResponse(nodeType: NodeTypes, accessPermission: String?): NodeTypeResponse = NodeTypeResponse(
+        id = requireNotNull(nodeType.id),
+        name = nodeType.name,
+        ownerId = nodeType.owner.id!!,
+        accessPermission = accessPermission,
+        attrs = nodeType.attrs,
+        createdAt = nodeType.createdAt,
+        updatedAt = nodeType.updatedAt
     )
 
     fun toResponse(component: Components): ComponentResponse = ComponentResponse(
@@ -96,6 +118,16 @@ class NotationMapper(
         updatedAt = nodeType.updatedAt
     )
 
+    fun toResponse(linkType: LinkTypes, accessPermission: String?): LinkTypeResponse = LinkTypeResponse(
+        id = requireNotNull(linkType.id),
+        name = linkType.name,
+        ownerId = linkType.owner.id!!,
+        accessPermission = accessPermission,
+        attrs = linkType.attrs,
+        createdAt = linkType.createdAt,
+        updatedAt = linkType.updatedAt
+    )
+
     fun toResponse(linkType: LinkTypes): LinkTypeResponse = LinkTypeResponse(
         id = requireNotNull(linkType.id),
         name = linkType.name,
@@ -104,6 +136,18 @@ class NotationMapper(
         attrs = linkType.attrs,
         createdAt = linkType.createdAt,
         updatedAt = linkType.updatedAt
+    )
+
+    fun toResponse(nodeShape: NodeShapes, accessPermission: String?): NodeShapeResponse = NodeShapeResponse(
+        id = requireNotNull(nodeShape.id),
+        name = nodeShape.name,
+        ownerId = nodeShape.owner.id!!,
+        accessPermission = accessPermission,
+        outline = nodeShape.outline,
+        contentArea = nodeShape.contentArea,
+        attrs = nodeShape.attrs,
+        createdAt = nodeShape.createdAt,
+        updatedAt = nodeShape.updatedAt
     )
 
     fun toResponse(nodeShape: NodeShapes): NodeShapeResponse = NodeShapeResponse(

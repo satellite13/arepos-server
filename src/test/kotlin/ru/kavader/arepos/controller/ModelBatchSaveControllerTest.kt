@@ -68,6 +68,49 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
     lateinit var diagramsRepository: DiagramsRepository
 
     @Test
+    fun `batch save returns 400 when operation list exceeds limit`() {
+        val owner = usersRepository.save(
+            Users(
+                email = "batch-limit-owner@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "batch-limit-model",
+                createdAt = Instant.now(),
+                attrs = null,
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+
+        val oversizedCreate = (1..1001).map { idx ->
+            mapOf(
+                "tempId" to "tmp-$idx",
+                "name" to "node-$idx",
+                "nodeTypeId" to UUID.randomUUID().toString(),
+                "parentNodeId" to null,
+                "attrs" to null
+            )
+        }
+        val payload = mapOf(
+            "nodes" to mapOf(
+                "create" to oversizedCreate
+            )
+        )
+
+        mockMvc.perform(
+            post("/api/v1/models/${model.id}/batch-save")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
     fun `batch save returns 409 when baseUpdatedAt mismatches node`() {
         val owner = usersRepository.save(
             Users(
@@ -206,6 +249,70 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
 
         assertEquals("ok-name", nodesRepository.findById(nodeId).orElseThrow().name)
+    }
+
+    @Test
+    fun `batch save detects duplicate node create on retry by stableId`() {
+        val owner = usersRepository.save(
+            Users(
+                email = "batch-owner-retry@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "m-retry",
+                createdAt = Instant.now(),
+                attrs = null,
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+        val nodeType = nodeTypesRepository.save(
+            NodeTypes(
+                name = "nt-retry",
+                attrs = null,
+                createdAt = Instant.now(),
+                owner = owner
+            )
+        )
+        val stableTempId = UUID.randomUUID().toString()
+        val payload = mapOf(
+            "nodes" to mapOf(
+                "create" to listOf(
+                    mapOf(
+                        "tempId" to stableTempId,
+                        "name" to "retry-node",
+                        "nodeTypeId" to nodeType.id.toString(),
+                        "parentNodeId" to null,
+                        "attrs" to null
+                    )
+                )
+            )
+        )
+
+        mockMvc.perform(
+            post("/api/v1/models/${model.id}/batch-save")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.nodesCreated").value(1))
+
+        mockMvc.perform(
+            post("/api/v1/models/${model.id}/batch-save")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.message").value("Concurrent modification"))
+            .andExpect(jsonPath("$.conflicts[0].kind").value("node"))
+
+        val createdNodes = nodesRepository.findByModel(model, org.springframework.data.domain.Pageable.unpaged())
+        assertEquals(1, createdNodes.totalElements)
     }
 
     @Test

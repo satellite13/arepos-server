@@ -10,6 +10,7 @@ import java.util.UUID
     schema = "public",
     indexes = [
         Index(name = "document_refs_file_id_idx", columnList = "file_id"),
+        Index(name = "document_refs_created_by_idx", columnList = "created_by"),
         Index(name = "document_refs_node_type_id_idx", columnList = "node_type_id"),
         Index(name = "document_refs_link_type_id_idx", columnList = "link_type_id"),
         Index(name = "document_refs_model_id_idx", columnList = "model_id"),

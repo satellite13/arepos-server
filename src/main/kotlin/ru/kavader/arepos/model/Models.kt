@@ -10,7 +10,14 @@ import org.hibernate.type.SqlTypes
 
 @Entity
 @DynamicUpdate
-@Table(name = "models", schema = "public")
+@Table(
+    name = "models",
+    schema = "public",
+    indexes = [
+        Index(name = "models_owner_idx", columnList = "owner"),
+        Index(name = "models_source_id_idx", columnList = "source_id")
+    ]
+)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Models(
     @Id

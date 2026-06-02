@@ -105,8 +105,8 @@ class UsersControllerTest : ControllerIntegrationTest() {
                 .withAuth(admin.id!!)
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.content.length()").value(3))
-            .andExpect(jsonPath("$.page.totalElements").value(3))
+            .andExpect(jsonPath("$.items.length()").value(3))
+            .andExpect(jsonPath("$.total").value(3))
     }
 
     @Test
@@ -136,8 +136,8 @@ class UsersControllerTest : ControllerIntegrationTest() {
                 .withAuth(admin.id!!)
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.content.length()").value(1))
-            .andExpect(jsonPath("$.content[0].email").value("john@test.com"))
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].email").value("john@test.com"))
     }
 
     @Test
@@ -299,8 +299,8 @@ class UsersControllerTest : ControllerIntegrationTest() {
                 .content(objectMapper.writeValueAsString(payload))
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.*.email").value(org.hamcrest.Matchers.hasItem("regular-batch@test.com")))
-            .andExpect(jsonPath("$.*.email").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("admin-batch@test.com"))))
+            .andExpect(jsonPath("$.items[*].email").value(org.hamcrest.Matchers.hasItem("regular-batch@test.com")))
+            .andExpect(jsonPath("$.items[*].email").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("admin-batch@test.com"))))
     }
 
     @Test

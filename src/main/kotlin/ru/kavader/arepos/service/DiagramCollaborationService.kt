@@ -2,6 +2,7 @@ package ru.kavader.arepos.service
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -28,6 +29,7 @@ class DiagramCollaborationService(
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val objectMapper: ObjectMapper
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     companion object {
         val MAX_LIVE_PAYLOAD_BYTES: Int = 512 * 1024
@@ -39,6 +41,7 @@ class DiagramCollaborationService(
         @Volatile var lastSeen: Instant
     )
 
+    private val spectatorsLock = Any()
     private val spectatorsByDiagram = ConcurrentHashMap<UUID, ConcurrentHashMap<UUID, SpectatorEntry>>()
 
     @Transactional(readOnly = true)
@@ -49,6 +52,7 @@ class DiagramCollaborationService(
             throw ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "instances payload too large")
         }
         val modelId = diagram.model.id!!
+        log.debug("relayLive: diagramId={}, modelId={}, payloadBytes={}", diagramId, modelId, bytes.size)
         modelSyncBroadcaster.broadcastDiagramLive(modelId, diagramId, instances)
     }
 
@@ -56,6 +60,7 @@ class DiagramCollaborationService(
     fun relayPointer(diagramId: UUID, request: DiagramPointerRequest) {
         val diagram = assertLockHolder(diagramId)
         val modelId = diagram.model.id!!
+        log.debug("relayPointer: diagramId={}, modelId={}, visible={}", diagramId, modelId, request.visible)
         modelSyncBroadcaster.broadcastDiagramPointer(
             modelId,
             diagramId,
@@ -79,8 +84,11 @@ class DiagramCollaborationService(
             return
         }
         val display = me.email
-        val inner = spectatorsByDiagram.computeIfAbsent(diagramId) { ConcurrentHashMap() }
-        inner[meId] = SpectatorEntry(display, now)
+        synchronized(spectatorsLock) {
+            val inner = spectatorsByDiagram.computeIfAbsent(diagramId) { ConcurrentHashMap() }
+            inner[meId] = SpectatorEntry(display, now)
+        }
+        log.info("spectateStart: diagramId={}, userId={}", diagramId, meId)
         broadcastSpectators(diagram, diagramId)
     }
 
@@ -96,15 +104,25 @@ class DiagramCollaborationService(
         if (row.lockedBy.id == meId) {
             return
         }
-        val inner = spectatorsByDiagram[diagramId] ?: run {
+        var shouldStart = false
+        synchronized(spectatorsLock) {
+            val inner = spectatorsByDiagram[diagramId]
+            if (inner == null) {
+                shouldStart = true
+            } else {
+                val entry = inner[meId]
+                if (entry == null) {
+                    shouldStart = true
+                } else {
+                    entry.lastSeen = now
+                }
+            }
+        }
+        if (shouldStart) {
             spectateStart(diagramId)
             return
         }
-        val entry = inner[meId] ?: run {
-            spectateStart(diagramId)
-            return
-        }
-        entry.lastSeen = now
+        log.debug("spectatePing: diagramId={}, userId={}", diagramId, meId)
         broadcastSpectators(diagram, diagramId)
     }
 
@@ -112,42 +130,56 @@ class DiagramCollaborationService(
         val diagram = diagramsRepository.findById(diagramId).orElse(null) ?: return
         accessService.requireCanViewDiagram(diagram)
         val meId = accessService.currentUserId()
-        val inner = spectatorsByDiagram[diagramId] ?: return
-        if (inner.remove(meId) != null && inner.isEmpty()) {
-            spectatorsByDiagram.remove(diagramId)
+        synchronized(spectatorsLock) {
+            val inner = spectatorsByDiagram[diagramId] ?: return
+            if (inner.remove(meId) != null && inner.isEmpty()) {
+                spectatorsByDiagram.remove(diagramId)
+            }
         }
+        log.info("spectateLeave: diagramId={}, userId={}", diagramId, meId)
         broadcastSpectators(diagram, diagramId)
     }
 
     /** Removes stale spectator entries system-wide (scheduled). */
+    @Transactional(readOnly = true)
     fun purgeStaleSpectators() {
         val cutoff = Instant.now().minus(SPECTATOR_TTL)
-        for (diagramId in spectatorsByDiagram.keys.toList()) {
-            val inner = spectatorsByDiagram[diagramId] ?: continue
-            val toRemove = inner.filter { it.value.lastSeen.isBefore(cutoff) }.keys
-            var changed = false
-            for (uid in toRemove) {
-                if (inner.remove(uid) != null) {
-                    changed = true
+        val changedDiagrams = mutableListOf<UUID>()
+        synchronized(spectatorsLock) {
+            for (diagramId in spectatorsByDiagram.keys.toList()) {
+                val inner = spectatorsByDiagram[diagramId] ?: continue
+                val toRemove = inner.filter { it.value.lastSeen.isBefore(cutoff) }.keys
+                var changed = false
+                for (uid in toRemove) {
+                    if (inner.remove(uid) != null) {
+                        changed = true
+                    }
+                }
+                if (inner.isEmpty()) {
+                    spectatorsByDiagram.remove(diagramId)
+                }
+                if (changed) {
+                    changedDiagrams += diagramId
                 }
             }
-            if (inner.isEmpty()) {
-                spectatorsByDiagram.remove(diagramId)
-            }
-            if (changed) {
-                val diagram = diagramsRepository.findById(diagramId).orElse(null) ?: continue
-                broadcastSpectators(diagram, diagramId)
-            }
+        }
+        for (diagramId in changedDiagrams) {
+            val diagram = diagramsRepository.findById(diagramId).orElse(null) ?: continue
+            broadcastSpectators(diagram, diagramId)
+        }
+        if (changedDiagrams.isNotEmpty()) {
+            log.debug("purgeStaleSpectators: changedDiagrams={}", changedDiagrams.size)
         }
     }
 
     private fun broadcastSpectators(diagram: Diagrams, diagramId: UUID) {
         val modelId = diagram.model.id!!
-        val inner = spectatorsByDiagram[diagramId]
-        val viewers =
-            inner?.map { (uid, e) -> DiagramSpectatorView(uid, e.displayName) }
-                ?.sortedBy { it.displayName.lowercase() }
+        val viewers = synchronized(spectatorsLock) {
+            spectatorsByDiagram[diagramId]
+                ?.map { (uid, e) -> DiagramSpectatorView(uid, e.displayName) }
+                ?.toList()
                 ?: emptyList()
+        }.sortedBy { it.displayName.lowercase() }
         modelSyncBroadcaster.broadcastDiagramSpectators(modelId, diagramId, viewers)
     }
 

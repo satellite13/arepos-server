@@ -1,5 +1,7 @@
 package ru.kavader.arepos.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
@@ -19,6 +21,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/dashboard")
+@Tag(name = "Dashboard", description = "Dashboard statistics and activity endpoints")
 class DashboardController(
     private val modelsRepository: ModelsRepository,
     private val notationsRepository: NotationsRepository,
@@ -32,6 +35,7 @@ class DashboardController(
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
     @GetMapping("/stats")
+    @Operation(summary = "Get dashboard statistics")
     fun getStats(): DashboardStatsResponse {
         if (accessService.canViewAdminPanel()) {
             return DashboardStatsResponse(
@@ -53,6 +57,7 @@ class DashboardController(
     }
 
     @GetMapping("/recent")
+    @Operation(summary = "Get recent dashboard activity")
     fun getRecent(@RequestParam(defaultValue = "5") limit: Int): DashboardRecentResponse {
         val recentSort = Sort.by(Sort.Direction.DESC, "updatedAt")
         val pageable = PageRequest.of(0, limit, recentSort)

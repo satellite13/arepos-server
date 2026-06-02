@@ -1,5 +1,7 @@
 package ru.kavader.arepos.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import ru.kavader.arepos.dto.notation.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -20,6 +22,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/relation-rules")
+@Tag(name = "Relation Rules", description = "Relation rule management endpoints")
 class RelationRulesController(
     private val relationRulesRepository: RelationRulesRepository,
     private val usersRepository: UsersRepository,
@@ -32,6 +35,7 @@ class RelationRulesController(
 ) {
 
     @GetMapping
+    @Operation(summary = "List relation rules")
     fun listRelationRules(
         pageable: Pageable,
         @RequestParam(required = false) relationId: UUID?,
@@ -83,6 +87,7 @@ class RelationRulesController(
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get relation rule by id")
     fun getRelationRule(@PathVariable id: UUID): RelationRuleResponse =
         relationRulesRepository.findById(id)
             .map {
@@ -94,6 +99,7 @@ class RelationRulesController(
             }
 
     @PostMapping
+    @Operation(summary = "Create relation rule")
     @ResponseStatus(HttpStatus.CREATED)
     fun createRelationRule(@RequestBody request: RelationRuleRequest): RelationRuleResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
@@ -135,6 +141,7 @@ class RelationRulesController(
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update relation rule")
     fun updateRelationRule(
         @PathVariable id: UUID,
         @RequestBody request: RelationRuleUpdateRequest
@@ -195,6 +202,7 @@ class RelationRulesController(
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete relation rule")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteRelationRule(@PathVariable id: UUID) {
         val relationRule = relationRulesRepository.findById(id)

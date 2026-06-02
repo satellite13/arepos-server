@@ -12,6 +12,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.model.BatchConflictItem
+import ru.kavader.arepos.dto.model.BatchSaveConflictException
 import java.util.UUID
 
 /**
@@ -34,6 +36,13 @@ class GlobalExceptionHandler {
         val message: String?,
         val traceId: String,
         val fieldErrors: List<FieldErrorDetail>
+    )
+
+    data class BatchConflictErrorBody(
+        val error: String,
+        val message: String?,
+        val traceId: String,
+        val conflicts: List<BatchConflictItem>
     )
 
     data class FieldErrorDetail(
@@ -86,13 +95,31 @@ class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, "DATA_INTEGRITY", "Operation conflicts with existing data", traceId)
     }
 
+    @ExceptionHandler(BatchSaveConflictException::class)
+    fun handleBatchSaveConflict(ex: BatchSaveConflictException): ResponseEntity<BatchConflictErrorBody> {
+        val traceId = newTraceId()
+        log.warn("Batch save conflict [{}]: {} conflict(s)", traceId, ex.conflicts.size)
+        return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(
+                BatchConflictErrorBody(
+                    error = "BATCH_SAVE_CONFLICT",
+                    message = "Concurrent modification",
+                    traceId = traceId,
+                    conflicts = ex.conflicts
+                )
+            )
+    }
+
     @ExceptionHandler(ResponseStatusException::class)
     fun handleResponseStatus(ex: ResponseStatusException): ResponseEntity<ErrorBody> {
         val traceId = newTraceId()
+        val status = HttpStatus.valueOf(ex.statusCode.value())
         if (ex.statusCode.is5xxServerError) {
             log.error("Server error [{}]: {}", traceId, ex.reason, ex)
         }
-        return buildResponse(HttpStatus.valueOf(ex.statusCode.value()), ex.reason ?: "Error", ex.reason, traceId)
+        val message = ex.reason ?: status.reasonPhrase
+        return buildResponse(status, status.name, message, traceId)
     }
 
     private fun buildResponse(status: HttpStatus, error: String, message: String?, traceId: String) =

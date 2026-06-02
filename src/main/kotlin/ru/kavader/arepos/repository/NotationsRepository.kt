@@ -125,7 +125,7 @@ interface NotationsRepository : JpaRepository<Notations, UUID> {
     ): Boolean
 
     // Метод для мягкого удаления
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Notations n SET n.deleted = true WHERE n.id = :id")
     fun softDeleteById(id: UUID): Int
 }

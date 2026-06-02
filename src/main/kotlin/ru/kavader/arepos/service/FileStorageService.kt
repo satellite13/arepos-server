@@ -40,8 +40,7 @@ class FileStorageService(
             "image/jpeg",
             "image/png",
             "image/gif",
-            "image/webp",
-            "image/svg+xml"
+            "image/webp"
         )
         private const val MARKDOWN_TYPE = "text/markdown"
     }

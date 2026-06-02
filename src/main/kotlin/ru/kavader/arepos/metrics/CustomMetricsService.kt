@@ -2,10 +2,13 @@ package ru.kavader.arepos.metrics
 
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
+import java.util.concurrent.TimeUnit
 import org.springframework.stereotype.Component
 
 @Component
-class CustomMetricsService(meterRegistry: MeterRegistry) {
+class CustomMetricsService(
+    private val meterRegistry: MeterRegistry
+) {
     // Auth
     val authLoginSuccess: Counter = Counter.builder("arepos_auth_login_success_total")
         .description("Successful login attempts")
@@ -40,6 +43,10 @@ class CustomMetricsService(meterRegistry: MeterRegistry) {
         .description("Batch save conflict occurrences")
         .register(meterRegistry)
 
+    val httpServer5xx: Counter = Counter.builder("arepos_http_server_5xx_total")
+        .description("HTTP responses with 5xx status codes")
+        .register(meterRegistry)
+
     fun incrementBatchNodeCreate(count: Double = 1.0) { batchSaveNodeCreate.increment(count) }
     fun incrementBatchNodeUpdate(count: Double = 1.0) { batchSaveNodeUpdate.increment(count) }
     fun incrementBatchNodeDelete(count: Double = 1.0) { batchSaveNodeDelete.increment(count) }
@@ -49,6 +56,15 @@ class CustomMetricsService(meterRegistry: MeterRegistry) {
     fun incrementBatchDiagramCreate(count: Double = 1.0) { batchSaveDiagramCreate.increment(count) }
     fun incrementBatchDiagramUpdate(count: Double = 1.0) { batchSaveDiagramUpdate.increment(count) }
     fun incrementBatchDiagramDelete(count: Double = 1.0) { batchSaveDiagramDelete.increment(count) }
+
+    fun recordBatchSaveDuration(outcome: String, durationNanos: Long) {
+        meterRegistry.timer(
+            "arepos_batch_save_duration",
+            "outcome",
+            outcome
+        )
+            .record(durationNanos, TimeUnit.NANOSECONDS)
+    }
 
     private fun batchSaveCounter(entityType: String, operation: String, registry: MeterRegistry): Counter =
         Counter.builder("arepos_batch_save_operations_total")

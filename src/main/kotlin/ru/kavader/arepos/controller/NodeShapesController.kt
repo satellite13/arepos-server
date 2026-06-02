@@ -1,7 +1,10 @@
 package ru.kavader.arepos.controller
 
 import ru.kavader.arepos.dto.notation.*
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -24,6 +27,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/node-shapes")
+@Tag(name = "Node Shapes", description = "Node shape management endpoints")
 class NodeShapesController(
     private val nodeShapesRepository: NodeShapesRepository,
     private val usersRepository: UsersRepository,
@@ -32,6 +36,7 @@ class NodeShapesController(
 ) {
 
     @GetMapping
+    @Operation(summary = "List node shapes")
     fun list(
         pageable: Pageable,
         @RequestParam(required = false) ownerId: UUID?,
@@ -52,10 +57,11 @@ class NodeShapesController(
             .asSequence()
             .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
             .toList()
-        return visibleShapes.toPage(pageable).map { notationMapper.toResponse(it) }
+        return mapNodeShapesPage(visibleShapes.toPage(pageable))
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get node shape by id")
     fun get(@PathVariable id: UUID): NodeShapeResponse {
         accessService.currentUserId() // require authenticated
         val shape = nodeShapesRepository.findById(id).orElseThrow {
@@ -66,6 +72,7 @@ class NodeShapesController(
     }
 
     @PostMapping
+    @Operation(summary = "Create node shape")
     @ResponseStatus(HttpStatus.CREATED)
     fun create(@RequestBody request: NodeShapeRequest): NodeShapeResponse {
         val currentUserId = accessService.currentUserId()
@@ -88,6 +95,7 @@ class NodeShapesController(
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update node shape")
     fun update(
         @PathVariable id: UUID,
         @RequestBody request: NodeShapeUpdateRequest
@@ -109,6 +117,7 @@ class NodeShapesController(
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete node shape")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@PathVariable id: UUID) {
         val shape = nodeShapesRepository.findById(id).orElseThrow {
@@ -116,6 +125,15 @@ class NodeShapesController(
         }
         accessService.requireCanEditNodeShape(shape)
         nodeShapesRepository.deleteById(id)
+    }
+
+    private fun mapNodeShapesPage(page: Page<NodeShapes>): Page<NodeShapeResponse> {
+        val permissions = accessService.nodeShapeAccessPermissions(page.content)
+        val mapped = page.content.map { shape ->
+            val shapeId = requireNotNull(shape.id)
+            notationMapper.toResponse(shape, permissions[shapeId])
+        }
+        return PageImpl(mapped, page.pageable, page.totalElements)
     }
 
 }

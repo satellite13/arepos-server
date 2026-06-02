@@ -40,7 +40,6 @@ class ModelSyncBroadcaster(
             return
         }
         entityManager.flush()
-        entityManager.clear()
         val model = modelsRepository.findById(modelId).orElse(null) ?: return
         val revision = model.syncRevision
         val eventId = UUID.randomUUID()

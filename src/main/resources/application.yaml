@@ -6,6 +6,8 @@ spring:
     username: ${DB_USERNAME:arepos}
     password: ${DB_PASSWORD:arepos}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:30}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -13,6 +15,19 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_batch_fetch_size: ${HIBERNATE_DEFAULT_BATCH_FETCH_SIZE:50}
+        jdbc:
+          batch_size: ${HIBERNATE_JDBC_BATCH_SIZE:50}
+          order_inserts: ${HIBERNATE_ORDER_INSERTS:true}
+          order_updates: ${HIBERNATE_ORDER_UPDATES:true}
+        cache:
+          use_second_level_cache: ${HIBERNATE_USE_SECOND_LEVEL_CACHE:true}
+          region:
+            factory_class: jcache
+        javax:
+          cache:
+            provider: org.ehcache.jsr107.EhcacheCachingProvider
+            uri: classpath:ehcache.xml
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
@@ -38,6 +53,9 @@ springdoc:
     path: /swagger-ui.html
 
 arepos:
+  # Публичная база URL для формирования внешних ссылок (например, share-link preview SVG).
+  # Пример: https://api.example.com
+  public-url-base: ${AREPOS_PUBLIC_URL_BASE:}
   model-sync:
     # Публикация model_changed через transactional outbox (иначе — прямой SimpMessagingTemplate).
     outbox-enabled: ${MODEL_SYNC_OUTBOX_ENABLED:false}
@@ -50,7 +68,9 @@ arepos:
     # Список через запятую или * (dev). Для prod задать явные origin фронта.
     allowed-origin-patterns: ${WEBSOCKET_ALLOWED_ORIGIN_PATTERNS:*}
   jwt:
-    secret: ${JWT_SECRET:default-dev-secret-key-change-in-production-must-be-at-least-256-bits-long!!}
+    secret: ${JWT_SECRET:}
+    issuer: ${JWT_ISSUER:arepos}
+    audience: ${JWT_AUDIENCE:arepos-api}
     access-expiration: ${JWT_ACCESS_EXPIRATION:PT30M}
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:P7D}
   admin-secret: ${ADMIN_SECRET:}
@@ -59,6 +79,8 @@ arepos:
       endpoint: http://localhost:3592
       request-timeout: 1s
       bundle-version: ""
+      circuit-failure-threshold: ${CERBOS_CIRCUIT_FAILURE_THRESHOLD:5}
+      circuit-open-duration: ${CERBOS_CIRCUIT_OPEN_DURATION:PT30S}
   files:
     storage: ${FILE_STORAGE:minio}
     minio:

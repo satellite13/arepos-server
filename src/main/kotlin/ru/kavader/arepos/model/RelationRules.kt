@@ -12,6 +12,11 @@ import org.hibernate.type.SqlTypes
 @DynamicUpdate
 @Table(name = "relation_rules", schema = "public", uniqueConstraints = [
     UniqueConstraint(name = "relation_rules_relation_from_to_key", columnNames = ["relation", "from_component", "to_component"])
+], indexes = [
+    Index(name = "relation_rules_owner_idx", columnList = "owner"),
+    Index(name = "relation_rules_relation_idx", columnList = "relation"),
+    Index(name = "relation_rules_from_component_idx", columnList = "from_component"),
+    Index(name = "relation_rules_to_component_idx", columnList = "to_component")
 ])
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class RelationRules(

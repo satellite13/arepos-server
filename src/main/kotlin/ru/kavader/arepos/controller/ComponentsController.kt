@@ -1,5 +1,7 @@
 package ru.kavader.arepos.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import ru.kavader.arepos.dto.notation.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -18,6 +20,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/components")
+@Tag(name = "Components", description = "Notation components management endpoints")
 class ComponentsController(
     private val componentsRepository: ComponentsRepository,
     private val notationsRepository: NotationsRepository,
@@ -29,6 +32,7 @@ class ComponentsController(
 ) {
 
     @GetMapping
+    @Operation(summary = "List components")
     fun listComponents(
         pageable: Pageable,
         @RequestParam(required = false) notationId: UUID?,
@@ -65,6 +69,7 @@ class ComponentsController(
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get component by id")
     fun getComponent(@PathVariable id: UUID): ComponentResponse =
         componentsRepository.findById(id)
             .map {
@@ -76,6 +81,7 @@ class ComponentsController(
             }
 
     @PostMapping
+    @Operation(summary = "Create component")
     @ResponseStatus(HttpStatus.CREATED)
     fun createComponent(@RequestBody request: ComponentRequest): ComponentResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
@@ -107,6 +113,7 @@ class ComponentsController(
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update component")
     fun updateComponent(
         @PathVariable id: UUID,
         @RequestBody request: ComponentUpdateRequest
@@ -148,6 +155,7 @@ class ComponentsController(
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete component")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteComponent(@PathVariable id: UUID) {
         val component = componentsRepository.findById(id)

@@ -107,6 +107,8 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
         nativeQuery = true
     )
     fun findDistinctNodeTypeIdsByModelId(@Param("modelId") modelId: UUID): List<UUID>
+
+    fun findByModel_IdAndStableIdIn(modelId: UUID, stableIds: Collection<UUID>): List<Nodes>
 }
 
 

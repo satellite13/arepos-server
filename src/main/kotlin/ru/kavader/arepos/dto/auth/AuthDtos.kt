@@ -1,33 +1,67 @@
 package ru.kavader.arepos.dto.auth
 
+import jakarta.validation.constraints.Email
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import java.time.Instant
 import java.util.UUID
 
 data class RegisterRequest(
+    @field:NotBlank
+    @field:Email
+    @field:Size(max = 320)
     val email: String,
+    @field:NotBlank
+    @field:Size(min = 8, max = 128)
     val password: String,
+    @field:NotBlank
+    @field:Size(max = 100)
     val firstName: String,
+    @field:NotBlank
+    @field:Size(max = 100)
     val lastName: String,
+    @field:Size(max = 100)
     val middleName: String? = null,
+    @field:Size(max = 100)
     val position: String? = null
 )
 
 data class LoginRequest(
+    @field:NotBlank
+    @field:Email
+    @field:Size(max = 320)
     val email: String,
+    @field:NotBlank
+    @field:Size(min = 8, max = 128)
     val password: String
 )
 
 data class RefreshRequest(
+    @field:NotBlank
+    @field:Size(max = 4096)
     val refreshToken: String
 )
 
 data class AdminRegisterRequest(
+    @field:NotBlank
+    @field:Email
+    @field:Size(max = 320)
     val email: String,
+    @field:NotBlank
+    @field:Size(min = 8, max = 128)
     val password: String,
+    @field:NotBlank
+    @field:Size(max = 100)
     val firstName: String,
+    @field:NotBlank
+    @field:Size(max = 100)
     val lastName: String,
+    @field:Size(max = 100)
     val middleName: String? = null,
+    @field:Size(max = 100)
     val position: String? = null,
+    @field:NotBlank
+    @field:Size(max = 256)
     val adminSecret: String
 )
 

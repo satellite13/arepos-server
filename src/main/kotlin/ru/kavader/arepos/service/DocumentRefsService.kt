@@ -4,6 +4,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.document.DocumentItem
+import ru.kavader.arepos.dto.document.RegisterDocumentRefRequest
 import ru.kavader.arepos.model.DocumentRefs
 import ru.kavader.arepos.model.Files
 import ru.kavader.arepos.model.Users
@@ -23,28 +25,6 @@ import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
 import kotlin.comparisons.compareBy
-
-data class DocumentItem(
-    val fileId: UUID,
-    val label: String,
-    val entityType: String? = null,
-    val entityId: UUID? = null,
-    val entityName: String? = null,
-    val parentName: String? = null
-)
-
-data class RegisterDocumentRefRequest(
-    val fileId: UUID,
-    val modelId: UUID? = null,
-    val notationId: UUID? = null,
-    val componentId: UUID? = null,
-    val nodeId: UUID? = null,
-    val nodeTypeId: UUID? = null,
-    val linkTypeId: UUID? = null,
-    val diagramId: UUID? = null,
-    val relationId: UUID? = null,
-    val nodeShapeId: UUID? = null,
-)
 
 @Service
 class DocumentRefsService(

@@ -1,11 +1,14 @@
 package ru.kavader.arepos.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import ru.kavader.arepos.dto.import.*
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import jakarta.validation.Valid
 import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.CurrentUser
@@ -15,6 +18,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/notations")
+@Tag(name = "Notation Import", description = "Notation import and migration endpoints")
 class NotationImportController(
     private val notationsRepository: NotationsRepository,
     private val usersRepository: UsersRepository,
@@ -27,9 +31,10 @@ class NotationImportController(
 ) {
 
     @PostMapping("/import")
+    @Operation(summary = "Import notation package")
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
-    fun importNotation(@RequestBody request: NotationImportRequest): NotationImportResponse {
+    fun importNotation(@RequestBody @Valid request: NotationImportRequest): NotationImportResponse {
         val currentUserId = accessService.currentUserId()
         val owner = usersRepository.findById(currentUserId)
             .orElseThrow {

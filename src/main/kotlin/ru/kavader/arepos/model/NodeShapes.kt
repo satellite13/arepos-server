@@ -7,6 +7,7 @@ import jakarta.persistence.FetchType
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
+import jakarta.persistence.Index
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
@@ -18,7 +19,13 @@ import java.util.UUID
 
 @Entity
 @DynamicUpdate
-@Table(name = "node_shapes", schema = "public")
+@Table(
+    name = "node_shapes",
+    schema = "public",
+    indexes = [
+        Index(name = "node_shapes_owner_idx", columnList = "owner")
+    ]
+)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class NodeShapes(
     @Id

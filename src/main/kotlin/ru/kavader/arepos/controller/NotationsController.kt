@@ -2,28 +2,25 @@ package ru.kavader.arepos.controller
 
 import ru.kavader.arepos.dto.model.*
 import ru.kavader.arepos.dto.notation.*
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.model.Notations
-import ru.kavader.arepos.model.RelationRules
-import ru.kavader.arepos.model.Relations
 import ru.kavader.arepos.model.SharePermission
-import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.RelationRulesRepository
-import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.service.MdFileLinkValidator
+import ru.kavader.arepos.service.NotationCopyService
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import ru.kavader.arepos.util.VersionUtils
@@ -32,22 +29,22 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/notations")
+@Tag(name = "Notations", description = "Notation and notation-version endpoints")
 class NotationsController(
     private val notationsRepository: NotationsRepository,
     private val usersRepository: UsersRepository,
     private val modelsRepository: ModelsRepository,
     private val diagramsRepository: DiagramsRepository,
-    private val componentsRepository: ComponentsRepository,
-    private val relationsRepository: RelationsRepository,
-    private val relationRulesRepository: RelationRulesRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
     private val mdFileLinkValidator: MdFileLinkValidator,
+    private val notationCopyService: NotationCopyService,
     private val notationMapper: NotationMapper
 ) {
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
     @GetMapping
+    @Operation(summary = "List notations")
     fun listNotations(
         pageable: Pageable,
         @RequestParam(required = false) ownerId: UUID?,
@@ -55,13 +52,14 @@ class NotationsController(
     ): Page<NotationResponse> {
         if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
-            return notationsRepository.findAccessibleForUser(
+            val page = notationsRepository.findAccessibleForUser(
                 userId = currentUserId,
                 ownerId = ownerId,
                 name = name?.trim().orEmpty(),
                 viewPermissions = viewPermissions,
                 pageable = pageable
-            ).map { notationMapper.toResponse(it) }
+            )
+            return mapNotationsPage(page)
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -75,20 +73,22 @@ class NotationsController(
             else ->
                 notationsRepository.findAll(pageable)
         }
-        return notations.map { notationMapper.toResponse(it) }
+        return mapNotationsPage(notations)
     }
 
     @GetMapping("/deleted")
+    @Operation(summary = "List soft-deleted notations (admin)")
     fun listDeletedNotations(pageable: Pageable): Page<NotationResponse> {
         if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
         }
-        return notationsRepository.findByDeletedTrue(pageable).map { notationMapper.toResponse(it) }
+        return mapNotationsPage(notationsRepository.findByDeletedTrue(pageable))
     }
 
     @DeleteMapping("/{id}/permanent")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
+    @Operation(summary = "Permanently delete notation (admin)")
     fun permanentDeleteNotation(@PathVariable id: UUID) {
         if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
@@ -101,6 +101,7 @@ class NotationsController(
     }
 
     @GetMapping("/grouped")
+    @Operation(summary = "List notations grouped by name")
     fun listNotationsGrouped(): GroupedEntityResponse<NotationResponse> {
         val allNotations = if (!accessService.canViewAdminPanel()) {
             notationsRepository.findAccessibleForUser(
@@ -118,9 +119,13 @@ class NotationsController(
             .groupBy { it.name.trim().lowercase() }
             .map { (_, notations) ->
                 val sorted = notations.sortedWith(compareNotationsByVersionDesc)
+                val permissions = accessService.notationAccessPermissions(sorted)
                 EntityGroupResponse(
                     name = sorted.first().name.trim(),
-                    versions = sorted.map { notationMapper.toResponse(it) }
+                    versions = sorted.map { notation ->
+                        val notationId = requireNotNull(notation.id)
+                        notationMapper.toResponse(notation, permissions[notationId])
+                    }
                 )
             }
             .sortedBy { it.name.lowercase() }
@@ -129,6 +134,7 @@ class NotationsController(
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get notation by id")
     fun getNotation(
         @PathVariable id: UUID,
         @RequestParam(required = false) modelId: UUID?
@@ -153,6 +159,7 @@ class NotationsController(
             }
 
     @GetMapping("/{id}/meta")
+    @Operation(summary = "Get notation lightweight metadata")
     fun getNotationMeta(
         @PathVariable id: UUID,
         @RequestParam(required = false) modelId: UUID?
@@ -193,6 +200,7 @@ class NotationsController(
             }
 
     @GetMapping("/{id}/newer-versions")
+    @Operation(summary = "Get newer notation versions derived from source")
     fun getNewerVersions(@PathVariable id: UUID): List<NotationResponse> {
         accessService.requireCanViewNotation(
             notationsRepository.findById(id).orElseThrow {
@@ -200,11 +208,18 @@ class NotationsController(
             }
         )
         return accessService.filterViewableNotations(notationsRepository.findBySourceId(id))
-            .map { notationMapper.toResponse(it) }
+            .let { notations ->
+                val permissions = accessService.notationAccessPermissions(notations)
+                notations.map { notation ->
+                    val notationId = requireNotNull(notation.id)
+                    notationMapper.toResponse(notation, permissions[notationId])
+                }
+            }
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create notation")
     fun createNotation(@RequestBody @Valid request: NotationRequest): NotationResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
@@ -231,6 +246,7 @@ class NotationsController(
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update notation")
     fun updateNotation(
         @PathVariable id: UUID,
         @RequestBody @Valid request: NotationUpdateRequest
@@ -258,6 +274,7 @@ class NotationsController(
     @PostMapping("/{sourceId}/copy")
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
+    @Operation(summary = "Create notation by copying source notation")
     fun copyNotation(
         @PathVariable sourceId: UUID,
         @RequestBody request: NotationRequest
@@ -278,88 +295,20 @@ class NotationsController(
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
 
         mdFileLinkValidator.validate(request.attrs ?: source.attrs)
-        val now = Instant.now()
-        val newNotation = notationsRepository.save(
-            Notations(
-                name = request.name,
-                version = request.version,
-                owner = owner,
-                attrs = request.attrs ?: source.attrs,
-                createdAt = now,
-                updatedAt = now,
-                source = source,
-                deleted = false
-            )
+        val copied = notationCopyService.copyNotation(
+            source = source,
+            owner = owner,
+            name = request.name,
+            version = request.version,
+            attrs = request.attrs
         )
-
-        // Copy components and build oldId → newId map
-        val sourceComponents = componentsRepository.findByNotation(source, Pageable.unpaged())
-        val componentIdMap = mutableMapOf<UUID, UUID>()
-        for (srcComponent in sourceComponents) {
-            val saved = componentsRepository.save(
-                srcComponent.copy(
-                    id = null,
-                    notation = newNotation,
-                    version = newNotation.version,
-                    owner = owner,
-                    createdAt = now,
-                    updatedAt = now
-                )
-            )
-            componentIdMap[srcComponent.id!!] = saved.id!!
-        }
-
-        // Copy relations and build oldId → newId map
-        val sourceRelations = relationsRepository.findByNotation(source, Pageable.unpaged())
-        val relationIdMap = mutableMapOf<UUID, UUID>()
-        for (srcRelation in sourceRelations) {
-            val saved = relationsRepository.save(
-                srcRelation.copy(
-                    id = null,
-                    notation = newNotation,
-                    version = newNotation.version,
-                    owner = owner,
-                    createdAt = now,
-                    updatedAt = now
-                )
-            )
-            relationIdMap[srcRelation.id!!] = saved.id!!
-        }
-
-        // Copy relation rules, remapping relation/component IDs
-        for (srcRelation in sourceRelations) {
-            val sourceRules = relationRulesRepository.findByRelation(srcRelation, Pageable.unpaged())
-            val newRelation = relationsRepository.findById(relationIdMap[srcRelation.id!!]!!)
-                .orElseThrow { IllegalStateException("Copied relation not found") }
-
-            for (srcRule in sourceRules) {
-                val newFromId = componentIdMap[srcRule.fromComponent.id!!] ?: continue
-                val newToId = componentIdMap[srcRule.toComponent.id!!] ?: continue
-                val newFrom = componentsRepository.findById(newFromId)
-                    .orElseThrow { IllegalStateException("Copied component not found") }
-                val newTo = componentsRepository.findById(newToId)
-                    .orElseThrow { IllegalStateException("Copied component not found") }
-
-                relationRulesRepository.save(
-                    srcRule.copy(
-                        id = null,
-                        relation = newRelation,
-                        fromComponent = newFrom,
-                        toComponent = newTo,
-                        owner = owner,
-                        createdAt = now,
-                        updatedAt = now
-                    )
-                )
-            }
-        }
-
-        return notationMapper.toResponse(newNotation)
+        return notationMapper.toResponse(copied)
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
+    @Operation(summary = "Soft-delete notation")
     fun deleteNotation(@PathVariable id: UUID) {
         val notation = notationsRepository.findById(id)
             .orElseThrow {
@@ -378,5 +327,14 @@ class NotationsController(
         ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
             notationsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
         }
+
+    private fun mapNotationsPage(page: Page<Notations>): Page<NotationResponse> {
+        val permissions = accessService.notationAccessPermissions(page.content)
+        val mapped = page.content.map { notation ->
+            val notationId = requireNotNull(notation.id)
+            notationMapper.toResponse(notation, permissions[notationId])
+        }
+        return PageImpl(mapped, page.pageable, page.totalElements)
+    }
 
 }

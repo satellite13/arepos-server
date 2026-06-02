@@ -171,6 +171,34 @@ class CerbosDecisionServiceTest {
         assertFalse(payload.contains("\"resources\":[]"))
     }
 
+    @Test
+    fun `opens circuit after repeated cerbos failures`() {
+        withServer(
+            body = """{"error":"unavailable"}""",
+            statusCode = 503
+        ) { endpoint ->
+            val service = CerbosDecisionService(
+                cerbosProperties = CerbosProperties(
+                    endpoint = endpoint,
+                    requestTimeout = Duration.ofSeconds(1),
+                    circuitFailureThreshold = 2,
+                    circuitOpenDuration = Duration.ofSeconds(30)
+                ),
+                objectMapper = jacksonObjectMapper()
+            )
+            setCurrentUser(role = "USER")
+            val request = CerbosAccessRequest(
+                resourceKind = CerbosResourceKind.MODEL,
+                action = CerbosAction.VIEW,
+                resourceId = UUID.randomUUID()
+            )
+
+            assertFalse(service.check(request))
+            assertFalse(service.check(request))
+            assertFalse(service.check(request))
+        }
+    }
+
     private fun setCurrentUser(role: String) {
         val auth = UsernamePasswordAuthenticationToken(
             UUID.randomUUID(),
@@ -182,6 +210,7 @@ class CerbosDecisionServiceTest {
 
     private fun withServer(
         body: String,
+        statusCode: Int = 200,
         onRequest: ((payload: String) -> Unit)? = null,
         block: (endpoint: String) -> Unit
     ) {
@@ -190,7 +219,7 @@ class CerbosDecisionServiceTest {
             val payload = exchange.requestBody.bufferedReader().use { it.readText() }
             onRequest?.invoke(payload)
             val bytes = body.toByteArray(Charsets.UTF_8)
-            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.sendResponseHeaders(statusCode, bytes.size.toLong())
             exchange.responseBody.use { it.write(bytes) }
         }
         server.start()

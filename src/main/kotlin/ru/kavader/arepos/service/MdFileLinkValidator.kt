@@ -2,6 +2,7 @@ package ru.kavader.arepos.service
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
@@ -14,8 +15,10 @@ class MdFileLinkValidator(
     private val objectMapper: ObjectMapper
 ) {
     companion object {
+        private val log = LoggerFactory.getLogger(MdFileLinkValidator::class.java)
         private val MDFILE_PATTERN = Regex("""mdfile://([0-9a-fA-F-]{36})""")
         private const val MAX_DEPTH = 10
+        private const val MAX_ATTRS_BYTES = 1 * 1024 * 1024
     }
 
     /**
@@ -24,8 +27,10 @@ class MdFileLinkValidator(
      */
     fun validate(attrs: String?) {
         if (attrs.isNullOrBlank()) return
-        
-        val uuids = extractFileUuids(attrs)
+
+        val root = parseSafe(attrs)
+        val uuids = mutableSetOf<UUID>()
+        extractUuidsFromNode(root, uuids, 0)
         if (uuids.isEmpty()) return
         
         // Check all files exist
@@ -47,16 +52,10 @@ class MdFileLinkValidator(
      */
     fun extractFileUuids(attrs: String?): Set<UUID> {
         if (attrs.isNullOrBlank()) return emptySet()
-        
-        return try {
-            val root = objectMapper.readTree(attrs)
-            val uuids = mutableSetOf<UUID>()
-            extractUuidsFromNode(root, uuids, 0)
-            uuids
-        } catch (e: Exception) {
-            // If JSON is invalid, try to extract UUIDs directly from the string
-            extractUuidsFromString(attrs)
-        }
+        val root = parseSafe(attrs)
+        val uuids = mutableSetOf<UUID>()
+        extractUuidsFromNode(root, uuids, 0)
+        return uuids
     }
 
     private fun extractUuidsFromNode(node: JsonNode, uuids: MutableSet<UUID>, depth: Int) {
@@ -87,24 +86,29 @@ class MdFileLinkValidator(
         }
     }
 
-    private fun extractUuidsFromString(text: String): Set<UUID> {
-        val uuids = mutableSetOf<UUID>()
-        val matches = MDFILE_PATTERN.findAll(text)
-        matches.forEach { match ->
-            try {
-                uuids.add(UUID.fromString(match.groupValues[1]))
-            } catch (e: IllegalArgumentException) {
-                // Invalid UUID format, ignore
-            }
-        }
-        return uuids
-    }
-
     /**
      * Checks if the given string contains any mdfile:// references.
      */
     fun containsMdFileRefs(attrs: String?): Boolean {
         if (attrs.isNullOrBlank()) return false
         return MDFILE_PATTERN.containsMatchIn(attrs)
+    }
+
+    private fun parseSafe(attrs: String): JsonNode {
+        if (attrs.toByteArray(Charsets.UTF_8).size > MAX_ATTRS_BYTES) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Attrs payload is too large for mdfile validation (max ${MAX_ATTRS_BYTES} bytes)"
+            )
+        }
+        return try {
+            objectMapper.readTree(attrs)
+        } catch (ex: Exception) {
+            log.warn("Invalid attrs JSON for mdfile validation", ex)
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Invalid attrs JSON for mdfile validation"
+            )
+        }
     }
 }

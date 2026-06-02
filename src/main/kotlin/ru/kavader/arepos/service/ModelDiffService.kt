@@ -1,5 +1,7 @@
 package ru.kavader.arepos.service
 
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -20,6 +22,24 @@ class ModelDiffService(
     private val linksRepository: LinksRepository,
     private val diagramsRepository: DiagramsRepository
 ) {
+    companion object {
+        private const val DIFF_PAGE_SIZE = 1000
+        private const val MAX_NODES_PER_MODEL = 20_000
+        private const val MAX_LINKS_PER_MODEL = 20_000
+        private const val MAX_DIAGRAMS_PER_MODEL = 5_000
+        private const val MAX_NODE_PATH_DEPTH = 256
+
+        fun compareVersions(a: String, b: String): Int {
+            val aParts = a.split(".").map { it.toIntOrNull() ?: 0 }
+            val bParts = b.split(".").map { it.toIntOrNull() ?: 0 }
+            for (i in 0 until maxOf(aParts.size, bParts.size)) {
+                val av = aParts.getOrElse(i) { 0 }
+                val bv = bParts.getOrElse(i) { 0 }
+                if (av != bv) return av.compareTo(bv)
+            }
+            return 0
+        }
+    }
 
     fun computeDiff(baseModelId: UUID, targetModelId: UUID): ModelDiffResponse {
         val baseModel = modelsRepository.findById(baseModelId).orElseThrow {
@@ -29,20 +49,40 @@ class ModelDiffService(
             ResponseStatusException(HttpStatus.NOT_FOUND, "Target model $targetModelId not found")
         }
 
-        val baseNodes = nodesRepository.findByModelIdOrdered(baseModelId, Pageable.unpaged()).content
-        val targetNodes = nodesRepository.findByModelIdOrdered(targetModelId, Pageable.unpaged()).content
+        val baseNodes = loadAllPages(MAX_NODES_PER_MODEL, "nodes", baseModelId) { pageable ->
+            nodesRepository.findByModelIdOrdered(baseModelId, pageable)
+        }
+        val targetNodes = loadAllPages(MAX_NODES_PER_MODEL, "nodes", targetModelId) { pageable ->
+            nodesRepository.findByModelIdOrdered(targetModelId, pageable)
+        }
 
-        val baseLinks = linksRepository.findByModel(baseModel, Pageable.unpaged()).content
-        val targetLinks = linksRepository.findByModel(targetModel, Pageable.unpaged()).content
+        val baseLinks = loadAllPages(MAX_LINKS_PER_MODEL, "links", baseModelId) { pageable ->
+            linksRepository.findByModel(baseModel, pageable)
+        }
+        val targetLinks = loadAllPages(MAX_LINKS_PER_MODEL, "links", targetModelId) { pageable ->
+            linksRepository.findByModel(targetModel, pageable)
+        }
 
-        val baseDiagrams = diagramsRepository.findByFilters(
-            ownerId = null, modelId = baseModelId, nodeId = null, notationId = null,
-            name = "", pageable = Pageable.unpaged()
-        ).content
-        val targetDiagrams = diagramsRepository.findByFilters(
-            ownerId = null, modelId = targetModelId, nodeId = null, notationId = null,
-            name = "", pageable = Pageable.unpaged()
-        ).content
+        val baseDiagrams = loadAllPages(MAX_DIAGRAMS_PER_MODEL, "diagrams", baseModelId) { pageable ->
+            diagramsRepository.findByFilters(
+                ownerId = null,
+                modelId = baseModelId,
+                nodeId = null,
+                notationId = null,
+                name = "",
+                pageable = pageable
+            )
+        }
+        val targetDiagrams = loadAllPages(MAX_DIAGRAMS_PER_MODEL, "diagrams", targetModelId) { pageable ->
+            diagramsRepository.findByFilters(
+                ownerId = null,
+                modelId = targetModelId,
+                nodeId = null,
+                notationId = null,
+                name = "",
+                pageable = pageable
+            )
+        }
 
         val basePathMap = buildNodePathMap(baseNodes)
         val targetPathMap = buildNodePathMap(targetNodes)
@@ -55,24 +95,59 @@ class ModelDiffService(
     }
 
     internal fun buildNodePathMap(nodes: List<Nodes>): Map<UUID, String> {
-        val nodeById = nodes.associateBy { it.id!! }
-        val cache = mutableMapOf<UUID, String>()
+        val nodeById = nodes.associateBy { requireNotNull(it.id) }
+        val childrenByParent = mutableMapOf<UUID, MutableList<Nodes>>()
+        val roots = mutableListOf<Nodes>()
 
-        fun resolvePath(nodeId: UUID): String {
-            cache[nodeId]?.let { return it }
-            val node = nodeById[nodeId] ?: return "?"
+        for (node in nodes) {
             val parentId = node.parentNode?.id
-            val path = if (parentId != null && nodeById.containsKey(parentId)) {
-                "${resolvePath(parentId)}/${node.name}"
+            if (parentId == null || !nodeById.containsKey(parentId)) {
+                roots.add(node)
             } else {
-                node.name
+                childrenByParent.computeIfAbsent(parentId) { mutableListOf() }.add(node)
             }
-            cache[nodeId] = path
-            return path
         }
 
-        nodes.forEach { resolvePath(it.id!!) }
-        return cache
+        val pathMap = mutableMapOf<UUID, String>()
+        val depthMap = mutableMapOf<UUID, Int>()
+        val queue = ArrayDeque<UUID>()
+
+        for (root in roots) {
+            val rootId = requireNotNull(root.id)
+            pathMap[rootId] = root.name
+            depthMap[rootId] = 1
+            queue.addLast(rootId)
+        }
+
+        while (queue.isNotEmpty()) {
+            val currentId = queue.removeFirst()
+            val currentPath = pathMap[currentId] ?: continue
+            val currentDepth = depthMap[currentId] ?: 1
+            val children = childrenByParent[currentId].orEmpty()
+            for (child in children) {
+                val childId = requireNotNull(child.id)
+                if (childId in pathMap) continue
+                val childDepth = currentDepth + 1
+                if (childDepth > MAX_NODE_PATH_DEPTH) {
+                    throw ResponseStatusException(
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Model tree depth exceeds supported limit ($MAX_NODE_PATH_DEPTH)"
+                    )
+                }
+                pathMap[childId] = "$currentPath/${child.name}"
+                depthMap[childId] = childDepth
+                queue.addLast(childId)
+            }
+        }
+
+        if (pathMap.size != nodes.size) {
+            throw ResponseStatusException(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Model tree contains a cycle or disconnected parent chain"
+            )
+        }
+
+        return pathMap
     }
 
     internal fun compareNodes(
@@ -308,17 +383,27 @@ class ModelDiffService(
         attrs = attrs
     )
 
-    companion object {
-        fun compareVersions(a: String, b: String): Int {
-            val aParts = a.split(".").map { it.toIntOrNull() ?: 0 }
-            val bParts = b.split(".").map { it.toIntOrNull() ?: 0 }
-            for (i in 0 until maxOf(aParts.size, bParts.size)) {
-                val av = aParts.getOrElse(i) { 0 }
-                val bv = bParts.getOrElse(i) { 0 }
-                if (av != bv) return av.compareTo(bv)
+    private fun <T> loadAllPages(
+        maxItems: Int,
+        entityName: String,
+        modelId: UUID,
+        fetchPage: (Pageable) -> Page<T>
+    ): List<T> {
+        val all = mutableListOf<T>()
+        var pageNumber = 0
+        while (true) {
+            val page = fetchPage(PageRequest.of(pageNumber, DIFF_PAGE_SIZE))
+            all.addAll(page.content)
+            if (all.size > maxItems) {
+                throw ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Diff for model $modelId exceeds $maxItems $entityName, reduce model size"
+                )
             }
-            return 0
+            if (!page.hasNext()) break
+            pageNumber++
         }
+        return all
     }
 }
 

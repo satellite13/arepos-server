@@ -6,7 +6,15 @@ import java.time.Instant
 import java.util.UUID
 
 @Entity
-@Table(name = "diagram_preview_links", schema = "public")
+@Table(
+    name = "diagram_preview_links",
+    schema = "public",
+    indexes = [
+        Index(name = "diagram_preview_links_diagram_id_idx", columnList = "diagram_id"),
+        Index(name = "diagram_preview_links_model_name_idx", columnList = "model_id, diagram_name"),
+        Index(name = "diagram_preview_links_created_by_idx", columnList = "created_by")
+    ]
+)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class DiagramPreviewLinks(
     @Id

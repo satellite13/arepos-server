@@ -1,5 +1,7 @@
 package ru.kavader.arepos.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import ru.kavader.arepos.dto.notation.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
@@ -22,6 +24,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/relations")
+@Tag(name = "Relations", description = "Notation relations management endpoints")
 class RelationsController(
     private val relationsRepository: RelationsRepository,
     private val usersRepository: UsersRepository,
@@ -35,6 +38,7 @@ class RelationsController(
 ) {
 
     @GetMapping
+    @Operation(summary = "List relations")
     fun listRelations(
         pageable: Pageable,
         @RequestParam(required = false) notationId: UUID?,
@@ -71,6 +75,7 @@ class RelationsController(
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get relation by id")
     fun getRelation(@PathVariable id: UUID): RelationResponse =
         relationsRepository.findById(id)
             .map {
@@ -82,6 +87,7 @@ class RelationsController(
             }
 
     @PostMapping
+    @Operation(summary = "Create relation")
     @ResponseStatus(HttpStatus.CREATED)
     fun createRelation(@RequestBody request: RelationRequest): RelationResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
@@ -113,6 +119,7 @@ class RelationsController(
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update relation")
     fun updateRelation(
         @PathVariable id: UUID,
         @RequestBody request: RelationUpdateRequest
@@ -154,6 +161,7 @@ class RelationsController(
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete relation")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteRelation(@PathVariable id: UUID) {
         val relation = relationsRepository.findById(id)

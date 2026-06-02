@@ -2,77 +2,75 @@ package ru.kavader.arepos.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
-import org.springframework.data.domain.Page
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.common.ListResponse
+import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.dto.model.*
 import ru.kavader.arepos.dto.model.ModelMapper
+import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
-import ru.kavader.arepos.model.Diagrams
-import ru.kavader.arepos.model.Links
+import ru.kavader.arepos.dto.system.ModelSyncEventType
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Nodes
-import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.model.SharePermission
-import ru.kavader.arepos.model.ShareResourceType
-import ru.kavader.arepos.repository.DiagramsRepository
-import ru.kavader.arepos.repository.LinksRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
-import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.service.MdFileLinkValidator
+import ru.kavader.arepos.service.ModelCopyService
 import ru.kavader.arepos.service.ModelSyncBroadcaster
+import ru.kavader.arepos.service.SystemRootNodeTypeService
 import jakarta.validation.Valid
-import jakarta.validation.constraints.NotBlank
 import ru.kavader.arepos.util.VersionUtils
 import java.time.Instant
 import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/models")
+@Tag(name = "Models", description = "Model management and versioning endpoints")
 class ModelsController(
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
-    private val nodeTypesRepository: NodeTypesRepository,
-    private val usersRepository: UsersRepository,
-    private val linksRepository: LinksRepository,
-    private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
     private val objectMapper: ObjectMapper,
     private val mdFileLinkValidator: MdFileLinkValidator,
+    private val modelCopyService: ModelCopyService,
+    private val systemRootNodeTypeService: SystemRootNodeTypeService,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val modelMapper: ModelMapper
 ) {
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
     companion object {
-        private const val SYSTEM_ROOT_NODE_TYPE_NAME = "Directory"
         private const val SYSTEM_ROOT_NODE_NAME = "Root"
     }
 
     @GetMapping
+    @Operation(summary = "List models")
     fun listModels(
         pageable: Pageable,
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?
-    ): Page<ModelResponse> {
+    ): ListResponse<ModelResponse> {
         if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
-            return modelsRepository.findAccessibleForUser(
+            val page = modelsRepository.findAccessibleForUser(
                 userId = currentUserId,
                 ownerId = ownerId,
                 name = name?.trim().orEmpty(),
                 viewPermissions = viewPermissions,
                 pageable = pageable
-            ).map { modelMapper.toResponse(it) }
+            )
+            return mapModelsPage(page)
         }
 
         val effectiveOwner = resolveReadableOwner(ownerId)
@@ -86,20 +84,22 @@ class ModelsController(
             else ->
                 modelsRepository.findAll(pageable)
         }
-        return models.map { modelMapper.toResponse(it) }
+        return mapModelsPage(models)
     }
 
     @GetMapping("/deleted")
-    fun listDeletedModels(pageable: Pageable): Page<ModelResponse> {
+    @Operation(summary = "List soft-deleted models (admin)")
+    fun listDeletedModels(pageable: Pageable): ListResponse<ModelResponse> {
         if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
         }
-        return modelsRepository.findByDeletedTrue(pageable).map { modelMapper.toResponse(it) }
+        return mapModelsPage(modelsRepository.findByDeletedTrue(pageable))
     }
 
     @DeleteMapping("/{id}/permanent")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
+    @Operation(summary = "Permanently delete model (admin)")
     fun permanentDeleteModel(@PathVariable id: UUID) {
         if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
@@ -112,6 +112,7 @@ class ModelsController(
     }
 
     @GetMapping("/grouped")
+    @Operation(summary = "List models grouped by name")
     fun listModelsGrouped(): GroupedEntityResponse<ModelResponse> {
         val allModels = if (!accessService.canViewAdminPanel()) {
             modelsRepository.findAccessibleForUser(
@@ -129,9 +130,13 @@ class ModelsController(
             .groupBy { it.name.trim().lowercase() }
             .map { (_, models) ->
                 val sorted = models.sortedWith(compareModelsByVersionDesc)
+                val permissions = accessService.modelAccessPermissions(sorted)
                 EntityGroupResponse(
                     name = sorted.first().name.trim(),
-                    versions = sorted.map { modelMapper.toResponse(it) }
+                    versions = sorted.map { model ->
+                        val modelId = requireNotNull(model.id)
+                        modelMapper.toResponse(model, permissions[modelId])
+                    }
                 )
             }
             .sortedBy { it.name.lowercase() }
@@ -140,6 +145,7 @@ class ModelsController(
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get model by id")
     fun getModel(@PathVariable id: UUID): ModelResponse =
         modelsRepository.findById(id)
             .map {
@@ -151,7 +157,8 @@ class ModelsController(
             }
 
     @GetMapping("/{id}/related-versions")
-    fun getRelatedVersions(@PathVariable id: UUID): List<ModelResponse> {
+    @Operation(summary = "Get related model versions")
+    fun getRelatedVersions(@PathVariable id: UUID): ListResponse<ModelResponse> {
         val model = modelsRepository.findById(id)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
@@ -168,7 +175,14 @@ class ModelsController(
         }
         return filtered
             .sortedWith(compareModelsByVersionDesc)
-            .map { modelMapper.toResponse(it) }
+            .let { models ->
+                val permissions = accessService.modelAccessPermissions(models)
+                models.map { model ->
+                    val modelId = requireNotNull(model.id)
+                    modelMapper.toResponse(model, permissions[modelId])
+                }
+            }
+            .toListResponse()
     }
 
     private val compareModelsByVersionDesc = VersionUtils.semverDescComparator<Models> { it.version }
@@ -176,6 +190,7 @@ class ModelsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
+    @Operation(summary = "Create model with system root node")
     fun createModel(@RequestBody @Valid request: ModelRequest): ModelResponse {
         if (modelsRepository.existsByNameAndVersion(request.name, request.version)) {
             throw ResponseStatusException(
@@ -197,7 +212,7 @@ class ModelsController(
                 deleted = false
             )
         )
-        val rootNodeType = getOrCreateSystemRootNodeType(owner, now)
+        val rootNodeType = systemRootNodeTypeService.getOrCreate(owner, now)
         val rootNode = nodesRepository.save(
             Nodes(
                 stableId = UUID.randomUUID(),
@@ -217,6 +232,7 @@ class ModelsController(
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update model")
     fun updateModel(
         @PathVariable id: UUID,
         @RequestBody @Valid request: ModelUpdateRequest
@@ -248,8 +264,14 @@ class ModelsController(
         )
         modelSyncBroadcaster.broadcastModelChanged(
             id,
-            "model_update",
-            listOf(ModelSyncEntityEvent("model_updated", "model", id))
+            ModelSyncChangeType.MODEL_UPDATE.wireValue,
+            listOf(
+                ModelSyncEntityEvent(
+                    ModelSyncEventType.MODEL_UPDATED.wireValue,
+                    ModelSyncEventType.MODEL_UPDATED.entity,
+                    id
+                )
+            )
         )
         return modelMapper.toResponse(updated)
     }
@@ -257,6 +279,7 @@ class ModelsController(
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
+    @Operation(summary = "Soft-delete model")
     fun deleteModel(@PathVariable id: UUID) {
         val model = modelsRepository.findById(id)
             .orElseThrow {
@@ -272,6 +295,7 @@ class ModelsController(
     @PostMapping("/{sourceId}/copy")
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
+    @Operation(summary = "Create new model version by copying source model")
     fun copyModel(
         @PathVariable sourceId: UUID,
         @RequestBody request: ModelRequest
@@ -290,193 +314,19 @@ class ModelsController(
         }
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
-        val now = Instant.now()
-
-        val newModel = modelsRepository.save(
-            Models(
-                name = request.name,
-                createdAt = now,
-                updatedAt = now,
-                attrs = source.attrs,
-                version = request.version,
-                owner = owner,
-                source = source,
-                deleted = false
-            )
+        val copied = modelCopyService.copyModel(
+            source = source,
+            owner = owner,
+            name = request.name,
+            version = request.version
         )
-
-        val rootNodeType = getOrCreateSystemRootNodeType(owner, now)
-        val sourceNodes = nodesRepository.findByModelIdOrdered(source.id!!, Pageable.unpaged()).content
-        val nodeIdMap = mutableMapOf<UUID, UUID>()
-        val sourceRoot = sourceNodes.firstOrNull { it.parentNode == null }
-            ?: throw ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Source model has no root node")
-
-        val newRoot = nodesRepository.save(
-            Nodes(
-                stableId = sourceRoot.stableId,
-                name = SYSTEM_ROOT_NODE_NAME,
-                createdAt = now,
-                updatedAt = now,
-                attrs = sourceRoot.attrs,
-                parentNode = null,
-                model = newModel,
-                owner = owner,
-                nodeType = rootNodeType
-            )
-        )
-        nodeIdMap[sourceRoot.id!!] = newRoot.id!!
-        val attrsWithRoot = mergeModelAttrsWithRootNodeId(newModel.attrs, newRoot.id!!)
-        modelsRepository.save(newModel.copy(attrs = attrsWithRoot))
-
-        val pendingNodes = sourceNodes.filter { it.id != sourceRoot.id }.toMutableList()
-        while (pendingNodes.isNotEmpty()) {
-            var progress = false
-            val iterator = pendingNodes.iterator()
-            while (iterator.hasNext()) {
-                val srcNode = iterator.next()
-                val newParentId = srcNode.parentNode?.id?.let { nodeIdMap[it] } ?: continue
-                val newParent = nodesRepository.findById(newParentId).orElseThrow { IllegalStateException("New parent not found") }
-                val saved = nodesRepository.save(
-                    srcNode.copy(
-                        id = null,
-                        stableId = srcNode.stableId,
-                        parentNode = newParent,
-                        model = newModel,
-                        owner = owner,
-                        createdAt = now,
-                        updatedAt = now
-                    )
-                )
-                nodeIdMap[srcNode.id!!] = saved.id!!
-                iterator.remove()
-                progress = true
-            }
-            if (!progress) {
-                val unmapped = pendingNodes.firstOrNull()
-                throw IllegalStateException(
-                    "Parent node not yet mapped for node ${unmapped?.id}. " +
-                        "Check that all nodes have a path to root (no cycles or broken parent links)."
-                )
-            }
-        }
-
-        val sourceLinks = linksRepository.findByModel(source, Pageable.unpaged()).content
-        val linkIdMap = mutableMapOf<UUID, UUID>()
-        for (srcLink in sourceLinks) {
-            val newSourceId = nodeIdMap[srcLink.source.id!!]
-                ?: continue
-            val newTargetId = nodeIdMap[srcLink.target.id!!]
-                ?: continue
-            val newSource = nodesRepository.findById(newSourceId).orElseThrow { IllegalStateException("New source node not found") }
-            val newTarget = nodesRepository.findById(newTargetId).orElseThrow { IllegalStateException("New target node not found") }
-            val copiedLink = linksRepository.save(
-                Links(
-                    stableId = srcLink.stableId,
-                    source = newSource,
-                    target = newTarget,
-                    attrs = srcLink.attrs,
-                    createdAt = now,
-                    updatedAt = now,
-                    owner = owner,
-                    linkType = srcLink.linkType,
-                    model = newModel
-                )
-            )
-            linkIdMap[srcLink.id!!] = copiedLink.id!!
-        }
-
-        val sourceDiagrams = diagramsRepository.findByFilters(
-            ownerId = null,
-            modelId = source.id,
-            nodeId = null,
-            notationId = null,
-            name = "",
-            pageable = Pageable.unpaged()
-        ).content
-        for (srcDiagram in sourceDiagrams) {
-            val newNodeId = srcDiagram.node?.id?.let { nodeIdMap[it] }?.let { nodesRepository.findById(it).orElse(null) }
-            val remappedAttrs = remapDiagramAttrs(srcDiagram.attrs, nodeIdMap, linkIdMap)
-            diagramsRepository.save(
-                Diagrams(
-                    name = srcDiagram.name,
-                    version = srcDiagram.version,
-                    createdAt = now,
-                    updatedAt = now,
-                    attrs = remappedAttrs,
-                    owner = owner,
-                    model = newModel,
-                    notation = srcDiagram.notation,
-                    node = newNodeId,
-                    deleted = false
-                )
-            )
-        }
-
-        return modelMapper.toResponse(
-            modelsRepository.findById(newModel.id!!).orElseThrow { IllegalStateException("New model not found") }
-        )
-    }
-
-    private fun remapDiagramAttrs(
-        attrs: String?,
-        nodeIdMap: Map<UUID, UUID>,
-        linkIdMap: Map<UUID, UUID>
-    ): String? {
-        if (attrs.isNullOrBlank()) return attrs
-        return try {
-            val tree = objectMapper.readTree(attrs) ?: return attrs
-            val instances = tree.get("instances") ?: return objectMapper.writeValueAsString(tree)
-            val nodes = instances.get("nodes") ?: return objectMapper.writeValueAsString(tree)
-            for (i in 0 until nodes.size()) {
-                val node = nodes.get(i) ?: continue
-                val modelNodeId = node.get("modelNodeId")?.asText() ?: continue
-                val oldUuid = try {
-                    UUID.fromString(modelNodeId)
-                } catch (_: Exception) {
-                    continue
-                }
-                val newUuid = nodeIdMap[oldUuid] ?: continue
-                (node as? ObjectNode)?.put("modelNodeId", newUuid.toString())
-            }
-            val edges = instances.get("edges")
-            if (edges != null && edges.isArray) {
-                for (i in 0 until edges.size()) {
-                    val edge = edges.get(i) ?: continue
-                    val modelLinkId = edge.get("modelLinkId")?.asText() ?: continue
-                    val oldUuid = try {
-                        UUID.fromString(modelLinkId)
-                    } catch (_: Exception) {
-                        continue
-                    }
-                    val newUuid = linkIdMap[oldUuid] ?: continue
-                    (edge as? ObjectNode)?.put("modelLinkId", newUuid.toString())
-                }
-            }
-            objectMapper.writeValueAsString(tree)
-        } catch (_: Exception) {
-            attrs
-        }
+        return modelMapper.toResponse(copied)
     }
 
     private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? =
         ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
             modelsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
         }
-
-    private fun getOrCreateSystemRootNodeType(
-        owner: ru.kavader.arepos.model.Users,
-        now: Instant
-    ): NodeTypes =
-        nodeTypesRepository.findByNameIgnoreCase(SYSTEM_ROOT_NODE_TYPE_NAME)
-            ?: nodeTypesRepository.save(
-                NodeTypes(
-                    name = SYSTEM_ROOT_NODE_TYPE_NAME,
-                    createdAt = now,
-                    updatedAt = now,
-                    attrs = """{"system":{"hiddenTreeRootType":true}}""",
-                    owner = owner
-                )
-            )
 
     private fun mergeModelAttrsWithRootNodeId(existingAttrs: String?, rootNodeId: UUID): String {
         val rootId = rootNodeId.toString()
@@ -492,6 +342,15 @@ class ModelsController(
         }
         baseNode.put("treeRootNodeId", rootId)
         return objectMapper.writeValueAsString(baseNode)
+    }
+
+    private fun mapModelsPage(page: org.springframework.data.domain.Page<Models>): ListResponse<ModelResponse> {
+        val permissions = accessService.modelAccessPermissions(page.content)
+        val mapped = page.content.map { model ->
+            val modelId = requireNotNull(model.id)
+            modelMapper.toResponse(model, permissions[modelId])
+        }
+        return PageImpl(mapped, page.pageable, page.totalElements).toListResponse()
     }
 }
 
