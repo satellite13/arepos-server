@@ -17,6 +17,7 @@ import ru.kavader.arepos.repository.RefreshTokensRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.metrics.CustomMetricsService
 import ru.kavader.arepos.dto.auth.*
+import ru.kavader.arepos.dto.user.UserMapper
 import ru.kavader.arepos.security.JwtTokenProvider
 import ru.kavader.arepos.security.TokenType
 import ru.kavader.arepos.service.UserProfileAttrsService
@@ -33,6 +34,7 @@ class AuthController(
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenProvider: JwtTokenProvider,
     private val userProfileAttrsService: UserProfileAttrsService,
+    private val userMapper: UserMapper,
     private val metrics: CustomMetricsService,
     @param:Value($$"${arepos.admin-secret:}") private val adminSecret: String
 ) {
@@ -163,19 +165,7 @@ class AuthController(
         val user = usersRepository.findById(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
 
-        val profile = userProfileAttrsService.readProfile(user.attrs)
-        return UserInfoResponse(
-            id = user.id!!,
-            email = user.email,
-            role = user.role.name,
-            firstName = profile.firstName,
-            lastName = profile.lastName,
-            middleName = profile.middleName,
-            position = profile.position,
-            attrs = user.attrs,
-            createdAt = user.createdAt,
-            updatedAt = user.updatedAt
-        )
+        return userMapper.toUserInfoResponse(user)
     }
 
     private fun buildAuthResponse(user: Users): AuthResponse {
@@ -183,22 +173,10 @@ class AuthController(
         val accessToken = jwtTokenProvider.generateAccessToken(userId, user.role.name)
         val refreshToken = jwtTokenProvider.generateRefreshToken(userId)
         persistRefreshToken(user, refreshToken)
-        val profile = userProfileAttrsService.readProfile(user.attrs)
         return AuthResponse(
             accessToken = accessToken,
             refreshToken = refreshToken,
-            user = UserInfoResponse(
-                id = userId,
-                email = user.email,
-                role = user.role.name,
-                firstName = profile.firstName,
-                lastName = profile.lastName,
-                middleName = profile.middleName,
-                position = profile.position,
-                attrs = user.attrs,
-                createdAt = user.createdAt,
-                updatedAt = user.updatedAt
-            )
+            user = userMapper.toUserInfoResponse(user)
         )
     }
 

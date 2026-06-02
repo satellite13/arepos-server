@@ -12,6 +12,7 @@ private const val FIRST_NAME_KEY = "firstName"
 private const val LAST_NAME_KEY = "lastName"
 private const val MIDDLE_NAME_KEY = "middleName"
 private const val POSITION_KEY = "position"
+private val PATH_UNSAFE_PATTERN = Regex("""\.\.|/|\\""")
 
 @Component
 class UserProfileAttrsService(
@@ -22,28 +23,37 @@ class UserProfileAttrsService(
     fun readProfile(attrs: String?): UserProfileData {
         val parsed = parseAttrs(attrs)
         return UserProfileData(
-            firstName = parsed[FIRST_NAME_KEY]?.toString(),
-            lastName = parsed[LAST_NAME_KEY]?.toString(),
-            middleName = parsed[MIDDLE_NAME_KEY]?.toString(),
-            position = parsed[POSITION_KEY]?.toString()
+            firstName = sanitizeTextFieldLenient(parsed[FIRST_NAME_KEY]?.toString()),
+            lastName = sanitizeTextFieldLenient(parsed[LAST_NAME_KEY]?.toString()),
+            middleName = sanitizeTextFieldLenient(parsed[MIDDLE_NAME_KEY]?.toString()),
+            position = sanitizeTextFieldLenient(parsed[POSITION_KEY]?.toString())
         )
+    }
+
+    fun serializeProfile(profile: UserProfileData): String? {
+        val map = linkedMapOf<String, String>()
+        profile.firstName?.let { map[FIRST_NAME_KEY] = it }
+        profile.lastName?.let { map[LAST_NAME_KEY] = it }
+        profile.middleName?.let { map[MIDDLE_NAME_KEY] = it }
+        profile.position?.let { map[POSITION_KEY] = it }
+        return if (map.isEmpty()) null else objectMapper.writeValueAsString(map)
     }
 
     fun mergeProfile(existingAttrs: String?, patch: UserProfilePatch): String? {
         val attrsMap = parseAttrs(existingAttrs)
 
         patch.firstName?.let {
-            attrsMap[FIRST_NAME_KEY] = requireNonBlank(it, "firstName")
+            attrsMap[FIRST_NAME_KEY] = sanitizeTextField(requireNonBlank(it, "firstName"), "firstName")
         }
         patch.lastName?.let {
-            attrsMap[LAST_NAME_KEY] = requireNonBlank(it, "lastName")
+            attrsMap[LAST_NAME_KEY] = sanitizeTextField(requireNonBlank(it, "lastName"), "lastName")
         }
         patch.position?.let {
             val value = it.trim()
             if (value.isEmpty()) {
                 attrsMap.remove(POSITION_KEY)
             } else {
-                attrsMap[POSITION_KEY] = value
+                attrsMap[POSITION_KEY] = sanitizeTextField(value, "position")
             }
         }
         patch.middleName?.let {
@@ -51,7 +61,7 @@ class UserProfileAttrsService(
             if (value.isEmpty()) {
                 attrsMap.remove(MIDDLE_NAME_KEY)
             } else {
-                attrsMap[MIDDLE_NAME_KEY] = value
+                attrsMap[MIDDLE_NAME_KEY] = sanitizeTextField(value, "middleName")
             }
         }
 
@@ -90,5 +100,20 @@ class UserProfileAttrsService(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "$fieldName must not be blank")
         }
         return trimmed
+    }
+
+    private fun sanitizeTextField(value: String, fieldName: String): String {
+        if (PATH_UNSAFE_PATTERN.containsMatchIn(value)) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "$fieldName must not contain path characters"
+            )
+        }
+        return value
+    }
+
+    private fun sanitizeTextFieldLenient(value: String?): String? {
+        val trimmed = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return PATH_UNSAFE_PATTERN.replace(trimmed, "").trim().ifEmpty { null }
     }
 }

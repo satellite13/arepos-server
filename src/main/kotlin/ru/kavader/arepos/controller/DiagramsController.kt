@@ -1,10 +1,11 @@
 package ru.kavader.arepos.controller
 
-import org.springframework.data.domain.Page
-import org.springframework.data.domain.Pageable
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -13,34 +14,19 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.*
-import ru.kavader.arepos.dto.model.ModelMapper
 import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.dto.system.ModelSyncEventType
 import ru.kavader.arepos.model.DiagramPreviewLinks
 import ru.kavader.arepos.model.Diagrams
-import ru.kavader.arepos.model.Models
-import ru.kavader.arepos.repository.DiagramPreviewLinksRepository
-import ru.kavader.arepos.repository.DiagramsRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodesRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.CurrentUser
-import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
-import ru.kavader.arepos.service.DiagramSvgReadResult
-import ru.kavader.arepos.service.DiagramSvgStorage
-import ru.kavader.arepos.service.DiagramSvgWriteResult
-import ru.kavader.arepos.service.MdFileLinkValidator
-import ru.kavader.arepos.service.ModelSyncBroadcaster
-import ru.kavader.arepos.service.SvgPreviewSecurityValidator
-import jakarta.validation.Valid
-import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
+import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.*
 import ru.kavader.arepos.util.VersionUtils
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/diagrams")
@@ -320,8 +306,8 @@ class DiagramsController(
                 val existing = diagramPreviewLinksRepository.findByDiagram(diagram)
                 if (existing.isPresent) {
                     return DiagramShareLinkResponse(
-                        url = buildPublicSvgUrl(existing.get().token!!),
-                        token = existing.get().token!!
+                        url = buildPublicSvgUrl(existing.get().token),
+                        token = existing.get().token
                     )
                 }
                 diagramPreviewLinksRepository.save(
@@ -348,8 +334,8 @@ class DiagramsController(
                 val existing = diagramPreviewLinksRepository.findByModelAndDiagramName(model, request.diagramName)
                 if (existing.isPresent) {
                     return DiagramShareLinkResponse(
-                        url = buildPublicSvgUrl(existing.get().token!!),
-                        token = existing.get().token!!
+                        url = buildPublicSvgUrl(existing.get().token),
+                        token = existing.get().token
                     )
                 }
                 diagramPreviewLinksRepository.save(
@@ -369,7 +355,7 @@ class DiagramsController(
             )
         }
         return DiagramShareLinkResponse(
-            url = buildPublicSvgUrl(link.token!!),
+            url = buildPublicSvgUrl(link.token),
             token = link.token
         )
     }
@@ -380,9 +366,11 @@ class DiagramsController(
         val link = diagramPreviewLinksRepository.findByToken(token).orElse(null)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Share link not found or expired")
         val diagramId: UUID = when {
-            link.diagram != null -> link.diagram!!.id!!
+            link.diagram != null -> link.diagram.id!!
             link.model != null && link.diagramName != null -> {
-                val allByName = diagramsRepository.findByModel_IdAndNameAndDeletedFalse(link.model!!.id!!, link.diagramName!!)
+                val allByName = diagramsRepository.findByModel_IdAndNameAndDeletedFalse(link.model.id!!,
+                    link.diagramName
+                )
                 val latest = allByName.maxWithOrNull(::compareDiagramVersions)
                     ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram not found")
                 latest.id!!
@@ -417,11 +405,9 @@ class DiagramsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Share link not found")
             }
-        val currentUserId = CurrentUser.getId()
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized")
         val canRevoke = when {
-            link.diagram != null -> accessService.canEditDiagram(link.diagram!!)
-            link.model != null -> accessService.canEditModel(link.model!!)
+            link.diagram != null -> accessService.canEditDiagram(link.diagram)
+            link.model != null -> accessService.canEditModel(link.model)
             else -> false
         }
         if (!canRevoke) {
