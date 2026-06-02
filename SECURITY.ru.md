@@ -29,7 +29,12 @@
 
 ## Рекомендации по безопасному деплою
 
-- Всегда задавайте сильные `JWT_SECRET` и `ADMIN_SECRET`
+- Всегда задавайте сильный `JWT_SECRET` (минимум 32 байта); при пустом/слабом значении сервис не стартует
+- В `prod` задавайте явный `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` (wildcard `*` запрещён)
+- Оставляйте `ADMIN_SECRET` выключенным, если bootstrap админа не нужен
+- Для MinIO используйте недефолтные креды в `prod`
+- Мониторьте `/actuator/health` и `/actuator/prometheus` (особенно authz/outbox contributors)
+- Поддерживайте доступность Cerbos и актуальность policy bundle
 - Не используйте дефолтные креды в production
 - Ограничивайте сетевой доступ к БД и сервису
 - Используйте HTTPS на ingress/load balancer уровне

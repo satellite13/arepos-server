@@ -29,7 +29,12 @@ If no private channel is available yet, create one before public release and upd
 
 ## Security Best Practices for Deployments
 
-- Always provide strong values for `JWT_SECRET` and `ADMIN_SECRET`
+- Always provide a strong `JWT_SECRET` (minimum 32 bytes); startup fails when blank/weak
+- Configure explicit `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` in `prod` (wildcard `*` is rejected)
+- Keep `ADMIN_SECRET` disabled unless admin bootstrap is intentionally required
+- Ensure MinIO credentials are non-default in `prod`
+- Monitor `/actuator/health` and `/actuator/prometheus` (especially authz/outbox contributors)
+- Keep Cerbos reachable and policy bundle up to date
 - Avoid default credentials in production
 - Restrict database/network access
 - Enable HTTPS at ingress/load balancer layer

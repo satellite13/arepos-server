@@ -11,7 +11,12 @@ English version: `README.md`
 - REST API по пути `/api/v1/*` для пользователей, моделей, нотаций, типов нод/связей, компонентов, отношений и правил отношений
 - Автоматические миграции схемы через Liquibase
 - Аудит изменений данных
-- JWT-аутентификация и refresh flow
+- JWT-аутентификация с rotation refresh-токенов (одноразовые refresh-токены хранятся на сервере)
+- Авторизация через Cerbos в enforce-only режиме
+- Model live-sync через STOMP/WebSocket с опциональным transactional outbox
+- Встроенные health-индикаторы для Cerbos, MinIO и model-sync outbox
+- Единый формат ошибок API `{ error, message, traceId }`
+- Тюнинг Hibernate (batch write, batch fetch, L2 cache для справочных сущностей)
 - PostgreSQL-схема с ограничениями семантического версионирования
 - Helm chart и скрипты деплоя в Kubernetes
 
@@ -62,8 +67,14 @@ charts/arepos-server/
 - `DB_URL` (по умолчанию: `jdbc:postgresql://localhost:5432/arepos`)
 - `DB_USERNAME` (по умолчанию: `arepos`)
 - `DB_PASSWORD` (по умолчанию: `arepos`)
-- `JWT_SECRET` (обязательно для production)
+- `JWT_SECRET` (обязательно; минимум 32 байта)
+- `JWT_ISSUER` / `JWT_AUDIENCE` (валидация issuer/audience токенов)
 - `ADMIN_SECRET` (рекомендуется для bootstrap администраторов)
+- `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` (в профиле `prod` значение `*` запрещено, иначе fail-fast на старте)
+- `MODEL_SYNC_OUTBOX_ENABLED` (включение transactional outbox для model sync)
+- `MODEL_SYNC_OUTBOX_PUBLISH_MS`, `MODEL_SYNC_OUTBOX_BATCH_SIZE` (тюнинг outbox-паблишера)
+- `CERBOS_CIRCUIT_FAILURE_THRESHOLD`, `CERBOS_CIRCUIT_OPEN_DURATION` (параметры circuit breaker для authz)
+- `HIBERNATE_DEFAULT_BATCH_FETCH_SIZE`, `HIBERNATE_JDBC_BATCH_SIZE` (тюнинг JPA/Hibernate)
 - `FILE_STORAGE` (`minio` по умолчанию; `disabled` для локального запуска без файлового хранилища)
 - `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET` (когда `FILE_STORAGE=minio`)
 
@@ -93,11 +104,20 @@ charts/arepos-server/
 
 - Swagger UI: `/swagger-ui.html` — интерактивная документация API
 - OpenAPI-спецификация (JSON): `/v3/api-docs`
+- Ошибки API из exception handlers имеют формат `{ error, message, traceId }`
 - Health endpoints:
   - `/actuator/health/liveness`
   - `/actuator/health/readiness`
+  - `/actuator/health` (включая Cerbos/MinIO/model-sync outbox contributors)
 - Prometheus-метрики:
   - `/actuator/prometheus`
+
+## Операционные заметки
+
+- Жизненный цикл и верификация Cerbos-политик:
+  - `authz/cerbos/README.md`
+  - `authz/cerbos/RUNBOOK.md`
+  - `authz/cerbos/VERIFY.md`
 
 ## Деплой
 

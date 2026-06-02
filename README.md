@@ -11,7 +11,12 @@ The project is built with Kotlin + Spring Boot, stores flexible entity attribute
 - REST API under `/api/v1/*` for users, models, notations, node/link types, components, relations, and relation rules
 - Automatic database migrations via Liquibase
 - Audit logging for data changes
-- JWT-based authentication and refresh flow
+- JWT-based authentication with refresh token rotation (single-use refresh tokens stored server-side)
+- Cerbos-backed authorization in enforce-only mode
+- Model live-sync over STOMP/WebSocket with optional transactional outbox publishing
+- Built-in health indicators for Cerbos, MinIO, and model-sync outbox
+- Unified error response envelope `{ error, message, traceId }`
+- Hibernate performance tuning (batch writes, batch fetch, L2 cache for reference entities)
 - PostgreSQL-first schema with semantic versioning constraints
 - Helm chart and deployment scripts for Kubernetes
 
@@ -62,8 +67,14 @@ Important environment variables:
 - `DB_URL` (default: `jdbc:postgresql://localhost:5432/arepos`)
 - `DB_USERNAME` (default: `arepos`)
 - `DB_PASSWORD` (default: `arepos`)
-- `JWT_SECRET` (required for production)
+- `JWT_SECRET` (required; at least 32 bytes)
+- `JWT_ISSUER` / `JWT_AUDIENCE` (token issuer/audience validation)
 - `ADMIN_SECRET` (recommended for admin bootstrap flow)
+- `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` (in `prod` profile, `*` is forbidden and startup fails)
+- `MODEL_SYNC_OUTBOX_ENABLED` (enable transactional outbox for model sync)
+- `MODEL_SYNC_OUTBOX_PUBLISH_MS`, `MODEL_SYNC_OUTBOX_BATCH_SIZE` (outbox publisher tuning)
+- `CERBOS_CIRCUIT_FAILURE_THRESHOLD`, `CERBOS_CIRCUIT_OPEN_DURATION` (authz circuit breaker)
+- `HIBERNATE_DEFAULT_BATCH_FETCH_SIZE`, `HIBERNATE_JDBC_BATCH_SIZE` (JPA performance tuning)
 - `FILE_STORAGE` (`minio` by default; use `disabled` for local run without file storage)
 - `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET` (when `FILE_STORAGE=minio`)
 
@@ -93,11 +104,20 @@ Important environment variables:
 
 - Swagger UI: `/swagger-ui.html` — interactive API documentation
 - OpenAPI spec (JSON): `/v3/api-docs`
+- Error responses from exception handlers follow `{ error, message, traceId }`
 - Health endpoints:
   - `/actuator/health/liveness`
   - `/actuator/health/readiness`
+  - `/actuator/health` (includes Cerbos/MinIO/model-sync outbox contributors)
 - Prometheus metrics:
   - `/actuator/prometheus`
+
+## Operations Notes
+
+- Cerbos policy lifecycle and verification:
+  - `authz/cerbos/README.md`
+  - `authz/cerbos/RUNBOOK.md`
+  - `authz/cerbos/VERIFY.md`
 
 ## Deployment
 
