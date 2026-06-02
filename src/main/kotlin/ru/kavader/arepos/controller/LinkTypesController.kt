@@ -7,21 +7,14 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
-import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.LinkTypes
-import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.LinksRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.RelationsRepository
-import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.service.MdFileLinkValidator
+import ru.kavader.arepos.service.TypeCatalogListService
 import java.time.Instant
 import java.util.UUID
 
@@ -30,20 +23,12 @@ import java.util.UUID
 @Tag(name = "Link Types", description = "Link type catalog endpoints")
 class LinkTypesController(
     private val linkTypesRepository: LinkTypesRepository,
-    private val usersRepository: UsersRepository,
-    private val notationsRepository: NotationsRepository,
-    private val relationsRepository: RelationsRepository,
-    private val modelsRepository: ModelsRepository,
-    private val linksRepository: LinksRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
+    private val typeCatalogListService: TypeCatalogListService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val notationMapper: NotationMapper
 ) {
-    companion object {
-        private val log = LoggerFactory.getLogger(LinkTypesController::class.java)
-    }
-    private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
 
     @GetMapping
     @Operation(summary = "List link types")
@@ -53,87 +38,10 @@ class LinkTypesController(
         @RequestParam(required = false) notationId: List<UUID>?,
         @RequestParam(required = false) modelId: UUID?,
         @RequestParam(required = false) name: String?
-    ): Page<LinkTypeResponse> {
-        if (!accessService.canViewAdminPanel()) {
-            val currentUserId = accessService.currentUserId()
-            val normalizedName = name?.trim().orEmpty()
-            if (notationId.isNullOrEmpty() && modelId == null) {
-                val page = linkTypesRepository.findAccessibleForUser(
-                    userId = currentUserId,
-                    ownerId = ownerId,
-                    name = normalizedName,
-                    viewPermissions = viewPermissions,
-                    pageable = pageable
-                )
-                return mapLinkTypesPage(page)
-            }
-
-            val resolvedModel = modelId?.let { mid ->
-                modelsRepository.findById(mid).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Model $mid not found")
-                }.also { accessService.requireCanViewModel(it) }
-            }
-            val notationOwnerIds = mutableSetOf<UUID>()
-            val notationLinkTypeIds = mutableSetOf<UUID>()
-            notationId?.forEach { requestedNotationId ->
-                val notation = notationsRepository.findById(requestedNotationId).orElseThrow {
-                    ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $requestedNotationId not found")
-                }
-                val allowed = when (val m = resolvedModel) {
-                    null -> accessService.canViewNotation(notation)
-                    else -> accessService.canUseNotationInModelDiagramEditor(notation, m)
-                }
-                if (!allowed) {
-                    return@forEach
-                }
-                relationsRepository.findDistinctLinkTypeIdsByNotationId(requestedNotationId)
-                    .forEach { notationLinkTypeIds.add(it) }
-                notation.owner.id?.let { notationOwnerIds.add(it) }
-            }
-            val modelLinkTypeIds = resolvedModel?.let { model ->
-                linksRepository.findDistinctLinkTypeIdsByModelId(model.id!!)
-                    .toSet()
-            } ?: emptySet()
-            val accessible = linkTypesRepository.findAccessibleForUser(
-                userId = currentUserId,
-                ownerId = ownerId,
-                name = normalizedName,
-                viewPermissions = viewPermissions,
-                pageable = Pageable.unpaged()
-            ).content
-            val ownerMatched = if (notationOwnerIds.isEmpty()) {
-                emptyList()
-            } else {
-                linkTypesRepository.findByOwnerIdIn(notationOwnerIds)
-            }
-            val idMatchedIds = notationLinkTypeIds + modelLinkTypeIds
-            val idMatched = if (idMatchedIds.isEmpty()) {
-                emptyList()
-            } else {
-                linkTypesRepository.findByIdIn(idMatchedIds)
-            }
-            val filtered = (accessible + ownerMatched + idMatched)
-                .asSequence()
-                .distinctBy { it.id }
-                .filter { ownerId == null || it.owner.id == ownerId }
-                .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
-                .toList()
-            return mapLinkTypesPage(filtered.toPage(pageable))
-        }
-
-        val effectiveOwner = resolveReadableOwner(ownerId)
-        val linkTypes = when {
-            effectiveOwner != null && name != null ->
-                linkTypesRepository.findByOwnerAndNameContainingIgnoreCase(effectiveOwner, name, pageable)
-            effectiveOwner != null ->
-                linkTypesRepository.findByOwner(effectiveOwner, pageable)
-            name != null ->
-                linkTypesRepository.findByNameContainingIgnoreCase(name, pageable)
-            else ->
-                linkTypesRepository.findAll(pageable)
-        }
-        return mapLinkTypesPage(linkTypes)
-    }
+    ): Page<LinkTypeResponse> =
+        mapLinkTypesPage(
+            typeCatalogListService.listLinkTypes(pageable, ownerId, notationId, modelId, name)
+        )
 
     @GetMapping("/{id}")
     @Operation(summary = "Get link type by id")
@@ -202,11 +110,6 @@ class LinkTypesController(
         linkTypesRepository.deleteById(id)
     }
 
-    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? =
-        ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
-            linkTypesRepository.findAccessibleForUser(uid, oid, "", viewPermissions, Pageable.ofSize(1)).hasContent()
-        }
-
     private fun mapLinkTypesPage(page: Page<LinkTypes>): Page<LinkTypeResponse> {
         val permissions = accessService.linkTypeAccessPermissions(page.content)
         val mapped = page.content.map { linkType ->
@@ -215,5 +118,4 @@ class LinkTypesController(
         }
         return PageImpl(mapped, page.pageable, page.totalElements)
     }
-
 }

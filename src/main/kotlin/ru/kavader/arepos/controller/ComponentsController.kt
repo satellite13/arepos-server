@@ -14,6 +14,7 @@ import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
+import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
@@ -27,6 +28,7 @@ class ComponentsController(
     private val nodeTypesRepository: NodeTypesRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
+    private val typeUsageAuthorization: TypeUsageAuthorization,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val notationMapper: NotationMapper
 ) {
@@ -40,33 +42,18 @@ class ComponentsController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?,
         @RequestParam(required = false) tagsAll: String?
-    ): Page<ComponentResponse> {
-        val normalizedName = name?.trim()?.takeIf { it.isNotEmpty() }
-        val tags = parseTags(tagsAll)
-        val tagsJson = if (tags.isEmpty()) null else tags.toJsonArray()
-
-        if (!accessService.canViewAdminPanel()) {
-            val currentUserId = accessService.currentUserId()
-            return componentsRepository.findAccessibleByFiltersForUser(
-                notationId = notationId,
-                ownerId = ownerId,
-                name = normalizedName,
-                tagsJson = tagsJson,
-                currentUserId = currentUserId,
-                diagramEditorModelId = modelId,
-                pageable = pageable
-            ).map { notationMapper.toResponse(it) }
-        }
-
-        val components = componentsRepository.findByFilters(
+    ): Page<ComponentResponse> =
+        NotationBoundEntityListSupport.list(
+            accessService = accessService,
+            pageable = pageable,
             notationId = notationId,
+            modelId = modelId,
             ownerId = ownerId,
-            name = normalizedName,
-            tagsJson = tagsJson,
-            pageable = pageable
-        )
-        return components.map { notationMapper.toResponse(it) }
-    }
+            name = name,
+            tagsAll = tagsAll,
+            findAccessibleForUser = componentsRepository::findAccessibleByFiltersForUser,
+            findByFilters = componentsRepository::findByFilters
+        ).map { notationMapper.toResponse(it) }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get component by id")
@@ -94,7 +81,7 @@ class ComponentsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${request.nodeTypeId} not found")
             }
-        requireCanUseNodeTypeForNotation(nodeType, notation)
+        typeUsageAuthorization.requireCanUseNodeTypeForNotation(nodeType, notation)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = componentsRepository.save(
@@ -137,7 +124,7 @@ class ComponentsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $it not found")
             }
         }?.also { newNodeType ->
-            requireCanUseNodeTypeForNotation(newNodeType, notation)
+            typeUsageAuthorization.requireCanUseNodeTypeForNotation(newNodeType, notation)
         } ?: component.nodeType
 
         mdFileLinkValidator.validate(request.attrs)
@@ -165,26 +152,4 @@ class ComponentsController(
         accessService.requireCanEditComponent(component)
         componentsRepository.deleteById(id)
     }
-
-    private fun parseTags(raw: String?): List<String> =
-        raw
-            ?.split(",")
-            ?.map { it.trim() }
-            ?.filter { it.isNotBlank() }
-            ?.distinct()
-            ?: emptyList()
-
-    private fun List<String>.toJsonArray(): String =
-        joinToString(prefix = "[", postfix = "]") { "\"${it.replace("\"", "\\\"")}\"" }
-
-    private fun requireCanUseNodeTypeForNotation(
-        nodeType: ru.kavader.arepos.model.NodeTypes,
-        notation: ru.kavader.arepos.model.Notations
-    ) {
-        if (accessService.canUseNodeType(nodeType)) return
-        val canEditNotation = accessService.canEditNotation(notation)
-        if (canEditNotation && nodeType.owner.id == notation.owner.id) return
-        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-    }
 }
-

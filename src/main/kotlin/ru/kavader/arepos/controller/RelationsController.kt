@@ -4,20 +4,17 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import ru.kavader.arepos.dto.notation.*
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.model.Relations
-import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
+import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
 import java.util.UUID
@@ -27,12 +24,11 @@ import java.util.UUID
 @Tag(name = "Relations", description = "Notation relations management endpoints")
 class RelationsController(
     private val relationsRepository: RelationsRepository,
-    private val usersRepository: UsersRepository,
     private val notationsRepository: NotationsRepository,
     private val linkTypesRepository: LinkTypesRepository,
-    private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
+    private val typeUsageAuthorization: TypeUsageAuthorization,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val notationMapper: NotationMapper
 ) {
@@ -46,33 +42,18 @@ class RelationsController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?,
         @RequestParam(required = false) tagsAll: String?
-    ): Page<RelationResponse> {
-        val normalizedName = name?.trim()?.takeIf { it.isNotEmpty() }
-        val tags = parseTags(tagsAll)
-        val tagsJson = if (tags.isEmpty()) null else tags.toJsonArray()
-
-        if (!accessService.canViewAdminPanel()) {
-            val currentUserId = accessService.currentUserId()
-            return relationsRepository.findAccessibleByFiltersForUser(
-                notationId = notationId,
-                ownerId = ownerId,
-                name = normalizedName,
-                tagsJson = tagsJson,
-                currentUserId = currentUserId,
-                diagramEditorModelId = modelId,
-                pageable = pageable
-            ).map { notationMapper.toResponse(it) }
-        }
-
-        val relations = relationsRepository.findByFilters(
+    ): Page<RelationResponse> =
+        NotationBoundEntityListSupport.list(
+            accessService = accessService,
+            pageable = pageable,
             notationId = notationId,
+            modelId = modelId,
             ownerId = ownerId,
-            name = normalizedName,
-            tagsJson = tagsJson,
-            pageable = pageable
-        )
-        return relations.map { notationMapper.toResponse(it) }
-    }
+            name = name,
+            tagsAll = tagsAll,
+            findAccessibleForUser = relationsRepository::findAccessibleByFiltersForUser,
+            findByFilters = relationsRepository::findByFilters
+        ).map { notationMapper.toResponse(it) }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get relation by id")
@@ -100,7 +81,7 @@ class RelationsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${request.linkTypeId} not found")
             }
-        requireCanUseLinkTypeForNotation(linkType, notation)
+        typeUsageAuthorization.requireCanUseLinkTypeForNotation(linkType, notation)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = relationsRepository.save(
@@ -143,7 +124,7 @@ class RelationsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $it not found")
             }
         }?.also { newLinkType ->
-            requireCanUseLinkTypeForNotation(newLinkType, notation)
+            typeUsageAuthorization.requireCanUseLinkTypeForNotation(newLinkType, notation)
         } ?: relation.linkType
 
         mdFileLinkValidator.validate(request.attrs)
@@ -170,26 +151,5 @@ class RelationsController(
             }
         accessService.requireCanEditRelation(relation)
         relationsRepository.deleteById(id)
-    }
-
-    private fun parseTags(raw: String?): List<String> =
-        raw
-            ?.split(",")
-            ?.map { it.trim() }
-            ?.filter { it.isNotBlank() }
-            ?.distinct()
-            ?: emptyList()
-
-    private fun List<String>.toJsonArray(): String =
-        joinToString(prefix = "[", postfix = "]") { "\"${it.replace("\"", "\\\"")}\"" }
-
-    private fun requireCanUseLinkTypeForNotation(
-        linkType: ru.kavader.arepos.model.LinkTypes,
-        notation: ru.kavader.arepos.model.Notations
-    ) {
-        if (accessService.canUseLinkType(linkType)) return
-        val canEditNotation = accessService.canEditNotation(notation)
-        if (canEditNotation && linkType.owner.id == notation.owner.id) return
-        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
     }
 }

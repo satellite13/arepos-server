@@ -62,27 +62,32 @@ class DiagramsController(
         @RequestParam(required = false) notationId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<DiagramResponse> {
-        if (!accessService.canViewAdminPanel()) {
-            val currentUserId = accessService.currentUserId()
-            return diagramsRepository.findAccessibleByFiltersForUser(
-                ownerId = ownerId,
-                modelId = modelId,
-                nodeId = nodeId,
-                notationId = notationId,
-                name = name?.trim()?.takeIf { it.isNotEmpty() },
-                currentUserId = currentUserId,
-                pageable = pageable
-            ).map { modelMapper.toResponse(it) }
-        }
-
-        return diagramsRepository.findByFilters(
-            ownerId = ownerId,
-            modelId = modelId,
-            nodeId = nodeId,
-            notationId = notationId,
-            name = name.orEmpty(),
-            pageable = pageable
-        ).map { modelMapper.toResponse(it) }
+        val normalizedName = name.trimmedOrNull()
+        return accessService.listPageWithAdminBypass(
+            pageable = pageable,
+            adminQuery = {
+                diagramsRepository.findByFilters(
+                    ownerId = ownerId,
+                    modelId = modelId,
+                    nodeId = nodeId,
+                    notationId = notationId,
+                    name = normalizedName.orEmpty(),
+                    pageable = pageable
+                )
+            },
+            userQuery = { currentUserId ->
+                diagramsRepository.findAccessibleByFiltersForUser(
+                    ownerId = ownerId,
+                    modelId = modelId,
+                    nodeId = nodeId,
+                    notationId = notationId,
+                    name = normalizedName,
+                    currentUserId = currentUserId,
+                    pageable = pageable
+                )
+            },
+            map = modelMapper::toResponse
+        )
     }
 
     @GetMapping("/{id}")

@@ -20,9 +20,9 @@ import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
-import ru.kavader.arepos.service.ModelDiagramTypeValidator
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
@@ -44,7 +44,7 @@ class NodesController(
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
-    private val typeValidator: ModelDiagramTypeValidator,
+    private val typeUsageAuthorization: TypeUsageAuthorization,
     private val modelMapper: ModelMapper
 ) {
 
@@ -56,13 +56,13 @@ class NodesController(
         @RequestParam(required = false) ownerId: UUID?,
         @RequestParam(required = false) name: String?
     ): Page<NodeResponse> {
+        val normalizedName = name.trimmedOrNull()
         if (!accessService.canViewAdminPanel()) {
-            val currentUserId = accessService.currentUserId()
             return nodesRepository.findAccessibleByFiltersForUser(
                 modelId = modelId,
                 ownerId = ownerId,
-                name = name?.trim()?.takeIf { it.isNotEmpty() },
-                currentUserId = currentUserId,
+                name = normalizedName,
+                currentUserId = accessService.currentUserId(),
                 pageable = pageable
             ).map { modelMapper.toResponse(it) }
         }
@@ -120,7 +120,7 @@ class NodesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${request.nodeTypeId} not found")
             }
-        requireCanUseNodeTypeForModel(nodeType, model)
+        typeUsageAuthorization.requireCanUseNodeTypeForModel(nodeType, model)
         val parentNode = request.parentNodeId?.let {
             nodesRepository.findById(it).orElse(null)?.also { parent ->
                 accessService.requireCanEditNode(parent)
@@ -186,7 +186,7 @@ class NodesController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $it not found")
             }
         }?.also { newNodeType ->
-            requireCanUseNodeTypeForModel(newNodeType, model)
+            typeUsageAuthorization.requireCanUseNodeTypeForModel(newNodeType, model)
         } ?: node.nodeType
 
         mdFileLinkValidator.validate(request.attrs)
@@ -249,25 +249,6 @@ class NodesController(
             listOf(ModelSyncEntityEvent(ModelSyncEventType.NODE_DELETED.wireValue, ModelSyncEventType.NODE_DELETED.entity, id))
         )
     }
-
-    private fun requireCanUseNodeTypeForModel(
-        nodeType: ru.kavader.arepos.model.NodeTypes,
-        model: ru.kavader.arepos.model.Models
-    ) {
-        if (accessService.canUseNodeType(nodeType)) return
-        val canEditModel = accessService.canEditModel(model)
-        if (canEditModel && nodeType.owner.id == model.owner.id) return
-        if (
-            canEditModel &&
-                isNodeTypeUsedInModelDiagramNotations(requireNotNull(nodeType.id), model)
-        ) {
-            return
-        }
-        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-    }
-
-    private fun isNodeTypeUsedInModelDiagramNotations(nodeTypeId: UUID, model: ru.kavader.arepos.model.Models): Boolean =
-        typeValidator.isNodeTypeUsedInModelDiagramNotations(nodeTypeId, requireNotNull(model.id))
 
     private fun isSystemTreeRoot(node: Nodes): Boolean {
         val attrs = node.attrs ?: return false

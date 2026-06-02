@@ -109,8 +109,8 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
             .contentAsString
 
         val json = objectMapper.readTree(response)
-        val ids = contentIds(json)
-        assertEquals(2, json.path("page").path("totalElements").asInt())
+        val ids = listItemIds(json)
+        assertEquals(2, totalElements(json))
         assertTrue(ids.contains(ownModel.id.toString()))
         assertTrue(ids.contains(sharedModel.id.toString()))
     }
@@ -433,7 +433,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `model editor with EDIT can list components and types for notation without diagram or notation share`() {
+    fun `model editor with EDIT can list components but not unrelated notation catalog without diagram`() {
         val now = Instant.now()
         val notationOwner = createUser("ed-n-ow", Role.USER)
         val nodeTypeOwner = createUser("ed-nt-ow", Role.USER)
@@ -510,14 +510,13 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect { result ->
                 val body = objectMapper.readTree(result.response.contentAsString)
-                val ids = contentIds(body)
-                assertTrue(ids.contains(nodeType.id.toString()))
+                assertEquals(0, body.path("page").path("totalElements").asInt())
             }
 
         mockMvc.perform(
             get("/api/v1/notations/${notation.id}?modelId=${model.id}").withAuth(editor.id!!, Role.USER)
         )
-            .andExpect(status().isOk)
+            .andExpect(status().isForbidden)
     }
 
     @Test
@@ -569,8 +568,22 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
             )
         )
 
-    private fun contentIds(json: JsonNode): Set<String> =
-        json.path("content")
+    private fun contentIds(json: JsonNode): Set<String> = listItemIds(json)
+
+    private fun listItemIds(json: JsonNode): Set<String> {
+        val items = when {
+            json.has("items") -> json.path("items")
+            else -> json.path("content")
+        }
+        return items
             .mapNotNull { node -> node.path("id").asText().takeIf { it.isNotBlank() } }
             .toSet()
+    }
+
+    private fun totalElements(json: JsonNode): Int =
+        if (json.has("total")) {
+            json.path("total").asInt()
+        } else {
+            json.path("page").path("totalElements").asInt()
+        }
 }

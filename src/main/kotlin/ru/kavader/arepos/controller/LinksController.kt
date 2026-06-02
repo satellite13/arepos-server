@@ -21,12 +21,11 @@ import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
+import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
-import ru.kavader.arepos.service.ModelDiagramTypeValidator
 import ru.kavader.arepos.service.ModelSyncBroadcaster
 import java.time.Instant
 import java.util.UUID
@@ -47,7 +46,7 @@ class LinksController(
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
-    private val typeValidator: ModelDiagramTypeValidator,
+    private val typeUsageAuthorization: TypeUsageAuthorization,
     private val modelMapper: ModelMapper
 ) {
 
@@ -167,7 +166,7 @@ class LinksController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${request.linkTypeId} not found")
             }
-        requireCanUseLinkTypeForModel(linkType, model)
+        typeUsageAuthorization.requireCanUseLinkTypeForModel(linkType, model)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = linksRepository.save(
@@ -236,7 +235,7 @@ class LinksController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $it not found")
             }
         }?.also { newLinkType ->
-            requireCanUseLinkTypeForModel(newLinkType, model)
+            typeUsageAuthorization.requireCanUseLinkTypeForModel(newLinkType, model)
         } ?: link.linkType
 
         mdFileLinkValidator.validate(request.attrs)
@@ -289,23 +288,5 @@ class LinksController(
     }
 
 
-    private fun requireCanUseLinkTypeForModel(
-        linkType: ru.kavader.arepos.model.LinkTypes,
-        model: ru.kavader.arepos.model.Models
-    ) {
-        if (accessService.canUseLinkType(linkType)) return
-        val canEditModel = accessService.canEditModel(model)
-        if (canEditModel && linkType.owner.id == model.owner.id) return
-        if (
-            canEditModel &&
-                isLinkTypeUsedInModelDiagramNotations(requireNotNull(linkType.id), model)
-        ) {
-            return
-        }
-        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-    }
-
-    private fun isLinkTypeUsedInModelDiagramNotations(linkTypeId: UUID, model: ru.kavader.arepos.model.Models): Boolean =
-        typeValidator.isLinkTypeUsedInModelDiagramNotations(linkTypeId, requireNotNull(model.id))
 }
 

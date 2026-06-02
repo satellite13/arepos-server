@@ -1,17 +1,13 @@
 package ru.kavader.arepos.controller
 
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.autoconfigure.web.ServerProperties
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
-import org.springframework.http.HttpEntity
-import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpMethod
-import org.springframework.http.HttpStatus
-import org.springframework.http.MediaType
-import org.springframework.http.client.SimpleClientHttpRequestFactory
-import org.springframework.http.converter.StringHttpMessageConverter
-import org.springframework.web.client.RestTemplate
 import ru.kavader.arepos.support.PostgresContainerTest
+import java.nio.file.Files
+import kotlin.io.path.readText
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -21,26 +17,33 @@ class CompressionConfigTest : PostgresContainerTest() {
     @LocalServerPort
     private var port: Int = 0
 
+    @Autowired
+    lateinit var serverProperties: ServerProperties
+
     @Test
     fun `returns gzip encoding for large json response`() {
-        val requestFactory = SimpleClientHttpRequestFactory()
-        val rawTemplate = RestTemplate(requestFactory).apply {
-            messageConverters.add(0, StringHttpMessageConverter())
-        }
-        val headers = HttpHeaders().apply {
-            set(HttpHeaders.ACCEPT_ENCODING, "gzip")
-            accept = listOf(MediaType.APPLICATION_JSON)
-        }
+        assertTrue(serverProperties.compression.enabled)
 
-        val response = rawTemplate.exchange(
-            "http://localhost:$port/v3/api-docs",
-            HttpMethod.GET,
-            HttpEntity<Void>(headers),
-            ByteArray::class.java
-        )
+        val headersFile = Files.createTempFile("compression-test", ".headers")
+        try {
+            val process = ProcessBuilder(
+                "curl",
+                "-sS",
+                "-D",
+                headersFile.toString(),
+                "-o",
+                "/dev/null",
+                "-H",
+                "Accept-Encoding: gzip",
+                "http://127.0.0.1:$port/v3/api-docs"
+            ).start()
+            val errors = process.errorStream.bufferedReader().readText()
+            assertEquals(0, process.waitFor(), "curl failed: $errors")
 
-        assertEquals(HttpStatus.OK, response.statusCode)
-        val encodings = response.headers[HttpHeaders.CONTENT_ENCODING].orEmpty()
-        assertTrue(encodings.any { it.contains("gzip") })
+            val headers = headersFile.readText()
+            assertTrue(headers.contains("content-encoding: gzip", ignoreCase = true), headers)
+        } finally {
+            Files.deleteIfExists(headersFile)
+        }
     }
 }

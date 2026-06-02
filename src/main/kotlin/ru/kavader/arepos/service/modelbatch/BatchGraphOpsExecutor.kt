@@ -26,8 +26,8 @@ import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
-import ru.kavader.arepos.service.ModelDiagramTypeValidator
 import java.time.Instant
 import java.util.UUID
 
@@ -66,7 +66,7 @@ class BatchGraphOpsExecutor(
     private val notationsRepository: NotationsRepository,
     private val accessService: ResourceAccessService,
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
-    private val typeValidator: ModelDiagramTypeValidator,
+    private val typeUsageAuthorization: TypeUsageAuthorization,
     private val diagramAttrsRemapper: DiagramAttrsRemapper
 ) {
     fun execute(request: BatchSaveRequest, model: Models, owner: Users, now: Instant): BatchGraphExecutionResult {
@@ -119,7 +119,7 @@ class BatchGraphOpsExecutor(
         for (upd in updates) {
             val node = findNodeOrThrow(upd.id)
             val nodeType = findNodeTypeOrThrow(upd.nodeTypeId)
-            requireCanUseNodeTypeForModel(nodeType, model)
+            typeUsageAuthorization.requireCanUseNodeTypeForModel(nodeType, model)
             val parentNode = resolveParentNode(upd.parentNodeId, emptyMap())
             nodesRepository.save(
                 node.copy(
@@ -165,7 +165,7 @@ class BatchGraphOpsExecutor(
                     }
                 }
                 val nodeType = findNodeTypeOrThrow(item.nodeTypeId)
-                requireCanUseNodeTypeForModel(nodeType, model)
+                typeUsageAuthorization.requireCanUseNodeTypeForModel(nodeType, model)
                 val saved = nodesRepository.save(
                     Nodes(
                         stableId = resolveStableId(item.tempId),
@@ -219,7 +219,7 @@ class BatchGraphOpsExecutor(
             val source = findNodeOrThrow(sourceId, "Source node ${item.sourceId} not found")
             val target = findNodeOrThrow(targetId, "Target node ${item.targetId} not found")
             val linkType = findLinkTypeOrThrow(item.linkTypeId)
-            requireCanUseLinkTypeForModel(linkType, model)
+            typeUsageAuthorization.requireCanUseLinkTypeForModel(linkType, model)
             val saved = linksRepository.save(
                 Links(
                     stableId = resolveStableId(item.tempId),
@@ -249,7 +249,7 @@ class BatchGraphOpsExecutor(
             val source = findNodeOrThrow(sourceId, "Source node ${upd.sourceId} not found")
             val target = findNodeOrThrow(targetId, "Target node ${upd.targetId} not found")
             val linkType = findLinkTypeOrThrow(upd.linkTypeId)
-            requireCanUseLinkTypeForModel(linkType, model)
+            typeUsageAuthorization.requireCanUseLinkTypeForModel(linkType, model)
             linksRepository.save(
                 link.copy(
                     source = source,
@@ -390,25 +390,4 @@ class BatchGraphOpsExecutor(
     private fun findNotationOrThrow(id: UUID, message: String = "Notation $id not found"): Notations =
         notationsRepository.findById(id).orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, message) }
 
-    private fun requireCanUseNodeTypeForModel(nodeType: NodeTypes, model: Models) {
-        if (accessService.canUseNodeType(nodeType)) return
-        val canEditModel = accessService.canEditModel(model)
-        if (canEditModel && nodeType.owner.id == model.owner.id) return
-        if (canEditModel && isNodeTypeUsedInModelDiagramNotations(requireNotNull(nodeType.id), model)) return
-        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-    }
-
-    private fun requireCanUseLinkTypeForModel(linkType: LinkTypes, model: Models) {
-        if (accessService.canUseLinkType(linkType)) return
-        val canEditModel = accessService.canEditModel(model)
-        if (canEditModel && linkType.owner.id == model.owner.id) return
-        if (canEditModel && isLinkTypeUsedInModelDiagramNotations(requireNotNull(linkType.id), model)) return
-        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-    }
-
-    private fun isNodeTypeUsedInModelDiagramNotations(nodeTypeId: UUID, model: Models): Boolean =
-        typeValidator.isNodeTypeUsedInModelDiagramNotations(nodeTypeId, requireNotNull(model.id))
-
-    private fun isLinkTypeUsedInModelDiagramNotations(linkTypeId: UUID, model: Models): Boolean =
-        typeValidator.isLinkTypeUsedInModelDiagramNotations(linkTypeId, requireNotNull(model.id))
 }
