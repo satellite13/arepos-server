@@ -41,9 +41,12 @@ class ModelSyncOutboxPublishService(
             if (!enabled) {
                 return@withGeneratedIfMissing
             }
-            metrics.refreshPendingCount(outboxRepository.countByPublishedAtIsNull())
-            val batchIds = outboxRepository.findPendingForPublish(PageRequest.of(0, batchSize))
-                .mapNotNull { it.id }
+            val batchIds = transactionTemplate.execute {
+                val pendingCount = outboxRepository.countByPublishedAtIsNull()
+                metrics.refreshPendingCount(pendingCount)
+                outboxRepository.findPendingForPublish(PageRequest.of(0, batchSize))
+                    .mapNotNull { it.id }
+            }.orEmpty()
             val now = Instant.now()
             for (rowId in batchIds) {
                 processRow(rowId, now)

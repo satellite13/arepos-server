@@ -44,6 +44,7 @@ dependencies {
     implementation("com.vladmihalcea:hibernate-types-60:2.21.1")
     implementation("org.hibernate.orm:hibernate-jcache")
     implementation("org.ehcache:ehcache")
+    runtimeOnly("org.glassfish.jaxb:jaxb-runtime:2.3.9")
     implementation("jakarta.persistence:jakarta.persistence-api:3.1.0")
     implementation("io.minio:minio:8.5.13")
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")

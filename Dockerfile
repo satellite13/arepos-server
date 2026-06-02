@@ -1,11 +1,13 @@
 # Build stage
-FROM gradle:9.1-jdk24-alpine AS builder
+FROM eclipse-temurin:24-jdk-alpine AS builder
 WORKDIR /app
-COPY build.gradle.kts settings.gradle.kts gradle.properties gradlew ./
+COPY build.gradle.kts settings.gradle.kts gradlew ./
 COPY gradle gradle
-RUN ./gradlew --no-daemon dependencies
+RUN --mount=type=cache,id=arepos-gradle-cache,target=/root/.gradle \
+    ./gradlew --no-daemon dependencies
 COPY src src
-RUN ./gradlew --no-daemon bootJar
+RUN --mount=type=cache,id=arepos-gradle-cache,target=/root/.gradle \
+    ./gradlew --no-daemon bootJar
 
 # Runtime stage
 FROM eclipse-temurin:24-jre-alpine

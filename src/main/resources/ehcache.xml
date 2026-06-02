@@ -4,8 +4,8 @@
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns:jsr107="http://www.ehcache.org/v3/jsr107"
     xsi:schemaLocation="
-      http://www.ehcache.org/v3 http://www.ehcache.org/schema/ehcache-core.xsd
-      http://www.ehcache.org/v3/jsr107 http://www.ehcache.org/schema/ehcache-107-ext.xsd">
+      http://www.ehcache.org/v3 https://www.ehcache.org/schema/ehcache-core.xsd
+      http://www.ehcache.org/v3/jsr107 https://www.ehcache.org/schema/ehcache-107-ext.xsd">
 
   <service>
     <jsr107:defaults enable-management="true" enable-statistics="true"/>
@@ -18,7 +18,7 @@
       <ttl unit="minutes">15</ttl>
     </expiry>
     <resources>
-      <heap unit="entries">10000</heap>
+      <heap unit="kB">10000</heap>
     </resources>
   </cache>
 
@@ -29,7 +29,7 @@
       <ttl unit="minutes">60</ttl>
     </expiry>
     <resources>
-      <heap unit="entries">5000</heap>
+      <heap unit="kB">5000</heap>
     </resources>
   </cache-template>
 
