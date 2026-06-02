@@ -32,7 +32,7 @@ Cerbos обязателен для `arepos-server`, поэтому в deploy н�
 Пример:
 
 ```bash
-CERBOS_DEPLOY=true CERBOS_BUNDLE_VERSION=policy-<sha> ./deploy.sh
+CERBOS_DEPLOY=true CERBOS_BUNDLE_VERSION=policy-<sha> ./scripts/deploy.sh
 ```
 
 ## Parity check local vs infra

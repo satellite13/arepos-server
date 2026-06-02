@@ -19,7 +19,7 @@ helm upgrade --install arepos-server ./charts/arepos-server -n arch -f ./charts/
 With local deploy helper:
 
 ```bash
-./deploy.sh
+./scripts/deploy.sh
 ```
 
 ## Important values
@@ -33,13 +33,14 @@ With local deploy helper:
 
 ## Deploy script flags (most used)
 
-`deploy.sh` supports key environment flags:
+`scripts/deploy.sh` supports key environment flags:
 
 - `NAMESPACE` (default `arch`)
 - `RELEASE_NAME` (default `arepos-server`)
 - `VALUES_FILE` (default `deploy-values.yaml`)
 - `IMAGE_TAG` (defaults to `<appVersion>-<git-sha>`)
 - `BUILD_IMAGE` (`true|false`)
+- `IMAGE_BUILD_MODE` (`buildpack|dockerfile`, default `buildpack`)
 - `POSTGRESQL_ENABLED` (`true|false`)
 - `BLUE_GREEN` (`true|false`)
 - `BG_SWITCH` (`true|false`)
@@ -49,7 +50,7 @@ With local deploy helper:
 Example:
 
 ```bash
-BLUE_GREEN=true BG_SWITCH=true IMAGE_TAG=0.3.1-abcdef CERBOS_DEPLOY=true CERBOS_BUNDLE_VERSION=policy-abcdef ./deploy.sh
+BLUE_GREEN=true BG_SWITCH=true IMAGE_TAG=0.3.1-abcdef IMAGE_BUILD_MODE=dockerfile CERBOS_DEPLOY=true CERBOS_BUNDLE_VERSION=policy-abcdef ./scripts/deploy.sh
 ```
 
 ## Cerbos notes

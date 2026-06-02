@@ -19,7 +19,7 @@ ALLOW_DIRTY=false DRY_RUN=true DEPLOY_TARGET=none ./scripts/release-cerbos-polic
 
 ```bash
 ./scripts/release-cerbos-policies.sh
-CERBOS_DEPLOY=true CERBOS_BUNDLE_VERSION=policy-<sha> ./deploy.sh
+CERBOS_DEPLOY=true CERBOS_BUNDLE_VERSION=policy-<sha> ./scripts/deploy.sh
 ```
 
 Критерий успеха: backend отвечает, авторизация работает, нет `503 Authorization service is unavailable`.

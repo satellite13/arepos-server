@@ -102,6 +102,8 @@ charts/arepos-server/             # Helm chart for K8s deployment
 
 # Build Docker image
 ./gradlew bootBuildImage
+# Build Docker image via Dockerfile
+docker build -f Dockerfile -t arch/arepos-server:dev .
 
 # Check Helm chart
 helm lint ./charts/arepos-server
@@ -253,13 +255,13 @@ MINIO_BUCKET=arepos-files
 
 ```bash
 # Deploy to Kubernetes
-./deploy.sh
+./scripts/deploy.sh
 
 # Undeploy
-./undeploy.sh
+./scripts/undeploy.sh
 
 # Validate Helm chart
-./helmCheck.sh
+./scripts/helmCheck.sh
 ```
 
 ### Deployment Options
@@ -271,6 +273,7 @@ RELEASE_NAME=arepos-server        # Helm release name
 VALUES_FILE=deploy-values.yaml    # Values file
 POSTGRESQL_ENABLED=true           # Deploy PostgreSQL
 BUILD_IMAGE=true                  # Build Docker image
+IMAGE_BUILD_MODE=buildpack        # buildpack | dockerfile
 BLUE_GREEN=false                  # Blue/green deployment
 ```
 
@@ -283,7 +286,7 @@ BLUE_GREEN=false                  # Blue/green deployment
 ### Blue/Green Deployment
 
 ```bash
-BLUE_GREEN=true BG_SWITCH=true ./deploy.sh
+BLUE_GREEN=true BG_SWITCH=true ./scripts/deploy.sh
 ```
 
 Creates two deployments (`-blue` and `-green`), service routes to active color.

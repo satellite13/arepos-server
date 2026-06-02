@@ -47,7 +47,7 @@ If your change affects deployment:
 
 ```bash
 helm lint ./charts/arepos-server
-bash -n ./deploy.sh
+bash -n ./scripts/deploy.sh
 ```
 
 ## Pull Request Checklist

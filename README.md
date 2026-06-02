@@ -98,6 +98,7 @@ Important environment variables:
 ./gradlew test                       # all tests
 ./gradlew test --tests "*RepositoryTest"
 ./gradlew bootBuildImage             # build OCI image
+docker build -f Dockerfile -t arch/arepos-server:dev .  # build via Dockerfile
 ```
 
 ## API
@@ -121,9 +122,9 @@ Important environment variables:
 
 ## Deployment
 
-- `deploy.sh` - deploy to Kubernetes using Helm
-- `undeploy.sh` - uninstall release
-- `helmCheck.sh` - lint/template smoke checks
+- `scripts/deploy.sh` - deploy to Kubernetes using Helm
+- `scripts/undeploy.sh` - uninstall release
+- `scripts/helmCheck.sh` - lint/template smoke checks
 - Chart docs: `charts/arepos-server/README.md`
 
 For blue/green and deployment flags, see `charts/arepos-server/README.md`.

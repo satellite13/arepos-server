@@ -14,6 +14,7 @@ RELEASE_NAME="${RELEASE_NAME:-arepos-server}"
 VALUES_FILE="${VALUES_FILE:-deploy-values.yaml}"
 POSTGRESQL_ENABLED="${POSTGRESQL_ENABLED:-true}"
 BUILD_IMAGE="${BUILD_IMAGE:-true}"
+IMAGE_BUILD_MODE="${IMAGE_BUILD_MODE:-buildpack}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-300}"
 KEEP_POSTGRES_VOLUME="${KEEP_POSTGRES_VOLUME:-true}"
 KEEP_MINIO_VOLUME="${KEEP_MINIO_VOLUME:-true}"
@@ -61,6 +62,17 @@ check_command() {
         log_error "$1 не установлен"
         exit 1
     fi
+}
+
+normalize_image_build_mode() {
+    case "$IMAGE_BUILD_MODE" in
+        buildpack|dockerfile)
+            ;;
+        *)
+            log_error "Некорректный IMAGE_BUILD_MODE='$IMAGE_BUILD_MODE' (ожидается: buildpack|dockerfile)"
+            exit 1
+            ;;
+    esac
 }
 
 append_helm_extra_arg() {
@@ -146,6 +158,8 @@ VERSION_CHECK_DELAY="${VERSION_CHECK_DELAY:-2}"
 log_info "Тег образа: ${IMAGE_TAG}"
 log_info "Build ID деплоя: ${DEPLOY_BUILD_ID}"
 log_info "Image pull policy: ${DEPLOY_IMAGE_PULL_POLICY}"
+normalize_image_build_mode
+log_info "Режим сборки образа: ${IMAGE_BUILD_MODE}"
 
 configure_cerbos_shorthand
 
@@ -176,13 +190,21 @@ fi
 # Сборка Docker образа
 if [ "$BUILD_IMAGE" = "true" ]; then
     log_info "Сборка Docker образа..."
-    ./gradlew bootBuildImage
-    if [ $? -ne 0 ]; then
-        log_error "Ошибка при сборке Docker образа"
-        exit 1
+    if [ "$IMAGE_BUILD_MODE" = "buildpack" ]; then
+        ./gradlew bootBuildImage
+        if [ $? -ne 0 ]; then
+            log_error "Ошибка при сборке Docker образа через bootBuildImage"
+            exit 1
+        fi
+        # Дополнительный тег с git hash
+        docker tag "${IMAGE_NAME}:${APP_VERSION}" "${EXPECTED_IMAGE}"
+    else
+        docker build -f Dockerfile -t "${EXPECTED_IMAGE}" .
+        if [ $? -ne 0 ]; then
+            log_error "Ошибка при сборке Docker образа через Dockerfile"
+            exit 1
+        fi
     fi
-    # Дополнительный тег с git hash
-    docker tag "${IMAGE_NAME}:${APP_VERSION}" "${EXPECTED_IMAGE}"
     if ! docker image inspect "${EXPECTED_IMAGE}" > /dev/null 2>&1; then
         log_error "Не найден локальный образ ${EXPECTED_IMAGE} после тегирования"
         exit 1

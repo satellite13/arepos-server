@@ -52,7 +52,7 @@ description: Executes the full release cycle for arepos-server: bump version in 
 
 ### 8. После деплоя
 
-- Выполнить `deploy.sh` с нужными параметрами
+- Выполнить `scripts/deploy.sh` с нужными параметрами
 - Убедиться: rollout, образ, health check
 - Проверить версию: `GET /api/v1/system/version` — должна совпадать с X.Y.Z
 

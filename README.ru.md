@@ -98,6 +98,7 @@ charts/arepos-server/
 ./gradlew test                       # все тесты
 ./gradlew test --tests "*RepositoryTest"
 ./gradlew bootBuildImage             # сборка OCI-образа
+docker build -f Dockerfile -t arch/arepos-server:dev .  # сборка через Dockerfile
 ```
 
 ## API
@@ -121,9 +122,9 @@ charts/arepos-server/
 
 ## Деплой
 
-- `deploy.sh` - деплой в Kubernetes через Helm
-- `undeploy.sh` - удаление release
-- `helmCheck.sh` - lint/template проверки Helm
+- `scripts/deploy.sh` - деплой в Kubernetes через Helm
+- `scripts/undeploy.sh` - удаление release
+- `scripts/helmCheck.sh` - lint/template проверки Helm
 - Документация chart: `charts/arepos-server/README.md`
 
 Флаги blue/green и другие параметры деплоя описаны в `charts/arepos-server/README.md`.

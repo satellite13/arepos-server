@@ -45,7 +45,7 @@
 
 ```bash
 helm lint ./charts/arepos-server
-bash -n ./deploy.sh
+bash -n ./scripts/deploy.sh
 ```
 
 ## Checklist для PR
