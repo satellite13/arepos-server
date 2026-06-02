@@ -106,6 +106,7 @@ docker build -f Dockerfile -t arch/arepos-server:dev .  # build via Dockerfile
 - Swagger UI: `/swagger-ui.html` — interactive API documentation
 - OpenAPI spec (JSON): `/v3/api-docs`
 - Error responses from exception handlers follow `{ error, message, traceId }`
+- Notation, node-type, and link-type reads from the model editor may pass `?modelId=`; access is granted with direct notation permission **or** model edit rights when that notation version is used by an active diagram in the model
 - Health endpoints:
   - `/actuator/health/liveness`
   - `/actuator/health/readiness`

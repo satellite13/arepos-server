@@ -40,7 +40,7 @@ With local deploy helper:
 - `VALUES_FILE` (default `deploy-values.yaml`)
 - `IMAGE_TAG` (defaults to `<appVersion>-<git-sha>`)
 - `BUILD_IMAGE` (`true|false`)
-- `IMAGE_BUILD_MODE` (`buildpack|dockerfile`, default `buildpack`)
+- `IMAGE_BUILD_MODE` (`buildpack|dockerfile`, default `dockerfile`)
 - `POSTGRESQL_ENABLED` (`true|false`)
 - `BLUE_GREEN` (`true|false`)
 - `BG_SWITCH` (`true|false`)
@@ -50,7 +50,7 @@ With local deploy helper:
 Example:
 
 ```bash
-BLUE_GREEN=true BG_SWITCH=true IMAGE_TAG=0.3.1-abcdef IMAGE_BUILD_MODE=dockerfile CERBOS_DEPLOY=true CERBOS_BUNDLE_VERSION=policy-abcdef ./scripts/deploy.sh
+BLUE_GREEN=true BG_SWITCH=true IMAGE_TAG=0.3.1-abcdef CERBOS_DEPLOY=true CERBOS_BUNDLE_VERSION=policy-abcdef ./scripts/deploy.sh
 ```
 
 ## Cerbos notes

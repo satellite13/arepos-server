@@ -106,6 +106,7 @@ docker build -f Dockerfile -t arch/arepos-server:dev .  # сборка чере�
 - Swagger UI: `/swagger-ui.html` — интерактивная документация API
 - OpenAPI-спецификация (JSON): `/v3/api-docs`
 - Ошибки API из exception handlers имеют формат `{ error, message, traceId }`
+- Чтение нотаций, типов нод и типов связей из редактора модели может передавать `?modelId=`; доступ даётся при прямом праве на нотацию **или** при праве редактировать модель, если эта версия нотации используется активной диаграммой модели
 - Health endpoints:
   - `/actuator/health/liveness`
   - `/actuator/health/readiness`

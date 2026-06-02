@@ -209,6 +209,7 @@ enum class Role { USER, EDITOR, ADMIN }
 - Resources have `owner` field for ownership-based access
 - `ResourceShares` allows sharing resources with specific permissions
 - `ResourceAccessService` checks view/edit permissions
+- Model-editor notation reads with `?modelId=` (`NotationsController`, `NodeTypesController`, `LinkTypesController`): allowed when the user can view the notation directly **or** can edit the model and the notation version is used by an active diagram in that model (`canUseNotationInModelDiagramEditor`)
 
 ### Environment Variables for Security
 
@@ -273,7 +274,7 @@ RELEASE_NAME=arepos-server        # Helm release name
 VALUES_FILE=deploy-values.yaml    # Values file
 POSTGRESQL_ENABLED=true           # Deploy PostgreSQL
 BUILD_IMAGE=true                  # Build Docker image
-IMAGE_BUILD_MODE=buildpack        # buildpack | dockerfile
+IMAGE_BUILD_MODE=dockerfile       # buildpack | dockerfile (default: dockerfile)
 BLUE_GREEN=false                  # Blue/green deployment
 ```
 
