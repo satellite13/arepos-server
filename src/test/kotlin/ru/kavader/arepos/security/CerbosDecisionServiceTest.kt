@@ -11,6 +11,7 @@ import ru.kavader.arepos.config.CerbosProperties
 import java.net.InetSocketAddress
 import java.time.Duration
 import java.util.*
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -172,6 +173,49 @@ class CerbosDecisionServiceTest {
     }
 
     @Test
+    fun `splits large batch into multiple cerbos requests`() {
+        val requestCount = AtomicInteger(0)
+        val objectMapper = jacksonObjectMapper()
+        withDynamicBatchServer(
+            onRequest = { _ -> requestCount.incrementAndGet() },
+            responseFor = { payload ->
+                val resources = objectMapper.readTree(payload).path("resources")
+                val results = (0 until resources.size()).joinToString(",") { index ->
+                    """{"resource":{"id":${resources[index].path("resource").path("id")}},"actions":{"view":"EFFECT_ALLOW"}}"""
+                }
+                """{"results":[$results]}"""
+            }
+        ) { endpoint ->
+            val service = CerbosDecisionService(
+                cerbosProperties = CerbosProperties(
+                    endpoint = endpoint,
+                    requestTimeout = Duration.ofSeconds(1),
+                    batchChunkSize = 2
+                ),
+                objectMapper = objectMapper
+            )
+
+            setCurrentUser(role = "USER")
+            val resourceIds = List(3) { UUID.randomUUID() }
+            val decisions = service.checkBatch(
+                resourceIds.map { resourceId ->
+                    CerbosBatchAccessRequest(
+                        resourceKind = CerbosResourceKind.NODE_TYPE,
+                        action = CerbosAction.VIEW,
+                        resourceId = resourceId
+                    )
+                }
+            )
+
+            assertEquals(2, requestCount.get())
+            assertEquals(3, decisions.size)
+            resourceIds.forEach { resourceId ->
+                assertEquals(true, decisions[resourceId])
+            }
+        }
+    }
+
+    @Test
     fun `opens circuit after repeated cerbos failures`() {
         withServer(
             body = """{"error":"unavailable"}""",
@@ -206,6 +250,28 @@ class CerbosDecisionServiceTest {
             listOf(SimpleGrantedAuthority("ROLE_$role"))
         )
         SecurityContextHolder.getContext().authentication = auth
+    }
+
+    private fun withDynamicBatchServer(
+        onRequest: ((payload: String) -> Unit)? = null,
+        responseFor: (payload: String) -> String,
+        block: (endpoint: String) -> Unit
+    ) {
+        val server = HttpServer.create(InetSocketAddress(0), 0)
+        server.createContext("/api/check/resources") { exchange ->
+            val payload = exchange.requestBody.bufferedReader().use { it.readText() }
+            onRequest?.invoke(payload)
+            val body = responseFor(payload)
+            val bytes = body.toByteArray(Charsets.UTF_8)
+            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+        try {
+            block("http://localhost:${server.address.port}")
+        } finally {
+            server.stop(0)
+        }
     }
 
     private fun withServer(

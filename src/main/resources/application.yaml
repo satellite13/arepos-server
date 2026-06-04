@@ -79,6 +79,7 @@ arepos:
       endpoint: http://localhost:3592
       request-timeout: 1s
       bundle-version: ""
+      batch-chunk-size: ${CERBOS_BATCH_CHUNK_SIZE:50}
       circuit-failure-threshold: ${CERBOS_CIRCUIT_FAILURE_THRESHOLD:5}
       circuit-open-duration: ${CERBOS_CIRCUIT_OPEN_DURATION:PT30S}
   files:
