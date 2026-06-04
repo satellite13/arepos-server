@@ -2,7 +2,7 @@ package ru.kavader.arepos.service
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Service
-import java.util.UUID
+import java.util.*
 
 @Service
 @ConditionalOnProperty(name = ["arepos.files.storage"], havingValue = "disabled", matchIfMissing = true)

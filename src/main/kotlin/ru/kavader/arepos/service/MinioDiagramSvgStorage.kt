@@ -9,9 +9,9 @@ import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Service
 import ru.kavader.arepos.config.MinioProperties
-import java.io.IOException
 import java.io.ByteArrayInputStream
-import java.util.UUID
+import java.io.IOException
+import java.util.*
 
 @Service
 @ConditionalOnProperty(name = ["arepos.files.storage"], havingValue = "minio")

@@ -1,10 +1,11 @@
-DO $$
-BEGIN
-    CREATE EXTENSION IF NOT EXISTS pgcrypto;
-EXCEPTION
-    WHEN insufficient_privilege THEN
-        RAISE NOTICE 'Skipping pgcrypto extension: insufficient privileges';
-END
+DO
+$$
+    BEGIN
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;
+    EXCEPTION
+        WHEN insufficient_privilege THEN
+            RAISE NOTICE 'Skipping pgcrypto extension: insufficient privileges';
+    END
 $$;
 
 DROP TYPE IF EXISTS version_type;
@@ -88,8 +89,8 @@ create or replace function audit_trigger()
     returns trigger as
 $$
 declare
-    audit_row public.audit_log;
-    user_id   uuid;
+    audit_row     public.audit_log;
+    user_id       uuid;
     audit_user_id uuid;
 begin
     begin
@@ -374,20 +375,19 @@ BEGIN
         RAISE EXCEPTION 'Circular reference detected: node % cannot be its own parent.', NEW.id;
     END IF;
 
-    WITH RECURSIVE ancestor_path AS (
-        SELECT n.id AS ancestor_id,
-               n.parent_node
-        FROM public.nodes n
-        WHERE n.id = NEW.parent_node
+    WITH RECURSIVE ancestor_path AS (SELECT n.id AS ancestor_id,
+                                            n.parent_node
+                                     FROM public.nodes n
+                                     WHERE n.id = NEW.parent_node
 
-        UNION ALL
+                                     UNION ALL
 
-        SELECT n.id AS ancestor_id,
-               n.parent_node
-        FROM public.nodes n
-                 JOIN
-             ancestor_path a ON n.id = a.parent_node
-        WHERE a.parent_node IS NOT NULL)
+                                     SELECT n.id AS ancestor_id,
+                                            n.parent_node
+                                     FROM public.nodes n
+                                              JOIN
+                                          ancestor_path a ON n.id = a.parent_node
+                                     WHERE a.parent_node IS NOT NULL)
     SELECT EXISTS(SELECT 1
                   FROM ancestor_path
                   WHERE ancestor_id = NEW.id)

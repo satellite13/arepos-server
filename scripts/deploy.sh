@@ -73,7 +73,7 @@ opposite_color() {
 }
 
 check_command() {
-    if ! command -v $1 &> /dev/null; then
+    if ! command -v "$1" &> /dev/null; then
         log_error "$1 не установлен"
         exit 1
     fi
@@ -206,16 +206,14 @@ fi
 if [ "$BUILD_IMAGE" = "true" ]; then
     log_info "Сборка Docker образа..."
     if [ "$IMAGE_BUILD_MODE" = "buildpack" ]; then
-        ./gradlew bootBuildImage
-        if [ $? -ne 0 ]; then
+        if ! ./gradlew bootBuildImage; then
             log_error "Ошибка при сборке Docker образа через bootBuildImage"
             exit 1
         fi
         # Дополнительный тег с git hash
         docker tag "${IMAGE_NAME}:${APP_VERSION}" "${EXPECTED_IMAGE}"
     else
-        docker build -f Dockerfile -t "${EXPECTED_IMAGE}" .
-        if [ $? -ne 0 ]; then
+        if ! docker build -f Dockerfile -t "${EXPECTED_IMAGE}" .; then
             log_error "Ошибка при сборке Docker образа через Dockerfile"
             exit 1
         fi
@@ -264,7 +262,7 @@ if [ "$BLUE_GREEN" = "true" ]; then
         HELM_CMD="$HELM_CMD $HELM_EXTRA_ARGS"
     fi
 
-    eval $HELM_CMD
+    eval "$HELM_CMD"
 
     DEPLOYMENT_TO_CHECK="${SERVICE_NAME}-${TARGET_COLOR}"
     POD_SELECTOR="$POD_SELECTOR,app.kubernetes.io/color=$TARGET_COLOR"
@@ -284,7 +282,7 @@ if [ "$BLUE_GREEN" = "true" ]; then
         if [ -n "$HELM_EXTRA_ARGS" ]; then
             HELM_SWITCH_CMD="$HELM_SWITCH_CMD $HELM_EXTRA_ARGS"
         fi
-        eval $HELM_SWITCH_CMD
+        eval "$HELM_SWITCH_CMD"
         log_info "Трафик переключен на '$TARGET_COLOR'"
     else
         log_warn "Переключение трафика пропущено (BG_SWITCH=false). Активным остаётся '$CURRENT_COLOR'"
@@ -341,9 +339,7 @@ else
         HELM_CMD="$HELM_CMD $HELM_EXTRA_ARGS"
     fi
 
-    eval $HELM_CMD
-
-    if [ $? -ne 0 ]; then
+    if ! eval $HELM_CMD; then
         log_error "Ошибка при развертывании через Helm"
         exit 1
     fi

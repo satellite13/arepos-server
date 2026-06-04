@@ -2,22 +2,19 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import ru.kavader.arepos.dto.access.*
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.repository.DiagramsRepository
-import ru.kavader.arepos.repository.FilesRepository
-import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodeShapesRepository
-import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.dto.access.PermissionAction
+import ru.kavader.arepos.dto.access.PermissionCheckRequest
+import ru.kavader.arepos.dto.access.PermissionCheckResponse
+import ru.kavader.arepos.dto.access.PermissionResourceType
+import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService
-import java.util.UUID
+import java.util.*
 
 
 @RestController

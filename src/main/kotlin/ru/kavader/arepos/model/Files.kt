@@ -2,7 +2,7 @@ package ru.kavader.arepos.model
 
 import jakarta.persistence.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Entity
 @Table(
@@ -12,27 +12,27 @@ import java.util.UUID
         Index(name = "files_owner_id_idx", columnList = "owner_id")
     ]
 )
-data class Files(
+class Files(
     @Id
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID,
+    var id: UUID,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)
-    val owner: Users,
+    var owner: Users,
 
     @Column(name = "filename", nullable = false)
-    val filename: String,
+    var filename: String,
 
     @Column(name = "content_type", nullable = false)
-    val contentType: String,
+    var contentType: String,
 
     @Column(name = "size", nullable = false)
-    val size: Long,
+    var size: Long,
 
     @Column(name = "object_key", nullable = false)
-    val objectKey: String,
+    var objectKey: String,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant? = null
+    var createdAt: Instant? = null
 )

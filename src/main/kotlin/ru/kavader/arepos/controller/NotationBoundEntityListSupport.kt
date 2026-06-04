@@ -3,7 +3,7 @@ package ru.kavader.arepos.controller
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import ru.kavader.arepos.security.ResourceAccessService
-import java.util.UUID
+import java.util.*
 
 object NotationBoundEntityListSupport {
     fun <T> list(
@@ -34,7 +34,6 @@ object NotationBoundEntityListSupport {
         val normalizedName = name.trimmedOrNull()
         val tagsJson = parseCommaSeparatedTags(tagsAll).toTagsJsonArrayOrNull()
         return accessService.listPageWithAdminBypass(
-            pageable = pageable,
             adminQuery = {
                 findByFilters(notationId, ownerId, normalizedName, tagsJson, pageable)
             },

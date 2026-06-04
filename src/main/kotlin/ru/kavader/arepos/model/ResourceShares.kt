@@ -1,20 +1,8 @@
 package ru.kavader.arepos.model
 
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.EnumType
-import jakarta.persistence.Enumerated
-import jakarta.persistence.FetchType
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
-import jakarta.persistence.Index
-import jakarta.persistence.JoinColumn
-import jakarta.persistence.ManyToOne
-import jakarta.persistence.Table
-import jakarta.persistence.UniqueConstraint
+import jakarta.persistence.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 enum class ShareResourceType {
     MODEL,
@@ -40,39 +28,42 @@ enum class SharePermission {
         )
     ],
     indexes = [
-        Index(name = "resource_shares_resource_lookup_idx", columnList = "resource_type, resource_id, grantee_user_id, permission"),
+        Index(
+            name = "resource_shares_resource_lookup_idx",
+            columnList = "resource_type, resource_id, grantee_user_id, permission"
+        ),
         Index(name = "resource_shares_grantee_idx", columnList = "grantee_user_id"),
         Index(name = "resource_shares_granted_by_idx", columnList = "granted_by_user_id")
     ]
 )
-data class ResourceShares(
+class ResourceShares(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "resource_type", nullable = false)
-    val resourceType: ShareResourceType,
+    var resourceType: ShareResourceType,
 
     @Column(name = "resource_id", columnDefinition = "uuid", nullable = false)
-    val resourceId: UUID,
+    var resourceId: UUID,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "grantee_user_id", nullable = true)
-    val granteeUser: Users?,
+    var granteeUser: Users?,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "granted_by_user_id", nullable = false)
-    val grantedByUser: Users,
+    var grantedByUser: Users,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "permission", nullable = false)
-    val permission: SharePermission = SharePermission.EDIT,
+    var permission: SharePermission = SharePermission.EDIT,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant? = null,
+    var createdAt: Instant? = null,
 
     @Column(name = "updated_at")
-    val updatedAt: Instant? = null
+    var updatedAt: Instant? = null
 )

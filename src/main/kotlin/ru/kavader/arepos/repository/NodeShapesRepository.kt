@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.NodeShapes
 import ru.kavader.arepos.model.Users
-import java.util.UUID
+import java.util.*
 
 @Repository
 interface NodeShapesRepository : JpaRepository<NodeShapes, UUID> {

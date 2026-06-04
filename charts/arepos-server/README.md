@@ -56,7 +56,7 @@ BLUE_GREEN=true BG_SWITCH=true IMAGE_TAG=0.3.1-abcdef CERBOS_DEPLOY=true CERBOS_
 ## Cerbos notes
 
 - Service is designed for Cerbos-enabled authorization.
-- For policy rollout/runbook, see:
+- For the policy rollout / runbook, see:
   - `authz/cerbos/README.md`
   - `authz/cerbos/RUNBOOK.md`
   - `authz/cerbos/VERIFY.md`

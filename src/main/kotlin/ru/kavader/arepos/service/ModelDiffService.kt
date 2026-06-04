@@ -14,6 +14,24 @@ import ru.kavader.arepos.repository.LinksRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import java.util.UUID
+import kotlin.collections.ArrayDeque
+import kotlin.collections.List
+import kotlin.collections.Map
+import kotlin.collections.MutableList
+import kotlin.collections.associateBy
+import kotlin.collections.contains
+import kotlin.collections.filter
+import kotlin.collections.first
+import kotlin.collections.getOrElse
+import kotlin.collections.groupBy
+import kotlin.collections.isNotEmpty
+import kotlin.collections.map
+import kotlin.collections.maxWithOrNull
+import kotlin.collections.mutableListOf
+import kotlin.collections.mutableMapOf
+import kotlin.collections.mutableSetOf
+import kotlin.collections.orEmpty
+import kotlin.collections.set
 
 @Service
 class ModelDiffService(
@@ -328,17 +346,17 @@ class ModelDiffService(
 
     private fun nodeEquals(a: Nodes, b: Nodes): Boolean =
         a.name == b.name &&
-            (a.attrs ?: "") == (b.attrs ?: "") &&
-            a.nodeType.id == b.nodeType.id
+                (a.attrs ?: "") == (b.attrs ?: "") &&
+                a.nodeType.id == b.nodeType.id
 
     private fun linkEquals(a: Links, b: Links): Boolean =
         (a.attrs ?: "") == (b.attrs ?: "") &&
-            a.linkType.id == b.linkType.id
+                a.linkType.id == b.linkType.id
 
     private fun diagramEquals(a: Diagrams, b: Diagrams): Boolean =
         a.version == b.version &&
-            (a.attrs ?: "") == (b.attrs ?: "") &&
-            a.notation.id == b.notation.id
+                (a.attrs ?: "") == (b.attrs ?: "") &&
+                a.notation.id == b.notation.id
 
     private fun linkKey(link: Links, pathMap: Map<UUID, String>): String {
         val sourcePath = pathMap[link.source.id!!] ?: "?"

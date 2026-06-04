@@ -1,5 +1,4 @@
 package ru.kavader.arepos.controller
-import ru.kavader.arepos.dto.notation.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
@@ -13,6 +12,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.dto.notation.ComponentRequest
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository

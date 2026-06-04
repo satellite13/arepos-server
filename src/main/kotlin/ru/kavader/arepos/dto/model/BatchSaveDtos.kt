@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import ru.kavader.arepos.util.BatchDeleteListDeserializer
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 data class BatchDeleteEntry(
     val id: UUID,
@@ -171,11 +171,6 @@ data class BatchConflictItem(
     val id: UUID,
     val serverUpdatedAt: Instant?,
     val clientBaseUpdatedAt: Instant?
-)
-
-data class BatchSaveConflictBody(
-    val message: String,
-    val conflicts: List<BatchConflictItem>
 )
 
 class BatchSaveConflictException(

@@ -3,7 +3,7 @@ package ru.kavader.arepos.model
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Entity
 @Table(
@@ -18,11 +18,11 @@ class DiagramEditLocks(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "diagram_id", nullable = false, unique = true)
-    val diagram: Diagrams,
+    var diagram: Diagrams,
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "locked_by_user_id", nullable = false)

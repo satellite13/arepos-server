@@ -2,22 +2,27 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import ru.kavader.arepos.dto.notation.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.notation.NotationMapper
+import ru.kavader.arepos.dto.notation.RelationRequest
+import ru.kavader.arepos.dto.notation.RelationResponse
+import ru.kavader.arepos.dto.notation.RelationUpdateRequest
+import ru.kavader.arepos.model.LinkTypes
+import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.Relations
+import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.RelationsRepository
-import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
+import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/relations")
@@ -58,30 +63,15 @@ class RelationsController(
     @GetMapping("/{id}")
     @Operation(summary = "Get relation by id")
     fun getRelation(@PathVariable id: UUID): RelationResponse =
-        relationsRepository.findById(id)
-            .map {
-                accessService.requireCanViewRelation(it)
-                notationMapper.toResponse(it)
-            }
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $id not found")
-            }
+        notationMapper.toResponse(findRelationForView(id))
 
     @PostMapping
     @Operation(summary = "Create relation")
     @ResponseStatus(HttpStatus.CREATED)
     fun createRelation(@RequestBody request: RelationRequest): RelationResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
-        val notation = notationsRepository.findById(request.notationId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${request.notationId} not found")
-            }
-        accessService.requireCanEditNotation(notation)
-        val linkType = linkTypesRepository.findById(request.linkTypeId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${request.linkTypeId} not found")
-            }
-        typeUsageAuthorization.requireCanUseLinkTypeForNotation(linkType, notation)
+        val notation = findEditableNotation(request.notationId)
+        val linkType = authorizedLinkType(request.linkTypeId, notation)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
         val saved = relationsRepository.save(
@@ -105,51 +95,70 @@ class RelationsController(
         @PathVariable id: UUID,
         @RequestBody request: RelationUpdateRequest
     ): RelationResponse {
-        val relation = relationsRepository.findById(id)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $id not found")
-            }
-        accessService.requireCanEditRelation(relation)
-
+        val relation = findEditableRelation(id)
         val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, relation.owner)
-        val notation = request.notationId?.let {
-            notationsRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $it not found")
-            }
-        }?.also { newNotation ->
-            accessService.requireCanEditNotation(newNotation)
-        } ?: relation.notation
-        val linkType = request.linkTypeId?.let {
-            linkTypesRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $it not found")
-            }
-        }?.also { newLinkType ->
-            typeUsageAuthorization.requireCanUseLinkTypeForNotation(newLinkType, notation)
-        } ?: relation.linkType
+        val notation = resolveNotationForUpdate(request.notationId, relation.notation)
+        val linkType = resolveLinkTypeForUpdate(request.linkTypeId, notation, relation.linkType)
 
-        mdFileLinkValidator.validate(request.attrs)
-        val updated = relationsRepository.save(
-            relation.copy(
-                name = request.name ?: relation.name,
-                attrs = request.attrs ?: relation.attrs,
-                version = request.version ?: relation.version,
-                owner = owner,
-                notation = notation,
-                linkType = linkType
-            )
+        return NotationBoundEntityWriteSupport.persistUpdate(
+            entity = relation,
+            request = request,
+            owner = owner,
+            notation = notation,
+            mdFileLinkValidator = mdFileLinkValidator,
+            applyExtra = { this.linkType = linkType },
+            save = relationsRepository::save,
+            toResponse = notationMapper::toResponse
         )
-        return notationMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete relation")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteRelation(@PathVariable id: UUID) {
-        val relation = relationsRepository.findById(id)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $id not found")
-            }
-        accessService.requireCanEditRelation(relation)
+        findEditableRelation(id)
         relationsRepository.deleteById(id)
     }
+
+    private fun findRelationOrThrow(id: UUID): Relations =
+        relationsRepository.findById(id).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Relation $id not found")
+        }
+
+    private fun findRelationForView(id: UUID): Relations {
+        val relation = findRelationOrThrow(id)
+        accessService.requireCanViewRelation(relation)
+        return relation
+    }
+
+    private fun findEditableRelation(id: UUID): Relations {
+        val relation = findRelationOrThrow(id)
+        accessService.requireCanEditRelation(relation)
+        return relation
+    }
+
+    private fun findNotationOrThrow(id: UUID): Notations =
+        notationsRepository.findById(id).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
+        }
+
+    private fun findEditableNotation(notationId: UUID): Notations =
+        findNotationOrThrow(notationId).also { accessService.requireCanEditNotation(it) }
+
+    private fun resolveNotationForUpdate(requestNotationId: UUID?, current: Notations): Notations =
+        requestNotationId?.let { findEditableNotation(it) } ?: current
+
+    private fun authorizedLinkType(linkTypeId: UUID, notation: Notations): LinkTypes {
+        val linkType = linkTypesRepository.findById(linkTypeId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $linkTypeId not found")
+        }
+        typeUsageAuthorization.requireCanUseLinkTypeForNotation(linkType, notation)
+        return linkType
+    }
+
+    private fun resolveLinkTypeForUpdate(
+        requestLinkTypeId: UUID?,
+        notation: Notations,
+        current: LinkTypes
+    ): LinkTypes = requestLinkTypeId?.let { authorizedLinkType(it, notation) } ?: current
 }

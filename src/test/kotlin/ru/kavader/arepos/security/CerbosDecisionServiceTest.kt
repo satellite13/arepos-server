@@ -10,11 +10,11 @@ import org.springframework.security.core.context.SecurityContextHolder
 import ru.kavader.arepos.config.CerbosProperties
 import java.net.InetSocketAddress
 import java.time.Duration
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class CerbosDecisionServiceTest {
@@ -32,12 +32,12 @@ class CerbosDecisionServiceTest {
 
         assertFailsWith<IllegalStateException> {
             service.check(
-            CerbosAccessRequest(
-                resourceKind = CerbosResourceKind.MODEL,
-                action = CerbosAction.VIEW,
-                resourceId = UUID.randomUUID()
+                CerbosAccessRequest(
+                    resourceKind = CerbosResourceKind.MODEL,
+                    action = CerbosAction.VIEW,
+                    resourceId = UUID.randomUUID()
+                )
             )
-        )
         }
     }
 
@@ -92,7 +92,7 @@ class CerbosDecisionServiceTest {
 
     @Test
     fun `includes extra resource attributes in request payload`() {
-        val capturedBody = AtomicReference<String>("")
+        val capturedBody = AtomicReference("")
         withServer(
             body = """{"results":[{"actions":{"view":"EFFECT_ALLOW"}}]}""",
             onRequest = { payload -> capturedBody.set(payload) }
@@ -129,7 +129,7 @@ class CerbosDecisionServiceTest {
 
     @Test
     fun `supports batch decisions in single request`() {
-        val capturedBody = AtomicReference<String>("")
+        val capturedBody = AtomicReference("")
         withServer(
             body = """{"results":[{"resource":{"id":"11111111-1111-1111-1111-111111111111"},"actions":{"view":"EFFECT_ALLOW"}},{"resource":{"id":"22222222-2222-2222-2222-222222222222"},"actions":{"view":"EFFECT_DENY"}}]}""",
             onRequest = { payload -> capturedBody.set(payload) }

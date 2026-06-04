@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @EnableConfigurationProperties(CerbosProperties::class)
 class CerbosConfig(
-    private val cerbosProperties: CerbosProperties
+    cerbosProperties: CerbosProperties
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(CerbosConfig::class.java)

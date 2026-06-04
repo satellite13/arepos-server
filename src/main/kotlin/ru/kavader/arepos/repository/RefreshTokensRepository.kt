@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.RefreshTokens
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Repository
 interface RefreshTokensRepository : JpaRepository<RefreshTokens, UUID> {

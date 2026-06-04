@@ -6,10 +6,9 @@ import org.mockito.Mockito
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.repository.FilesRepository
-import java.util.UUID
+import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertTrue
 
 class MdFileLinkValidatorTest {
 
@@ -52,6 +51,6 @@ class MdFileLinkValidatorTest {
         }
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-        assertTrue(ex.reason?.contains(fileId.toString()) == true)
+        assertEquals(ex.reason?.contains(fileId.toString()), true)
     }
 }

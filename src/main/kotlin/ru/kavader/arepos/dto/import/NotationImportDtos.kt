@@ -3,7 +3,7 @@ package ru.kavader.arepos.dto.import
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
-import java.util.UUID
+import java.util.*
 
 data class NotationImportRequest(
     @field:Valid

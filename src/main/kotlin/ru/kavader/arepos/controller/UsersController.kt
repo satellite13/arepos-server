@@ -17,7 +17,7 @@ import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.UserProfileAttrsService
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -180,15 +180,12 @@ class UsersController(
             )
         )
 
-        val updated = usersRepository.save(
-            user.copy(
-                email = request.email ?: user.email,
-                attrs = nextAttrs,
-                role = request.role ?: user.role,
-                isActive = request.isActive ?: user.isActive,
-                passwordHash = request.password?.let(passwordEncoder::encode) ?: user.passwordHash
-            )
-        )
+        user.email = request.email ?: user.email
+        user.attrs = nextAttrs
+        user.role = request.role ?: user.role
+        user.isActive = request.isActive ?: user.isActive
+        user.passwordHash = request.password?.let(passwordEncoder::encode) ?: user.passwordHash
+        val updated = usersRepository.save(user)
         return userMapper.toResponse(updated)
     }
 
@@ -203,19 +200,16 @@ class UsersController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $currentUserId not found")
             }
 
-        val updated = usersRepository.save(
-            user.copy(
-                attrs = userProfileAttrsService.mergeProfile(
-                    existingAttrs = user.attrs,
-                    patch = UserProfilePatch(
-                        firstName = request.firstName,
-                        lastName = request.lastName,
-                        middleName = request.middleName,
-                        position = request.position
-                    )
-                )
+        user.attrs = userProfileAttrsService.mergeProfile(
+            existingAttrs = user.attrs,
+            patch = UserProfilePatch(
+                firstName = request.firstName,
+                lastName = request.lastName,
+                middleName = request.middleName,
+                position = request.position
             )
         )
+        val updated = usersRepository.save(user)
 
         return userMapper.toPublicResponse(updated)
     }
@@ -230,7 +224,6 @@ class UsersController(
         }
         usersRepository.deleteById(id)
     }
-
 
 
     private fun requirePublicUserVisible(user: Users) {

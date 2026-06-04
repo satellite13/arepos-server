@@ -3,10 +3,10 @@ package ru.kavader.arepos.controller
 import org.hamcrest.Matchers.hasItems
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.doAnswer
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
-import org.mockito.Mockito.doAnswer
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -20,7 +20,7 @@ import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @SpringBootTest
 @AutoConfigureMockMvc

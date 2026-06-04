@@ -8,8 +8,7 @@ import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.RelationRules
 import ru.kavader.arepos.model.Relations
-import ru.kavader.arepos.model.Users
-import java.util.UUID
+import java.util.*
 
 @Repository
 interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
@@ -19,6 +18,7 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
         fromComponent: ru.kavader.arepos.model.Components,
         toComponent: ru.kavader.arepos.model.Components
     ): Boolean
+
     fun existsByRelationAndFromComponentAndToComponentAndIdNot(
         relation: Relations,
         fromComponent: ru.kavader.arepos.model.Components,

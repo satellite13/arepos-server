@@ -11,7 +11,7 @@ import ru.kavader.arepos.config.MdcRequestId
 import ru.kavader.arepos.metrics.ModelSyncMetrics
 import ru.kavader.arepos.repository.ModelSyncOutboxRepository
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Service
 class ModelSyncOutboxPublishService(
@@ -25,6 +25,7 @@ class ModelSyncOutboxPublishService(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val maxAttempts = 25
+
     private data class PendingOutboxRow(
         val id: UUID,
         val modelId: UUID,

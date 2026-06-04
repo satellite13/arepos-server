@@ -8,11 +8,9 @@ import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mock
-import org.mockito.junit.jupiter.MockitoExtension
-import org.mockito.Mockito.never
-import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
+import org.mockito.Mockito.*
 import org.mockito.invocation.InvocationOnMock
+import org.mockito.junit.jupiter.MockitoExtension
 import org.springframework.messaging.simp.SimpMessagingTemplate
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.model.ModelSyncOutbox
@@ -21,8 +19,7 @@ import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.ModelSyncOutboxRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import java.time.Instant
-import java.util.Optional
-import java.util.UUID
+import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 

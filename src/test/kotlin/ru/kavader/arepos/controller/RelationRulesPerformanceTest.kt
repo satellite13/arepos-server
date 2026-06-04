@@ -7,37 +7,32 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import ru.kavader.arepos.model.Components
-import ru.kavader.arepos.model.LinkTypes
-import ru.kavader.arepos.model.NodeTypes
-import ru.kavader.arepos.model.Notations
-import ru.kavader.arepos.model.RelationRules
-import ru.kavader.arepos.model.Relations
-import ru.kavader.arepos.model.Role
-import ru.kavader.arepos.model.Users
-import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.RelationRulesRepository
-import ru.kavader.arepos.repository.RelationsRepository
-import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.model.*
+import ru.kavader.arepos.repository.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 import kotlin.math.ceil
 
 @SpringBootTest
 @AutoConfigureMockMvc
 class RelationRulesPerformanceTest : ControllerIntegrationTest() {
 
-    @Autowired lateinit var mockMvc: MockMvc
-    @Autowired lateinit var usersRepository: UsersRepository
-    @Autowired lateinit var notationsRepository: NotationsRepository
-    @Autowired lateinit var nodeTypesRepository: NodeTypesRepository
-    @Autowired lateinit var linkTypesRepository: LinkTypesRepository
-    @Autowired lateinit var componentsRepository: ComponentsRepository
-    @Autowired lateinit var relationsRepository: RelationsRepository
-    @Autowired lateinit var relationRulesRepository: RelationRulesRepository
+    @Autowired
+    lateinit var mockMvc: MockMvc
+    @Autowired
+    lateinit var usersRepository: UsersRepository
+    @Autowired
+    lateinit var notationsRepository: NotationsRepository
+    @Autowired
+    lateinit var nodeTypesRepository: NodeTypesRepository
+    @Autowired
+    lateinit var linkTypesRepository: LinkTypesRepository
+    @Autowired
+    lateinit var componentsRepository: ComponentsRepository
+    @Autowired
+    lateinit var relationsRepository: RelationsRepository
+    @Autowired
+    lateinit var relationRulesRepository: RelationRulesRepository
 
     @Test
     fun `prints baseline p95 and payload size for heavy notation`() {
@@ -51,9 +46,9 @@ class RelationRulesPerformanceTest : ControllerIntegrationTest() {
         val notation = createNotation(owner)
         val nodeType = createNodeType(owner)
         val linkType = createLinkType(owner)
-        val components = createComponents(owner, notation, nodeType, count = 80)
-        val relations = createRelations(owner, notation, linkType, count = 6)
-        createRules(owner, relations, components, targetRules = 2200)
+        val components = 80.createComponents(owner, notation, nodeType)
+        val relations = 6.createRelations(owner, notation, linkType)
+        2200.createRules(owner, relations, components)
 
         val withAttrs = measure(ownerId = owner.id!!, notationId = notation.id!!.toString(), includeAttrs = true)
         val withoutAttrs = measure(
@@ -142,12 +137,11 @@ class RelationRulesPerformanceTest : ControllerIntegrationTest() {
         )
     )
 
-    private fun createComponents(
+    private fun Int.createComponents(
         owner: Users,
         notation: Notations,
-        nodeType: NodeTypes,
-        count: Int
-    ): List<Components> = (0 until count).map { index ->
+        nodeType: NodeTypes
+    ): List<Components> = (0 until this).map { index ->
         componentsRepository.save(
             Components(
                 name = "comp-$index",
@@ -161,12 +155,11 @@ class RelationRulesPerformanceTest : ControllerIntegrationTest() {
         )
     }
 
-    private fun createRelations(
+    private fun Int.createRelations(
         owner: Users,
         notation: Notations,
-        linkType: LinkTypes,
-        count: Int
-    ): List<Relations> = (0 until count).map { index ->
+        linkType: LinkTypes
+    ): List<Relations> = (0 until this).map { index ->
         relationsRepository.save(
             Relations(
                 name = "rel-$index",
@@ -180,11 +173,10 @@ class RelationRulesPerformanceTest : ControllerIntegrationTest() {
         )
     }
 
-    private fun createRules(
+    private fun Int.createRules(
         owner: Users,
         relations: List<Relations>,
-        components: List<Components>,
-        targetRules: Int
+        components: List<Components>
     ) {
         var created = 0
         val attrsPayload = "x".repeat(220)
@@ -204,7 +196,7 @@ class RelationRulesPerformanceTest : ControllerIntegrationTest() {
                     )
                 )
                 created += 1
-                if (created >= targetRules) break@loop
+                if (created >= this) break@loop
             }
         }
     }

@@ -6,12 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
-import ru.kavader.arepos.model.Links
-import ru.kavader.arepos.model.LinkTypes
-import ru.kavader.arepos.model.Models
-import ru.kavader.arepos.model.Nodes
-import ru.kavader.arepos.model.Users
-import java.util.UUID
+import ru.kavader.arepos.model.*
+import java.util.*
 
 @Repository
 interface LinksRepository : JpaRepository<Links, UUID> {

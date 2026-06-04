@@ -12,7 +12,7 @@ import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.ModelDiffResponse
 import ru.kavader.arepos.service.ModelDiffService
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/models")

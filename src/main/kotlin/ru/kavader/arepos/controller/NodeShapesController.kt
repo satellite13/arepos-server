@@ -1,29 +1,23 @@
 package ru.kavader.arepos.controller
 
-import ru.kavader.arepos.dto.notation.*
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
-import org.springframework.web.bind.annotation.DeleteMapping
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.PutMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.bind.annotation.ResponseStatus
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.notation.NodeShapeRequest
+import ru.kavader.arepos.dto.notation.NodeShapeResponse
+import ru.kavader.arepos.dto.notation.NodeShapeUpdateRequest
+import ru.kavader.arepos.dto.notation.NotationMapper
 import ru.kavader.arepos.model.NodeShapes
 import ru.kavader.arepos.repository.NodeShapesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/node-shapes")
@@ -50,6 +44,7 @@ class NodeShapesController(
                 }
                 nodeShapesRepository.findByOwner(owner, Pageable.unpaged()).content
             }
+
             else -> nodeShapesRepository.findAll(Pageable.unpaged()).content
         }
         val normalizedName = name?.trim().orEmpty()
@@ -104,15 +99,12 @@ class NodeShapesController(
             ResponseStatusException(HttpStatus.NOT_FOUND, "NodeShape $id not found")
         }
         accessService.requireCanEditNodeShape(shape)
-        val updated = nodeShapesRepository.save(
-            shape.copy(
-                name = request.name ?: shape.name,
-                outline = request.outline ?: shape.outline,
-                contentArea = request.contentArea ?: shape.contentArea,
-                attrs = request.attrs ?: shape.attrs,
-                updatedAt = Instant.now()
-            )
-        )
+        shape.name = request.name ?: shape.name
+        shape.outline = request.outline ?: shape.outline
+        shape.contentArea = request.contentArea ?: shape.contentArea
+        shape.attrs = request.attrs ?: shape.attrs
+        shape.updatedAt = Instant.now()
+        val updated = nodeShapesRepository.save(shape)
         return notationMapper.toResponse(updated)
     }
 

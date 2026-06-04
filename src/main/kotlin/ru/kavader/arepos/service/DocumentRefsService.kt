@@ -7,24 +7,10 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.document.DocumentItem
 import ru.kavader.arepos.dto.document.RegisterDocumentRefRequest
 import ru.kavader.arepos.model.DocumentRefs
-import ru.kavader.arepos.model.Files
-import ru.kavader.arepos.model.Users
-import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.DiagramsRepository
-import ru.kavader.arepos.repository.DocumentRefsRepository
-import ru.kavader.arepos.repository.FilesRepository
-import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodeShapesRepository
-import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.NodesRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.RelationsRepository
-import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
-import java.util.UUID
-import kotlin.comparisons.compareBy
+import java.util.*
 
 @Service
 class DocumentRefsService(
@@ -49,7 +35,7 @@ class DocumentRefsService(
      */
     @Transactional(readOnly = true)
     fun requireCanModifyMarkdownForLinkedEntities(fileId: UUID) {
-        val refs = documentRefsRepository.findAllByFile_Id(fileId)
+        val refs = documentRefsRepository.findAllByFileId(fileId)
         for (ref in refs) {
             ref.model?.let { accessService.requireCanEditModel(it) }
             ref.node?.let { accessService.requireCanEditNode(it) }
@@ -73,9 +59,9 @@ class DocumentRefsService(
         accessService.requireCanViewFile(file)
 
         val hasContext = request.modelId != null || request.notationId != null ||
-            request.componentId != null || request.nodeId != null ||
-            request.nodeTypeId != null || request.linkTypeId != null ||
-            request.diagramId != null || request.relationId != null || request.nodeShapeId != null
+                request.componentId != null || request.nodeId != null ||
+                request.nodeTypeId != null || request.linkTypeId != null ||
+                request.diagramId != null || request.relationId != null || request.nodeShapeId != null
         if (!hasContext) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one context id must be set")
         }
@@ -127,11 +113,11 @@ class DocumentRefsService(
         }
 
         request.nodeTypeId?.let { nodeTypeId ->
-            documentRefsRepository.findFirstByFile_IdAndNodeType_Id(request.fileId, nodeTypeId)
+            documentRefsRepository.findFirstByFileIdAndNodeTypeId(request.fileId, nodeTypeId)
                 .orElse(null)?.let { existing -> return refToDocumentItem(existing) }
         }
         request.linkTypeId?.let { linkTypeId ->
-            documentRefsRepository.findFirstByFile_IdAndLinkType_Id(request.fileId, linkTypeId)
+            documentRefsRepository.findFirstByFileIdAndLinkTypeId(request.fileId, linkTypeId)
                 .orElse(null)?.let { existing -> return refToDocumentItem(existing) }
         }
 
@@ -206,8 +192,8 @@ class DocumentRefsService(
             nodeShapeId = nodeShapeId
         )
         val withContext = modelId == null && notationId == null && componentId == null &&
-            nodeId == null && nodeTypeId == null && linkTypeId == null &&
-            diagramId == null && relationId == null && nodeShapeId == null
+                nodeId == null && nodeTypeId == null && linkTypeId == null &&
+                diagramId == null && relationId == null && nodeShapeId == null
         if (!withContext) {
             val seen = mutableSetOf<UUID>()
             return refs.mapNotNull { ref ->

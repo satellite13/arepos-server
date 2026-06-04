@@ -17,7 +17,7 @@ import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Duration
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 @Service
@@ -32,7 +32,7 @@ class DiagramCollaborationService(
     private val log = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        val MAX_LIVE_PAYLOAD_BYTES: Int = 512 * 1024
+        const val MAX_LIVE_PAYLOAD_BYTES: Int = 512 * 1024
         val SPECTATOR_TTL: Duration = Duration.ofSeconds(45)
     }
 

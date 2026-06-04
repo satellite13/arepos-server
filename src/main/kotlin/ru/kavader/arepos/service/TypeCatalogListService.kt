@@ -5,23 +5,18 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.controller.OwnerNamePageQueries
+import ru.kavader.arepos.controller.listPageByOwnerAndName
 import ru.kavader.arepos.controller.normalizedNameOrEmpty
 import ru.kavader.arepos.controller.toPage
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.Users
-import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.LinksRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.NodesRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.RelationsRepository
+import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
-import java.util.UUID
+import java.util.*
 
 @Service
 class TypeCatalogListService(
@@ -82,16 +77,17 @@ class TypeCatalogListService(
                     }
                 },
                 adminList = { effectiveOwner, filterName, pg ->
-                    when {
-                        effectiveOwner != null && filterName != null ->
-                            nodeTypesRepository.findByOwnerAndNameContainingIgnoreCase(effectiveOwner, filterName, pg)
-                        effectiveOwner != null ->
-                            nodeTypesRepository.findByOwner(effectiveOwner, pg)
-                        filterName != null ->
-                            nodeTypesRepository.findByNameContainingIgnoreCase(filterName, pg)
-                        else ->
-                            nodeTypesRepository.findAll(pg)
-                    }
+                    listPageByOwnerAndName(
+                        effectiveOwner = effectiveOwner,
+                        name = filterName,
+                        pageable = pg,
+                        queries = OwnerNamePageQueries(
+                            byOwnerAndName = nodeTypesRepository::findByOwnerAndNameContainingIgnoreCase,
+                            byOwner = nodeTypesRepository::findByOwner,
+                            byName = nodeTypesRepository::findByNameContainingIgnoreCase,
+                            all = { pg -> nodeTypesRepository.findAll(pg) }
+                        )
+                    )
                 }
             )
         )
@@ -140,16 +136,17 @@ class TypeCatalogListService(
                     }
                 },
                 adminList = { effectiveOwner, filterName, pg ->
-                    when {
-                        effectiveOwner != null && filterName != null ->
-                            linkTypesRepository.findByOwnerAndNameContainingIgnoreCase(effectiveOwner, filterName, pg)
-                        effectiveOwner != null ->
-                            linkTypesRepository.findByOwner(effectiveOwner, pg)
-                        filterName != null ->
-                            linkTypesRepository.findByNameContainingIgnoreCase(filterName, pg)
-                        else ->
-                            linkTypesRepository.findAll(pg)
-                    }
+                    listPageByOwnerAndName(
+                        effectiveOwner = effectiveOwner,
+                        name = filterName,
+                        pageable = pg,
+                        queries = OwnerNamePageQueries(
+                            byOwnerAndName = linkTypesRepository::findByOwnerAndNameContainingIgnoreCase,
+                            byOwner = linkTypesRepository::findByOwner,
+                            byName = linkTypesRepository::findByNameContainingIgnoreCase,
+                            all = { pg -> linkTypesRepository.findAll(pg) }
+                        )
+                    )
                 }
             )
         )
@@ -198,9 +195,9 @@ class TypeCatalogListService(
                 val notation = notationsRepository.findById(requestedNotationId).orElseThrow {
                     ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $requestedNotationId not found")
                 }
-                val allowed = when (val model = resolvedModel) {
+                val allowed = when (resolvedModel) {
                     null -> accessService.canViewNotation(notation)
-                    else -> accessService.canUseNotationInModelDiagramEditor(notation, model)
+                    else -> accessService.canUseNotationInModelDiagramEditor(notation, resolvedModel)
                 }
                 if (!allowed) {
                     return@forEach

@@ -2,12 +2,12 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.web.bind.annotation.*
 import jakarta.validation.Valid
+import org.springframework.web.bind.annotation.*
 import ru.kavader.arepos.dto.model.BatchSaveRequest
 import ru.kavader.arepos.dto.model.BatchSaveResponse
 import ru.kavader.arepos.service.ModelBatchSaveService
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/models")

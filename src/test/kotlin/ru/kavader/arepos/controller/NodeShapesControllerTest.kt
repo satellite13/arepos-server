@@ -16,7 +16,7 @@ import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.NodeShapesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @SpringBootTest
 @AutoConfigureMockMvc

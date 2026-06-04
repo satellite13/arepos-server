@@ -2,18 +2,17 @@ package ru.kavader.arepos.service
 
 import io.minio.*
 import io.minio.messages.VersioningConfiguration
-import io.minio.messages.Version
 import org.slf4j.LoggerFactory
-import org.springframework.http.HttpStatus
-import org.springframework.web.server.ResponseStatusException
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.event.ContextRefreshedEvent
 import org.springframework.context.event.EventListener
 import org.springframework.core.io.InputStreamResource
 import org.springframework.core.io.Resource
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
+import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.config.MinioProperties
 import ru.kavader.arepos.model.FileVersions
 import ru.kavader.arepos.model.Files
@@ -90,7 +89,7 @@ class FileStorageService(
             HttpStatus.BAD_REQUEST,
             "File type not allowed: $contentType. Allowed: $ALLOWED_IMAGE_TYPES, $MARKDOWN_TYPE"
         )
-        
+
         val fileId = UUID.randomUUID()
         val objectKey = "uploads/${owner.id!!}/$fileId/${sanitizeFilename(file.originalFilename ?: "file")}"
 
@@ -113,16 +112,19 @@ class FileStorageService(
             createdAt = java.time.Instant.now()
         )
         val saved = filesRepository.save(entity)
-        
+
         // Save version info
         saveVersion(saved, result.versionId(), owner, file.size)
-        
+
         return saved
     }
 
     fun uploadMarkdown(content: String, filename: String, owner: Users): Files {
         val bytes = content.toByteArray(Charsets.UTF_8)
-        if (bytes.size > MAX_SIZE) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Markdown content exceeds 5 MB limit")
+        if (bytes.size > MAX_SIZE) throw ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Markdown content exceeds 5 MB limit"
+        )
 
         val fileId = UUID.randomUUID()
         val safeFilename = sanitizeFilename(filename).let {
@@ -149,10 +151,10 @@ class FileStorageService(
             createdAt = java.time.Instant.now()
         )
         val saved = filesRepository.save(entity)
-        
+
         // Save version info
         saveVersion(saved, result.versionId(), owner, bytes.size.toLong())
-        
+
         return saved
     }
 
@@ -201,10 +203,16 @@ class FileStorageService(
         val file = filesRepository.findById(id).orElse(null)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found: $id")
 
-        if (file.contentType != MARKDOWN_TYPE) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "File is not a markdown file")
+        if (file.contentType != MARKDOWN_TYPE) throw ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "File is not a markdown file"
+        )
 
         val bytes = content.toByteArray(Charsets.UTF_8)
-        if (bytes.size > MAX_SIZE) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Markdown content exceeds 5 MB limit")
+        if (bytes.size > MAX_SIZE) throw ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Markdown content exceeds 5 MB limit"
+        )
 
         val result = minioClient.putObject(
             PutObjectArgs.builder()
@@ -217,19 +225,17 @@ class FileStorageService(
 
         // Save new version
         saveVersion(file, result.versionId(), owner, bytes.size.toLong())
-        
+
         // Update file record with new size
-        val updatedFile = file.copy(
-            size = bytes.size.toLong(),
-            createdAt = java.time.Instant.now()
-        )
-        return filesRepository.save(updatedFile)
+        file.size = bytes.size.toLong()
+        file.createdAt = java.time.Instant.now()
+        return filesRepository.save(file)
     }
 
     private fun saveVersion(file: Files, versionId: String?, owner: Users, size: Long) {
         val lastVersion = fileVersionsRepository.findTopByFileOrderByVersionNumberDesc(file)
         val nextVersionNumber = (lastVersion?.versionNumber ?: 0) + 1
-        
+
         val version = FileVersions(
             file = file,
             versionId = versionId ?: VERSION_ID_NULL_SENTINEL,

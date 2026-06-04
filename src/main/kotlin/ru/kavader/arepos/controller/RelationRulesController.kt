@@ -2,30 +2,31 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import ru.kavader.arepos.dto.notation.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.notation.NotationMapper
+import ru.kavader.arepos.dto.notation.RelationRuleRequest
+import ru.kavader.arepos.dto.notation.RelationRuleResponse
+import ru.kavader.arepos.dto.notation.RelationRuleUpdateRequest
 import ru.kavader.arepos.model.RelationRules
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.RelationRulesRepository
 import ru.kavader.arepos.repository.RelationsRepository
-import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
-import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
+import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/relation-rules")
 @Tag(name = "Relation Rules", description = "Relation rule management endpoints")
 class RelationRulesController(
     private val relationRulesRepository: RelationRulesRepository,
-    private val usersRepository: UsersRepository,
     private val relationsRepository: RelationsRepository,
     private val componentsRepository: ComponentsRepository,
     private val accessService: ResourceAccessService,
@@ -118,7 +119,12 @@ class RelationRulesController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "ToComponent ${request.toComponentId} not found")
             }
         accessService.requireCanEditComponent(toComponent)
-        if (relationRulesRepository.existsByRelationAndFromComponentAndToComponent(relation, fromComponent, toComponent)) {
+        if (relationRulesRepository.existsByRelationAndFromComponentAndToComponent(
+                relation,
+                fromComponent,
+                toComponent
+            )
+        ) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
                 "Relation rule with the same relation/from/to already exists"
@@ -189,15 +195,12 @@ class RelationRulesController(
         }
 
         mdFileLinkValidator.validate(request.attrs)
-        val updated = relationRulesRepository.save(
-            relationRule.copy(
-                owner = owner,
-                attrs = request.attrs ?: relationRule.attrs,
-                relation = relation,
-                fromComponent = fromComponent,
-                toComponent = toComponent
-            )
-        )
+        relationRule.owner = owner
+        relationRule.attrs = request.attrs ?: relationRule.attrs
+        relationRule.relation = relation
+        relationRule.fromComponent = fromComponent
+        relationRule.toComponent = toComponent
+        val updated = relationRulesRepository.save(relationRule)
         return notationMapper.toResponse(updated)
     }
 

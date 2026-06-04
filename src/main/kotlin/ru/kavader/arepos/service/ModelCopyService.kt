@@ -7,17 +7,13 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.model.Diagrams
-import ru.kavader.arepos.model.Links
-import ru.kavader.arepos.model.Models
-import ru.kavader.arepos.model.Nodes
-import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.LinksRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Service
 class ModelCopyService(
@@ -26,6 +22,7 @@ class ModelCopyService(
     private val linksRepository: LinksRepository,
     private val diagramsRepository: DiagramsRepository,
     private val systemRootNodeTypeService: SystemRootNodeTypeService,
+    private val modelAttrsService: ModelAttrsService,
     private val objectMapper: ObjectMapper
 ) {
     companion object {
@@ -71,8 +68,9 @@ class ModelCopyService(
         val sourceRootId = requireNotNull(sourceRoot.id)
         nodeIdMap[sourceRootId] = requireNotNull(newRoot.id)
         copiedNodesBySourceId[sourceRootId] = newRoot
-        val attrsWithRoot = mergeModelAttrsWithRootNodeId(newModel.attrs, newRoot.id!!)
-        modelsRepository.save(newModel.copy(attrs = attrsWithRoot))
+        val attrsWithRoot = modelAttrsService.mergeWithTreeRootNodeId(newModel.attrs, newRoot.id!!)
+        newModel.attrs = attrsWithRoot
+        modelsRepository.save(newModel)
 
         val pendingNodes = sourceNodes.filter { it.id != sourceRoot.id }.toMutableList()
         while (pendingNodes.isNotEmpty()) {
@@ -83,14 +81,16 @@ class ModelCopyService(
                 val sourceParentId = srcNode.parentNode?.id ?: continue
                 val newParent = copiedNodesBySourceId[sourceParentId] ?: continue
                 val saved = nodesRepository.save(
-                    srcNode.copy(
-                        id = null,
+                    Nodes(
                         stableId = srcNode.stableId,
+                        name = srcNode.name,
+                        createdAt = now,
+                        updatedAt = now,
+                        attrs = srcNode.attrs,
                         parentNode = newParent,
                         model = newModel,
                         owner = owner,
-                        createdAt = now,
-                        updatedAt = now
+                        nodeType = srcNode.nodeType
                     )
                 )
                 val sourceNodeId = requireNotNull(srcNode.id)
@@ -103,7 +103,7 @@ class ModelCopyService(
                 val unmapped = pendingNodes.firstOrNull()
                 throw IllegalStateException(
                     "Parent node not yet mapped for node ${unmapped?.id}. " +
-                        "Check that all nodes have a path to root (no cycles or broken parent links)."
+                            "Check that all nodes have a path to root (no cycles or broken parent links)."
                 )
             }
         }
@@ -202,19 +202,4 @@ class ModelCopyService(
         }
     }
 
-    private fun mergeModelAttrsWithRootNodeId(existingAttrs: String?, rootNodeId: UUID): String {
-        val rootId = rootNodeId.toString()
-        val baseNode = try {
-            existingAttrs
-                ?.takeIf { it.isNotBlank() }
-                ?.let { objectMapper.readTree(it) }
-                ?.takeIf { it.isObject }
-                ?.deepCopy<ObjectNode>()
-                ?: objectMapper.createObjectNode()
-        } catch (_: Exception) {
-            objectMapper.createObjectNode()
-        }
-        baseNode.put("treeRootNodeId", rootId)
-        return objectMapper.writeValueAsString(baseNode)
-    }
 }

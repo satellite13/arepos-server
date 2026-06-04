@@ -24,8 +24,10 @@ class DiagramsRepositoryTest : RepositoryTestBase() {
         val model = persistModel()
         val notation = persistNotation(owner = model.owner)
         persistDiagram(model = model, notation = notation, name = "active-diagram", version = "1.0.0")
-        val deletedDiagram = persistDiagram(model = model, notation = notation, name = "deleted-diagram", version = "1.0.1")
-        diagramsRepository.save(deletedDiagram.copy(deleted = true))
+        val deletedDiagram =
+            persistDiagram(model = model, notation = notation, name = "deleted-diagram", version = "1.0.1")
+        deletedDiagram.deleted = true
+        diagramsRepository.save(deletedDiagram)
 
         val diagrams = diagramsRepository.findByFilters(
             ownerId = null,
@@ -62,7 +64,14 @@ class DiagramsRepositoryTest : RepositoryTestBase() {
         )
 
         assertTrue(diagramsRepository.existsByModelAndNameAndVersion(model, "diagram-unique", "2.1.0"))
-        assertFalse(diagramsRepository.existsByModelAndNameAndVersionAndIdNot(model, "diagram-unique", "2.1.0", first.id!!))
+        assertFalse(
+            diagramsRepository.existsByModelAndNameAndVersionAndIdNot(
+                model,
+                "diagram-unique",
+                "2.1.0",
+                first.id!!
+            )
+        )
     }
 
     @Test

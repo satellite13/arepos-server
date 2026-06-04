@@ -1,9 +1,10 @@
 package ru.kavader.arepos.service.modelbatch
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import org.springframework.stereotype.Component
-import java.util.UUID
+import java.util.*
 
 @Component
 class DiagramAttrsRemapper(
@@ -26,47 +27,42 @@ class DiagramAttrsRemapper(
         val instances = rootObj.get("instances")
         if (instances != null && instances.isObject) {
             val instObj = instances as ObjectNode
-            val inNodes = instObj.get("nodes")
-            if (inNodes != null && inNodes.isArray) {
-                for (element in inNodes) {
-                    if (element is ObjectNode) {
-                        changed = remapField(element, "modelNodeId", nodeIdMap) || changed
-                    }
-                }
-            }
-            val inEdges = instObj.get("edges")
-            if (inEdges != null && inEdges.isArray) {
-                for (element in inEdges) {
-                    if (element is ObjectNode) {
-                        changed = remapField(element, "modelLinkId", linkIdMap) || changed
-                        changed = remapField(element, "sourceModelNodeId", nodeIdMap) || changed
-                        changed = remapField(element, "targetModelNodeId", nodeIdMap) || changed
-                    }
-                }
-            }
+            changed = "nodes".remapNodesArray(instObj, nodeIdMap) || false
+            changed = "edges".remapEdgesArray(instObj, nodeIdMap, linkIdMap) || changed
         }
 
-        val nodesArray = rootObj.get("nodes")
-        if (nodesArray != null && nodesArray.isArray) {
-            for (element in nodesArray) {
-                if (element is ObjectNode) {
-                    changed = remapField(element, "modelNodeId", nodeIdMap) || changed
-                }
-            }
-        }
-
-        val edgesArray = rootObj.get("edges")
-        if (edgesArray != null && edgesArray.isArray) {
-            for (element in edgesArray) {
-                if (element is ObjectNode) {
-                    changed = remapField(element, "modelLinkId", linkIdMap) || changed
-                    changed = remapField(element, "sourceModelNodeId", nodeIdMap) || changed
-                    changed = remapField(element, "targetModelNodeId", nodeIdMap) || changed
-                }
-            }
-        }
+        changed = "nodes".remapNodesArray(rootObj, nodeIdMap) || changed
+        changed = "edges".remapEdgesArray(rootObj, nodeIdMap, linkIdMap) || changed
 
         return if (changed) objectMapper.writeValueAsString(rootObj) else attrs
+    }
+
+    private fun String.remapNodesArray(parent: ObjectNode, nodeIdMap: Map<String, UUID>): Boolean {
+        val array = parent.get(this) as? ArrayNode ?: return false
+        var changed = false
+        for (element in array) {
+            if (element is ObjectNode) {
+                changed = remapField(element, "modelNodeId", nodeIdMap) || changed
+            }
+        }
+        return changed
+    }
+
+    private fun String.remapEdgesArray(
+        parent: ObjectNode,
+        nodeIdMap: Map<String, UUID>,
+        linkIdMap: Map<String, UUID>
+    ): Boolean {
+        val array = parent.get(this) as? ArrayNode ?: return false
+        var changed = false
+        for (element in array) {
+            if (element is ObjectNode) {
+                changed = remapField(element, "modelLinkId", linkIdMap) || changed
+                changed = remapField(element, "sourceModelNodeId", nodeIdMap) || changed
+                changed = remapField(element, "targetModelNodeId", nodeIdMap) || changed
+            }
+        }
+        return changed
     }
 
     private fun remapField(obj: ObjectNode, field: String, idMap: Map<String, UUID>): Boolean {

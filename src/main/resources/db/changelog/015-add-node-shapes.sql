@@ -5,7 +5,7 @@ create table public.node_shapes
         constraint node_shapes_pk
             primary key,
     name       varchar(255)                        not null,
-    owner      uuid                                 not null
+    owner      uuid                                not null
         constraint node_shapes_users_id_fk
             references public.users
             on delete cascade,

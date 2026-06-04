@@ -1,6 +1,6 @@
 package ru.kavader.arepos.service
 
-import java.util.UUID
+import java.util.*
 
 sealed interface DiagramSvgReadResult {
     data class Found(val bytes: ByteArray) : DiagramSvgReadResult {
@@ -12,6 +12,7 @@ sealed interface DiagramSvgReadResult {
 
         override fun hashCode(): Int = bytes.contentHashCode()
     }
+
     data object NotFound : DiagramSvgReadResult
     data class StorageError(val message: String? = null) : DiagramSvgReadResult
 }
@@ -23,7 +24,7 @@ sealed interface DiagramSvgWriteResult {
 }
 
 /**
- * Storage for diagram SVG previews (e.g. in MinIO).
+ * Storage for diagram SVG previews (e.g., in MinIO).
  * When MinIO is disabled, a no-op implementation is used.
  */
 interface DiagramSvgStorage {

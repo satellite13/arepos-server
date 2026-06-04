@@ -1,5 +1,4 @@
 package ru.kavader.arepos.controller
-import ru.kavader.arepos.dto.notation.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
@@ -12,20 +11,9 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import ru.kavader.arepos.model.Components
-import ru.kavader.arepos.model.Diagrams
-import ru.kavader.arepos.model.Models
-import ru.kavader.arepos.model.Role
-import ru.kavader.arepos.model.ResourceShares
-import ru.kavader.arepos.model.SharePermission
-import ru.kavader.arepos.model.ShareResourceType
-import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.DiagramsRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.ResourceSharesRepository
-import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.dto.notation.NodeTypeRequest
+import ru.kavader.arepos.model.*
+import ru.kavader.arepos.repository.*
 import java.time.Instant
 import kotlin.test.assertEquals
 

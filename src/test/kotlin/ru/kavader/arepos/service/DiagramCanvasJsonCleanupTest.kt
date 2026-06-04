@@ -2,7 +2,7 @@ package ru.kavader.arepos.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
-import java.util.UUID
+import java.util.*
 import kotlin.test.assertEquals
 
 class DiagramCanvasJsonCleanupTest {
@@ -16,7 +16,7 @@ class DiagramCanvasJsonCleanupTest {
             {
               "instances": {
                 "nodes": [
-                  { "id": "i1", "modelNodeId": "${na}", "x": 0, "y": 0 },
+                  { "id": "i1", "modelNodeId": "$na", "x": 0, "y": 0 },
                   { "id": "i2", "modelNodeId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "x": 1, "y": 1 }
                 ],
                 "edges": [
@@ -45,7 +45,7 @@ class DiagramCanvasJsonCleanupTest {
                   { "id": "i2", "modelNodeId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "x": 1, "y": 1 }
                 ],
                 "edges": [
-                  { "id": "e1", "modelLinkId": "${linkId}",
+                  { "id": "e1", "modelLinkId": "$linkId",
                     "sourceInstanceId": "i1", "targetInstanceId": "i2" }
                 ]
               }
@@ -68,7 +68,7 @@ class DiagramCanvasJsonCleanupTest {
                   { "id": "i2", "modelNodeId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "x": 1, "y": 1 }
                 ],
                 "edges": [
-                  { "id": "e1", "modelLinkId": "${linkId}",
+                  { "id": "e1", "modelLinkId": "$linkId",
                     "sourceInstanceId": "i1", "targetInstanceId": "i2",
                     "attrs": { "isDiagramOnly": true } },
                   { "id": "e2", "modelLinkId": "$noteId",
@@ -89,7 +89,7 @@ class DiagramCanvasJsonCleanupTest {
         val json = """
             {
               "nodes": [
-                { "id": "i1", "modelNodeId": "${na}", "x": 0, "y": 0 }
+                { "id": "i1", "modelNodeId": "$na", "x": 0, "y": 0 }
               ],
               "edges": [
                 { "id": "e1", "modelLinkId": "cccccccc-cccc-cccc-cccc-cccccccccccc",

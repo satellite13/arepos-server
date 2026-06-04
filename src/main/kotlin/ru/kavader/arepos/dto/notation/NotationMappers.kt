@@ -1,13 +1,7 @@
 package ru.kavader.arepos.dto.notation
 
 import org.springframework.stereotype.Component
-import ru.kavader.arepos.model.Components
-import ru.kavader.arepos.model.LinkTypes
-import ru.kavader.arepos.model.NodeShapes
-import ru.kavader.arepos.model.NodeTypes
-import ru.kavader.arepos.model.Notations
-import ru.kavader.arepos.model.RelationRules
-import ru.kavader.arepos.model.Relations
+import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.RelationRuleListLightProjection
 import ru.kavader.arepos.repository.RelationRuleListProjection
 import ru.kavader.arepos.security.ResourceAccessService

@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.ModelSyncOutbox
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Repository
 interface ModelSyncOutboxRepository : JpaRepository<ModelSyncOutbox, UUID> {

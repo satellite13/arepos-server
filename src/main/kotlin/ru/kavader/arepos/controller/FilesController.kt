@@ -1,11 +1,9 @@
 package ru.kavader.arepos.controller
 
-import ru.kavader.arepos.dto.file.*
-import ru.kavader.arepos.dto.common.ListResponse
-import ru.kavader.arepos.dto.common.toListResponse
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -13,7 +11,11 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
-import jakarta.validation.Valid
+import ru.kavader.arepos.dto.common.ListResponse
+import ru.kavader.arepos.dto.common.toListResponse
+import ru.kavader.arepos.dto.file.FileUploadResponse
+import ru.kavader.arepos.dto.file.FileVersionResponse
+import ru.kavader.arepos.dto.file.UploadMarkdownRequest
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.DocumentRefsService

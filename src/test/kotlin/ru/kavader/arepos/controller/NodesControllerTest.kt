@@ -1,5 +1,4 @@
 package ru.kavader.arepos.controller
-import ru.kavader.arepos.dto.model.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
@@ -9,16 +8,15 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.dto.model.NodeRequest
+import ru.kavader.arepos.dto.model.NodeUpdateRequest
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
+import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import java.util.*
@@ -105,7 +103,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
         nodesRepository.saveAll(
             listOf(
                 ru.kavader.arepos.model.Nodes(
-                    stableId = java.util.UUID.randomUUID(),
+                    stableId = UUID.randomUUID(),
                     name = "Node-A",
                     model = model,
                     owner = owner,
@@ -113,7 +111,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
                     createdAt = Instant.now()
                 ),
                 ru.kavader.arepos.model.Nodes(
-                    stableId = java.util.UUID.randomUUID(),
+                    stableId = UUID.randomUUID(),
                     name = "Node-B",
                     model = model,
                     owner = owner,
@@ -135,7 +133,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
     fun `preserves existing parent when parentNodeId is omitted from update`() {
         val folder = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 name = "Folder",
                 model = model,
                 owner = owner,
@@ -145,7 +143,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
         )
         val child = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 name = "Child",
                 model = model,
                 owner = owner,
@@ -183,7 +181,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
     fun `forbids update of system tree root node`() {
         val rootNode = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 name = "__model_tree_root__",
                 model = model,
                 owner = owner,
@@ -214,7 +212,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
     fun `forbids delete of system tree root node`() {
         val rootNode = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 name = "__model_tree_root__",
                 model = model,
                 owner = owner,

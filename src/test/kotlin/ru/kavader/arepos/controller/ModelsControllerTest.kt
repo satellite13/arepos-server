@@ -1,28 +1,23 @@
 package ru.kavader.arepos.controller
-import ru.kavader.arepos.dto.model.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.springframework.data.domain.Pageable
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.data.domain.Pageable
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.dto.model.ModelRequest
+import ru.kavader.arepos.dto.model.ModelResponse
 import ru.kavader.arepos.model.Role
-import ru.kavader.arepos.repository.DiagramsRepository
-import ru.kavader.arepos.repository.LinksRepository
-import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.NodesRepository
-import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.repository.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -243,7 +238,7 @@ class ModelsControllerTest : ControllerIntegrationTest() {
 
         val sourceNodeA = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 name = "Node A",
                 createdAt = now,
                 updatedAt = now,
@@ -256,7 +251,7 @@ class ModelsControllerTest : ControllerIntegrationTest() {
         )
         val sourceNodeB = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 name = "Node B",
                 createdAt = now,
                 updatedAt = now,
@@ -279,7 +274,7 @@ class ModelsControllerTest : ControllerIntegrationTest() {
         )
         val sourceLink = linksRepository.save(
             ru.kavader.arepos.model.Links(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 source = sourceNodeA,
                 target = sourceNodeB,
                 attrs = "{}",

@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.JsonNode
 import ru.kavader.arepos.dto.model.BatchDeleteEntry
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 /**
  * Поддерживает старый формат `["uuid", ...]` и объектный `{ "id", "baseUpdatedAt?" }`.
@@ -31,6 +31,7 @@ class BatchDeleteListDeserializer : JsonDeserializer<List<BatchDeleteEntry>>() {
                     }
                     out.add(BatchDeleteEntry(id, base))
                 }
+
                 else -> throw JsonMappingException.from(p, "delete entry must be uuid string or object with id")
             }
         }

@@ -1,9 +1,8 @@
 package ru.kavader.arepos.controller
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.ObjectNode
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -13,7 +12,6 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.common.ListResponse
 import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.dto.model.*
-import ru.kavader.arepos.dto.model.ModelMapper
 import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.dto.system.ModelSyncEventType
@@ -22,16 +20,12 @@ import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
-import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
-import ru.kavader.arepos.service.MdFileLinkValidator
-import ru.kavader.arepos.service.ModelCopyService
-import ru.kavader.arepos.service.ModelSyncBroadcaster
-import ru.kavader.arepos.service.SystemRootNodeTypeService
-import jakarta.validation.Valid
+import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.*
 import ru.kavader.arepos.util.VersionUtils
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/models")
@@ -41,7 +35,7 @@ class ModelsController(
     private val nodesRepository: NodesRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
-    private val objectMapper: ObjectMapper,
+    private val modelAttrsService: ModelAttrsService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val modelCopyService: ModelCopyService,
     private val systemRootNodeTypeService: SystemRootNodeTypeService,
@@ -73,17 +67,17 @@ class ModelsController(
             return mapModelsPage(page)
         }
 
-        val effectiveOwner = resolveReadableOwner(ownerId)
-        val models = when {
-            effectiveOwner != null && name != null ->
-                modelsRepository.findByOwnerAndNameContainingIgnoreCase(effectiveOwner, name, pageable)
-            effectiveOwner != null ->
-                modelsRepository.findByOwner(effectiveOwner, pageable)
-            name != null ->
-                modelsRepository.findByNameContainingIgnoreCase(name, pageable)
-            else ->
-                modelsRepository.findAll(pageable)
-        }
+        val models = listPageByOwnerAndName(
+            effectiveOwner = resolveReadableOwner(ownerId),
+            name = name,
+            pageable = pageable,
+            queries = OwnerNamePageQueries(
+                byOwnerAndName = modelsRepository::findByOwnerAndNameContainingIgnoreCase,
+                byOwner = modelsRepository::findByOwner,
+                byName = modelsRepository::findByNameContainingIgnoreCase,
+                all = modelsRepository::findAll
+            )
+        )
         return mapModelsPage(models)
     }
 
@@ -226,8 +220,9 @@ class ModelsController(
                 nodeType = rootNodeType
             )
         )
-        val attrsWithRoot = mergeModelAttrsWithRootNodeId(saved.attrs, requireNotNull(rootNode.id))
-        val updatedModel = modelsRepository.save(saved.copy(attrs = attrsWithRoot))
+        val attrsWithRoot = modelAttrsService.mergeWithTreeRootNodeId(saved.attrs, requireNotNull(rootNode.id))
+        saved.attrs = attrsWithRoot
+        val updatedModel = modelsRepository.save(saved)
         return modelMapper.toResponse(updatedModel)
     }
 
@@ -254,14 +249,11 @@ class ModelsController(
         }
         val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, model.owner)
 
-        val updated = modelsRepository.save(
-            model.copy(
-                name = newName,
-                attrs = request.attrs ?: model.attrs,
-                version = newVersion,
-                owner = owner
-            )
-        )
+        model.name = newName
+        model.attrs = request.attrs ?: model.attrs
+        model.version = newVersion
+        model.owner = owner
+        val updated = modelsRepository.save(model)
         modelSyncBroadcaster.broadcastModelChanged(
             id,
             ModelSyncChangeType.MODEL_UPDATE.wireValue,
@@ -327,22 +319,6 @@ class ModelsController(
         ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
             modelsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
         }
-
-    private fun mergeModelAttrsWithRootNodeId(existingAttrs: String?, rootNodeId: UUID): String {
-        val rootId = rootNodeId.toString()
-        val baseNode = try {
-            existingAttrs
-                ?.takeIf { it.isNotBlank() }
-                ?.let { objectMapper.readTree(it) }
-                ?.takeIf { it.isObject }
-                ?.deepCopy<ObjectNode>()
-                ?: objectMapper.createObjectNode()
-        } catch (_: Exception) {
-            objectMapper.createObjectNode()
-        }
-        baseNode.put("treeRootNodeId", rootId)
-        return objectMapper.writeValueAsString(baseNode)
-    }
 
     private fun mapModelsPage(page: org.springframework.data.domain.Page<Models>): ListResponse<ModelResponse> {
         val permissions = accessService.modelAccessPermissions(page.content)

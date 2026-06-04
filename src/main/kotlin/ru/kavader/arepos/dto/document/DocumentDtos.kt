@@ -1,6 +1,6 @@
 package ru.kavader.arepos.dto.document
 
-import java.util.UUID
+import java.util.*
 
 data class DocumentItem(
     val fileId: UUID,

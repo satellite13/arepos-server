@@ -3,7 +3,7 @@ package ru.kavader.arepos.dto.model
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 data class ModelRequest(
     @field:NotBlank val name: String,
@@ -36,9 +36,9 @@ data class EntityGroupResponse<T>(val name: String, val versions: List<T>)
 
 data class NodeRequest(
     @field:NotBlank val name: String,
-    @field:NotNull val modelId: UUID,
+    @field:NotNull var modelId: UUID,
     val ownerId: UUID? = null,
-    @field:NotNull val nodeTypeId: UUID,
+    @field:NotNull var nodeTypeId: UUID,
     val parentNodeId: UUID? = null,
     val attrs: String? = null,
     val stableId: UUID? = null
@@ -102,7 +102,7 @@ data class DiagramRequest(
     @field:NotBlank val name: String,
     @field:NotBlank val version: String,
     val ownerId: UUID? = null,
-    @field:NotNull val modelId: UUID,
+    @field:NotNull var modelId: UUID,
     val nodeId: UUID? = null,
     val notationId: UUID,
     val attrs: String? = null

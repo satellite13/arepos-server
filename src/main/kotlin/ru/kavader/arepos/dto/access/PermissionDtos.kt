@@ -1,6 +1,6 @@
 package ru.kavader.arepos.dto.access
 
-import java.util.UUID
+import java.util.*
 
 enum class PermissionResourceType {
     MODEL,

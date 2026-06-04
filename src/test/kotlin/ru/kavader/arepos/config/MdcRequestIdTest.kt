@@ -12,11 +12,11 @@ class MdcRequestIdTest {
     fun `sets and clears generated request id when missing`() {
         MDC.remove(RequestIdFilter.MDC_KEY)
 
-        var insideValue: String? = null
+        var insideValue: String?
         MdcRequestId.withGeneratedIfMissing("test-job") {
             insideValue = MDC.get(RequestIdFilter.MDC_KEY)
             assertNotNull(insideValue)
-            assertTrue(insideValue!!.startsWith("test-job-"))
+            assertTrue(insideValue.startsWith("test-job-"))
         }
 
         assertNull(MDC.get(RequestIdFilter.MDC_KEY))

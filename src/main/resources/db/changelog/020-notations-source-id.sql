@@ -1,7 +1,7 @@
 -- Ссылка на нотацию-источник: эта версия создана копированием из другой версии (дерево версий)
 ALTER TABLE public.notations
     ADD COLUMN IF NOT EXISTS source_id uuid NULL
-    REFERENCES public.notations (id) ON DELETE SET NULL;
+        REFERENCES public.notations (id) ON DELETE SET NULL;
 
 COMMENT ON COLUMN public.notations.source_id IS 'Нотация, из которой создана эта версия (копированием). NULL для созданных с нуля.';
 

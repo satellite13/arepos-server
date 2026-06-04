@@ -3,32 +3,32 @@ package ru.kavader.arepos.controller
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.ModelMapper
-import ru.kavader.arepos.dto.model.*
+import ru.kavader.arepos.dto.model.NodeRequest
+import ru.kavader.arepos.dto.model.NodeResponse
+import ru.kavader.arepos.dto.model.NodeUpdateRequest
 import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.dto.system.ModelSyncEventType
 import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
+import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
-import jakarta.validation.Valid
-import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
 import ru.kavader.arepos.service.ModelSyncBroadcaster
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/nodes")
@@ -76,6 +76,7 @@ class NodesController(
                     nodesRepository.findAll(pageable)
                 }
             }
+
             ownerId != null -> {
                 val owner = usersRepository.findById(ownerId).orElse(null)
                 if (owner != null) {
@@ -84,9 +85,11 @@ class NodesController(
                     nodesRepository.findAll(pageable)
                 }
             }
+
             name != null -> {
                 nodesRepository.findByNameContainingIgnoreCase(name, pageable)
             }
+
             else -> {
                 nodesRepository.findAll(pageable)
             }
@@ -171,15 +174,15 @@ class NodesController(
         }
         accessService.requireCanEditNode(node)
 
-        val model = request.modelId?.let {
-            modelsRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
-            }
-        }?.also { newModel ->
-            accessService.requireCanEditModel(newModel)
-        } ?: node.model
-
-        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, node.owner)
+        val (owner, model) = ModelBoundEntityUpdateSupport.resolveOwnerAndModel(
+            requestOwnerId = request.ownerId,
+            requestModelId = request.modelId,
+            currentOwner = node.owner,
+            currentModel = node.model,
+            ownerResolutionService = ownerResolutionService,
+            modelsRepository = modelsRepository,
+            accessService = accessService
+        )
 
         val nodeType = request.nodeTypeId?.let {
             nodeTypesRepository.findById(it).orElseThrow {
@@ -199,16 +202,13 @@ class NodesController(
             }
         } ?: node.parentNode
 
-        val updated = nodesRepository.save(
-            node.copy(
-                name = request.name ?: node.name,
-                model = model,
-                owner = owner,
-                nodeType = nodeType,
-                parentNode = parentNode,
-                attrs = request.attrs ?: node.attrs
-            )
-        )
+        node.name = request.name ?: node.name
+        node.model = model
+        node.owner = owner
+        node.nodeType = nodeType
+        node.parentNode = parentNode
+        node.attrs = request.attrs ?: node.attrs
+        val updated = nodesRepository.save(node)
         modelSyncBroadcaster.broadcastModelChanged(
             requireNotNull(model.id),
             ModelSyncChangeType.NODE_UPDATE.wireValue,
@@ -246,7 +246,13 @@ class NodesController(
         modelSyncBroadcaster.broadcastModelChanged(
             modelId,
             ModelSyncChangeType.NODE_DELETE.wireValue,
-            listOf(ModelSyncEntityEvent(ModelSyncEventType.NODE_DELETED.wireValue, ModelSyncEventType.NODE_DELETED.entity, id))
+            listOf(
+                ModelSyncEntityEvent(
+                    ModelSyncEventType.NODE_DELETED.wireValue,
+                    ModelSyncEventType.NODE_DELETED.entity,
+                    id
+                )
+            )
         )
     }
 

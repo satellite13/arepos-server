@@ -2,9 +2,9 @@ package ru.kavader.arepos.service
 
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ResponseStatusException
-import org.springframework.http.HttpStatus
 import ru.kavader.arepos.dto.user.UserProfileData
 import ru.kavader.arepos.dto.user.UserProfilePatch
 

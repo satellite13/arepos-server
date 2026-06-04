@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration
 class TomcatCompressionConfig {
 
     /**
-     * Sendfile bypasses Tomcat gzip; large JSON responses (e.g. OpenAPI) stay uncompressed without this.
+     * Sendfile bypasses Tomcat gzip; large JSON responses (e.g., OpenAPI) stay uncompressed without this.
      */
     @Bean
     fun disableTomcatSendfileForCompression(): WebServerFactoryCustomizer<TomcatServletWebServerFactory> =

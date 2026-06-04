@@ -2,33 +2,22 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import ru.kavader.arepos.dto.access.*
-import ru.kavader.arepos.dto.common.ListResponse
-import ru.kavader.arepos.dto.common.toListResponse
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.bind.annotation.DeleteMapping
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.ResponseStatus
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.access.AccessMapper
+import ru.kavader.arepos.dto.access.AccessShareRequest
+import ru.kavader.arepos.dto.access.AccessShareResponse
+import ru.kavader.arepos.dto.common.ListResponse
+import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.model.ResourceShares
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.ShareResourceType
-import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodeShapesRepository
-import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.ResourceSharesRepository
-import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/access/shares")
@@ -94,9 +83,8 @@ class AccessSharesController(
 
             // Enforce one effective permission per user/resource by replacing stale rows.
             existing.drop(1).forEach { stale -> resourceSharesRepository.deleteById(requireNotNull(stale.id)) }
-            val updated = resourceSharesRepository.save(
-                current.copy(permission = requestedPermission)
-            )
+            current.permission = requestedPermission
+            val updated = resourceSharesRepository.save(current)
             return accessMapper.toResponse(updated)
         }
         val now = Instant.now()

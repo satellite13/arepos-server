@@ -1,7 +1,7 @@
 package ru.kavader.arepos.dto.system
 
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 data class VersionResponse(
     val version: String

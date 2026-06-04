@@ -7,26 +7,12 @@ import org.springframework.stereotype.Service
 import org.springframework.web.context.request.RequestAttributes
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.model.Components
-import ru.kavader.arepos.model.Files
-import ru.kavader.arepos.model.Diagrams
-import ru.kavader.arepos.model.LinkTypes
-import ru.kavader.arepos.model.Links
-import ru.kavader.arepos.model.Models
-import ru.kavader.arepos.model.NodeShapes
-import ru.kavader.arepos.model.NodeTypes
-import ru.kavader.arepos.model.Nodes
-import ru.kavader.arepos.model.Notations
-import ru.kavader.arepos.model.RelationRules
-import ru.kavader.arepos.model.Relations
-import ru.kavader.arepos.model.SharePermission
-import ru.kavader.arepos.model.ShareResourceType
+import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.repository.ResourceSharesRepository
-import ru.kavader.arepos.repository.UsersRepository
-import java.util.UUID
+import java.util.*
 
 @Service
 class ResourceAccessService(
@@ -34,7 +20,6 @@ class ResourceAccessService(
     private val diagramsRepository: DiagramsRepository,
     private val componentsRepository: ComponentsRepository,
     private val relationsRepository: RelationsRepository,
-    private val usersRepository: UsersRepository,
     private val cerbosDecisionService: CerbosDecisionService,
     private val authzObservabilityService: AuthzObservabilityService,
     @Lazy private val ownerResolutionService: OwnerResolutionService
@@ -45,6 +30,7 @@ class ResourceAccessService(
     }
 
     private val viewPermissions = setOf(SharePermission.VIEW, SharePermission.EDIT)
+
     private data class ShareFlags(val hasView: Boolean, val hasEdit: Boolean)
     private data class DecisionCacheKey(
         val resourceKind: CerbosResourceKind,
@@ -53,6 +39,7 @@ class ResourceAccessService(
         val ownerId: UUID?,
         val attrsHash: Int
     )
+
     private data class TopLevelDecisionInput(
         val resourceKind: CerbosResourceKind,
         val action: CerbosAction,
@@ -258,7 +245,10 @@ class ResourceAccessService(
         }
         val notationId = notation.id ?: return false
         val modelId = model.id ?: return false
-        return canEditModel(model) && diagramsRepository.existsByModel_IdAndNotation_IdAndDeletedFalse(modelId, notationId)
+        return canEditModel(model) && diagramsRepository.existsByModelIdAndNotationIdAndDeletedFalse(
+            modelId,
+            notationId
+        )
     }
 
     /**
@@ -284,12 +274,6 @@ class ResourceAccessService(
         }
     }
 
-    fun requireCanViewNodeType(nodeType: NodeTypes) {
-        if (!canViewNodeType(nodeType)) {
-            deny()
-        }
-    }
-
     fun requireCanEditLinkType(linkType: LinkTypes) {
         if (!canEditLinkType(linkType)) {
             deny()
@@ -304,24 +288,6 @@ class ResourceAccessService(
 
     fun requireCanViewNodeShape(shape: NodeShapes) {
         if (!canViewNodeShape(shape)) {
-            deny()
-        }
-    }
-
-    fun requireCanViewLinkType(linkType: LinkTypes) {
-        if (!canViewLinkType(linkType)) {
-            deny()
-        }
-    }
-
-    fun requireCanUseNodeType(nodeType: NodeTypes) {
-        if (!canUseNodeType(nodeType)) {
-            deny()
-        }
-    }
-
-    fun requireCanUseLinkType(linkType: LinkTypes) {
-        if (!canUseLinkType(linkType)) {
             deny()
         }
     }
@@ -396,32 +362,6 @@ class ResourceAccessService(
         if (!canViewDiagram(diagram)) {
             deny()
         }
-    }
-
-    fun sharedResourceIds(resourceType: ShareResourceType): Set<UUID> {
-        val userId = currentUserId()
-        return (
-            resourceSharesRepository.findByGranteeUserIdAndPermissionIn(userId, viewPermissions) +
-                resourceSharesRepository.findByGranteeUserIsNullAndPermissionIn(viewPermissions)
-            )
-            .asSequence()
-            .filter { it.resourceType == resourceType }
-            .map { it.resourceId }
-            .toSet()
-    }
-
-    fun hasDirectShare(resourceType: ShareResourceType, resourceId: UUID): Boolean {
-        val userId = currentUserId()
-        return resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermissionIn(
-            resourceType = resourceType,
-            resourceId = resourceId,
-            granteeUserId = userId,
-            permissions = viewPermissions
-        ) || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermissionIn(
-            resourceType = resourceType,
-            resourceId = resourceId,
-            permissions = viewPermissions
-        )
     }
 
     fun canManageShares(ownerId: UUID): Boolean {
@@ -612,10 +552,7 @@ class ResourceAccessService(
         if (entries.isEmpty()) {
             return emptyMap()
         }
-        val userId = CurrentUser.getId()
-        if (userId == null) {
-            return entries.associate { (_, _, resourceId) -> resourceId to false }
-        }
+        val userId = CurrentUser.getId() ?: return entries.associate { (_, _, resourceId) -> resourceId to false }
 
         val byType = entries.groupBy { it.second }
         val shareFlagsByType = byType.mapValues { (resourceType, groupedEntries) ->
@@ -627,7 +564,8 @@ class ResourceAccessService(
         }
 
         val inputs = entries.map { (ownerId, resourceType, resourceId) ->
-            val shareFlags = shareFlagsByType[resourceType]?.get(resourceId) ?: ShareFlags(hasView = false, hasEdit = false)
+            val shareFlags =
+                shareFlagsByType[resourceType]?.get(resourceId) ?: ShareFlags(hasView = false, hasEdit = false)
             val isOwner = ownerId == userId
             TopLevelDecisionInput(
                 resourceKind = CerbosMappers.fromShareResourceType(resourceType),
@@ -790,16 +728,17 @@ class ResourceAccessService(
             permission = SharePermission.EDIT
         )
 
-        val hasView = hasEdit || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermissionIn(
-            resourceType = resourceType,
-            resourceId = resourceId,
-            granteeUserId = userId,
-            permissions = viewPermissions
-        ) || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermissionIn(
-            resourceType = resourceType,
-            resourceId = resourceId,
-            permissions = viewPermissions
-        )
+        val hasView =
+            hasEdit || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermissionIn(
+                resourceType = resourceType,
+                resourceId = resourceId,
+                granteeUserId = userId,
+                permissions = viewPermissions
+            ) || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermissionIn(
+                resourceType = resourceType,
+                resourceId = resourceId,
+                permissions = viewPermissions
+            )
 
         return ShareFlags(hasView = hasView, hasEdit = hasEdit)
     }
@@ -819,11 +758,12 @@ class ResourceAccessService(
             granteeUserId = userId,
             permissions = viewPermissions
         )
-        val publicShares = resourceSharesRepository.findByResourceTypeAndResourceIdInAndGranteeUserIsNullAndPermissionIn(
-            resourceType = resourceType,
-            resourceIds = resourceIds,
-            permissions = viewPermissions
-        )
+        val publicShares =
+            resourceSharesRepository.findByResourceTypeAndResourceIdInAndGranteeUserIsNullAndPermissionIn(
+                resourceType = resourceType,
+                resourceIds = resourceIds,
+                permissions = viewPermissions
+            )
 
         val resolved = resourceIds.associateWith { ShareFlags(hasView = false, hasEdit = false) }.toMutableMap()
         (userShares + publicShares).forEach { share ->

@@ -1,7 +1,7 @@
 package ru.kavader.arepos.repository
 
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 interface RelationRuleListLightProjection {
     val id: UUID

@@ -1,7 +1,7 @@
 package ru.kavader.arepos.service.modelbatch
 
 import ru.kavader.arepos.dto.system.ModelSyncEventType
-import java.util.UUID
+import java.util.*
 
 sealed interface BatchEntityOp {
     val entity: String

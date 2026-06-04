@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.stereotype.Service
 import ru.kavader.arepos.repository.DiagramsRepository
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Service
 class DiagramCanvasInstancesCleanupService(
@@ -36,12 +36,9 @@ class DiagramCanvasInstancesCleanupService(
                 linkSet
             )
             if (cleaned != d.attrs) {
-                diagramsRepository.save(
-                    d.copy(
-                        attrs = cleaned,
-                        updatedAt = now
-                    )
-                )
+                d.attrs = cleaned
+                d.updatedAt = now
+                diagramsRepository.save(d)
                 updated++
             }
         }

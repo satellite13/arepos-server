@@ -2,22 +2,25 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import ru.kavader.arepos.dto.notation.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.notation.ComponentRequest
+import ru.kavader.arepos.dto.notation.ComponentResponse
+import ru.kavader.arepos.dto.notation.ComponentUpdateRequest
+import ru.kavader.arepos.dto.notation.NotationMapper
 import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.security.OwnerResolutionService
+import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.MdFileLinkValidator
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/components")
@@ -127,18 +130,16 @@ class ComponentsController(
             typeUsageAuthorization.requireCanUseNodeTypeForNotation(newNodeType, notation)
         } ?: component.nodeType
 
-        mdFileLinkValidator.validate(request.attrs)
-        val updated = componentsRepository.save(
-            component.copy(
-                name = request.name ?: component.name,
-                attrs = request.attrs ?: component.attrs,
-                version = request.version ?: component.version,
-                owner = owner,
-                notation = notation,
-                nodeType = nodeType
-            )
+        return NotationBoundEntityWriteSupport.persistUpdate(
+            entity = component,
+            request = request,
+            owner = owner,
+            notation = notation,
+            mdFileLinkValidator = mdFileLinkValidator,
+            applyExtra = { this.nodeType = nodeType },
+            save = componentsRepository::save,
+            toResponse = notationMapper::toResponse
         )
-        return notationMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")

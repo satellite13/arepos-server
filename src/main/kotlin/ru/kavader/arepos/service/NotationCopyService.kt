@@ -3,8 +3,7 @@ package ru.kavader.arepos.service
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import ru.kavader.arepos.model.Notations
-import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.RelationRulesRepository
@@ -35,16 +34,18 @@ class NotationCopyService(
         )
 
         val sourceComponents = componentsRepository.findByNotation(source, Pageable.unpaged())
-        val copiedComponentsBySourceId = mutableMapOf<java.util.UUID, ru.kavader.arepos.model.Components>()
+        val copiedComponentsBySourceId = mutableMapOf<java.util.UUID, Components>()
         for (srcComponent in sourceComponents) {
             val saved = componentsRepository.save(
-                srcComponent.copy(
-                    id = null,
-                    notation = newNotation,
-                    version = newNotation.version,
-                    owner = owner,
+                Components(
+                    name = srcComponent.name,
+                    attrs = srcComponent.attrs,
                     createdAt = now,
-                    updatedAt = now
+                    updatedAt = now,
+                    version = newNotation.version,
+                    notation = newNotation,
+                    owner = owner,
+                    nodeType = srcComponent.nodeType
                 )
             )
             val sourceComponentId = requireNotNull(srcComponent.id)
@@ -52,16 +53,18 @@ class NotationCopyService(
         }
 
         val sourceRelations = relationsRepository.findByNotation(source, Pageable.unpaged())
-        val copiedRelationsBySourceId = mutableMapOf<java.util.UUID, ru.kavader.arepos.model.Relations>()
+        val copiedRelationsBySourceId = mutableMapOf<java.util.UUID, Relations>()
         for (srcRelation in sourceRelations) {
             val saved = relationsRepository.save(
-                srcRelation.copy(
-                    id = null,
-                    notation = newNotation,
+                Relations(
+                    attrs = srcRelation.attrs,
+                    createdAt = now,
+                    updatedAt = now,
                     version = newNotation.version,
                     owner = owner,
-                    createdAt = now,
-                    updatedAt = now
+                    notation = newNotation,
+                    name = srcRelation.name,
+                    linkType = srcRelation.linkType
                 )
             )
             val sourceRelationId = requireNotNull(srcRelation.id)
@@ -81,14 +84,14 @@ class NotationCopyService(
                 val newTo = copiedComponentsBySourceId[sourceToId] ?: continue
 
                 relationRulesRepository.save(
-                    srcRule.copy(
-                        id = null,
+                    RelationRules(
+                        createdAt = now,
+                        updatedAt = now,
+                        owner = owner,
+                        attrs = srcRule.attrs,
                         relation = newRelation,
                         fromComponent = newFrom,
-                        toComponent = newTo,
-                        owner = owner,
-                        createdAt = now,
-                        updatedAt = now
+                        toComponent = newTo
                     )
                 )
             }

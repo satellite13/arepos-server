@@ -1,18 +1,9 @@
 package ru.kavader.arepos.model
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.FetchType
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
-import jakarta.persistence.Index
-import jakarta.persistence.JoinColumn
-import jakarta.persistence.ManyToOne
-import jakarta.persistence.Table
+import jakarta.persistence.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Entity
 @Table(
@@ -24,28 +15,28 @@ import java.util.UUID
     ]
 )
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class RefreshTokens(
+class RefreshTokens(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    val user: Users,
+    var user: Users,
 
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
-    val tokenHash: String,
+    var tokenHash: String,
 
     @Column(name = "expires_at", nullable = false)
-    val expiresAt: Instant,
+    var expiresAt: Instant,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant,
+    var createdAt: Instant,
 
     @Column(name = "used_at")
-    val usedAt: Instant? = null,
+    var usedAt: Instant? = null,
 
     @Column(name = "revoked_at")
-    val revokedAt: Instant? = null
+    var revokedAt: Instant? = null
 )

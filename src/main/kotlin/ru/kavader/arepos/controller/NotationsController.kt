@@ -1,9 +1,8 @@
 package ru.kavader.arepos.controller
 
-import ru.kavader.arepos.dto.model.*
-import ru.kavader.arepos.dto.notation.*
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -11,28 +10,27 @@ import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.model.EntityGroupResponse
+import ru.kavader.arepos.dto.model.GroupedEntityResponse
+import ru.kavader.arepos.dto.notation.*
 import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
+import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.NotationCopyService
-import jakarta.validation.Valid
-import jakarta.validation.constraints.NotBlank
 import ru.kavader.arepos.util.VersionUtils
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/notations")
 @Tag(name = "Notations", description = "Notation and notation-version endpoints")
 class NotationsController(
     private val notationsRepository: NotationsRepository,
-    private val usersRepository: UsersRepository,
     private val modelsRepository: ModelsRepository,
     private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService,
@@ -62,17 +60,17 @@ class NotationsController(
             return mapNotationsPage(page)
         }
 
-        val effectiveOwner = resolveReadableOwner(ownerId)
-        val notations = when {
-            effectiveOwner != null && name != null ->
-                notationsRepository.findByOwnerAndNameContainingIgnoreCase(effectiveOwner, name, pageable)
-            effectiveOwner != null ->
-                notationsRepository.findByOwner(effectiveOwner, pageable)
-            name != null ->
-                notationsRepository.findByNameContainingIgnoreCase(name, pageable)
-            else ->
-                notationsRepository.findAll(pageable)
-        }
+        val notations = listPageByOwnerAndName(
+            effectiveOwner = resolveReadableOwner(ownerId),
+            name = name,
+            pageable = pageable,
+            queries = OwnerNamePageQueries(
+                byOwnerAndName = notationsRepository::findByOwnerAndNameContainingIgnoreCase,
+                byOwner = notationsRepository::findByOwner,
+                byName = notationsRepository::findByNameContainingIgnoreCase,
+                all = notationsRepository::findAll
+            )
+        )
         return mapNotationsPage(notations)
     }
 
@@ -260,14 +258,11 @@ class NotationsController(
         val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, notation.owner)
 
         mdFileLinkValidator.validate(request.attrs)
-        val updated = notationsRepository.save(
-            notation.copy(
-                name = request.name ?: notation.name,
-                version = request.version ?: notation.version,
-                attrs = request.attrs ?: notation.attrs,
-                owner = owner
-            )
-        )
+        notation.name = request.name ?: notation.name
+        notation.version = request.version ?: notation.version
+        notation.attrs = request.attrs ?: notation.attrs
+        notation.owner = owner
+        val updated = notationsRepository.save(notation)
         return notationMapper.toResponse(updated)
     }
 

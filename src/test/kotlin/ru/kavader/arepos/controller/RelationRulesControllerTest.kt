@@ -1,5 +1,4 @@
 package ru.kavader.arepos.controller
-import ru.kavader.arepos.dto.notation.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
@@ -12,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.dto.notation.RelationRuleRequest
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.*
 import java.time.Instant
@@ -22,15 +22,24 @@ import kotlin.test.assertEquals
 @AutoConfigureMockMvc
 class RelationRulesControllerTest : ControllerIntegrationTest() {
 
-    @Autowired lateinit var mockMvc: MockMvc
-    @Autowired lateinit var objectMapper: ObjectMapper
-    @Autowired lateinit var usersRepository: UsersRepository
-    @Autowired lateinit var notationsRepository: NotationsRepository
-    @Autowired lateinit var nodeTypesRepository: NodeTypesRepository
-    @Autowired lateinit var componentsRepository: ComponentsRepository
-    @Autowired lateinit var linkTypesRepository: LinkTypesRepository
-    @Autowired lateinit var relationsRepository: RelationsRepository
-    @Autowired lateinit var relationRulesRepository: RelationRulesRepository
+    @Autowired
+    lateinit var mockMvc: MockMvc
+    @Autowired
+    lateinit var objectMapper: ObjectMapper
+    @Autowired
+    lateinit var usersRepository: UsersRepository
+    @Autowired
+    lateinit var notationsRepository: NotationsRepository
+    @Autowired
+    lateinit var nodeTypesRepository: NodeTypesRepository
+    @Autowired
+    lateinit var componentsRepository: ComponentsRepository
+    @Autowired
+    lateinit var linkTypesRepository: LinkTypesRepository
+    @Autowired
+    lateinit var relationsRepository: RelationsRepository
+    @Autowired
+    lateinit var relationRulesRepository: RelationRulesRepository
 
     private lateinit var owner: ru.kavader.arepos.model.Users
     private lateinit var notation: ru.kavader.arepos.model.Notations

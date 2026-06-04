@@ -4,32 +4,43 @@ import org.springframework.beans.factory.annotation.Autowired
 import ru.kavader.arepos.model.*
 import ru.kavader.arepos.support.PostgresContainerTest
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 abstract class RepositoryTestBase : PostgresContainerTest() {
 
     @Autowired
     protected lateinit var usersRepository: UsersRepository
+
     @Autowired
     protected lateinit var auditLogRepository: AuditLogRepository
+
     @Autowired
     protected lateinit var modelsRepository: ModelsRepository
+
     @Autowired
     protected lateinit var notationsRepository: NotationsRepository
+
     @Autowired
     protected lateinit var nodeTypesRepository: NodeTypesRepository
+
     @Autowired
     protected lateinit var nodesRepository: NodesRepository
+
     @Autowired
     protected lateinit var componentsRepository: ComponentsRepository
+
     @Autowired
     protected lateinit var linkTypesRepository: LinkTypesRepository
+
     @Autowired
     protected lateinit var linksRepository: LinksRepository
+
     @Autowired
     protected lateinit var relationsRepository: RelationsRepository
+
     @Autowired
     protected lateinit var relationRulesRepository: RelationRulesRepository
+
     @Autowired
     protected lateinit var diagramsRepository: DiagramsRepository
 

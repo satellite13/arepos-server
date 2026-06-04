@@ -3,7 +3,7 @@ package ru.kavader.arepos.dto.access
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.ShareResourceType
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 data class AccessShareRequest(
     val resourceType: ShareResourceType? = null,

@@ -20,7 +20,6 @@ import ru.kavader.arepos.dto.system.ModelSyncEventType
 import ru.kavader.arepos.model.DiagramPreviewLinks
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.repository.*
-import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.*
@@ -174,14 +173,15 @@ class DiagramsController(
         accessService.requireCanEditDiagram(diagram)
         requireLatestDiagramVersion(diagram, "updated")
 
-        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, diagram.owner)
-        val model = request.modelId?.let {
-            modelsRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
-            }
-        }?.also { newModel ->
-            accessService.requireCanEditModel(newModel)
-        } ?: diagram.model
+        val (owner, model) = ModelBoundEntityUpdateSupport.resolveOwnerAndModel(
+            requestOwnerId = request.ownerId,
+            requestModelId = request.modelId,
+            currentOwner = diagram.owner,
+            currentModel = diagram.model,
+            ownerResolutionService = ownerResolutionService,
+            modelsRepository = modelsRepository,
+            accessService = accessService
+        )
         val notation = if (accessService.canViewAdminPanel()) {
             request.notationId?.let {
                 notationsRepository.findById(it).orElseThrow {
@@ -216,17 +216,14 @@ class DiagramsController(
         }
 
         mdFileLinkValidator.validate(request.attrs)
-        val updated = diagramsRepository.save(
-            diagram.copy(
-                name = newName,
-                attrs = request.attrs ?: diagram.attrs,
-                version = newVersion,
-                owner = owner,
-                model = model,
-                notation = notation,
-                node = node
-            )
-        )
+        diagram.name = newName
+        diagram.attrs = request.attrs ?: diagram.attrs
+        diagram.version = newVersion
+        diagram.owner = owner
+        diagram.model = model
+        diagram.notation = notation
+        diagram.node = node
+        val updated = diagramsRepository.save(diagram)
         modelSyncBroadcaster.broadcastModelChanged(
             requireNotNull(model.id),
             ModelSyncChangeType.DIAGRAM_UPDATE.wireValue,
@@ -285,6 +282,7 @@ class DiagramsController(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "Diagram preview storage is not available"
                 )
+
             is DiagramSvgWriteResult.StorageError ->
                 throw ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
@@ -326,16 +324,20 @@ class DiagramsController(
                     )
                 )
             }
+
             request.modelId != null && request.diagramName != null && request.latest == true -> {
                 val model = modelsRepository.findById(request.modelId)
                     .orElseThrow {
                         ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
                     }
                 accessService.requireCanViewModel(model)
-                val allByName = diagramsRepository.findByModel_IdAndNameAndDeletedFalse(model.id!!, request.diagramName)
+                val allByName = diagramsRepository.findByModelIdAndNameAndDeletedFalse(model.id!!, request.diagramName)
                     .let { accessService.filterViewableDiagrams(it) }
                 allByName.maxWithOrNull(::compareDiagramVersions)
-                    ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No diagram named '${request.diagramName}' found")
+                    ?: throw ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "No diagram named '${request.diagramName}' found"
+                    )
                 val existing = diagramPreviewLinksRepository.findByModelAndDiagramName(model, request.diagramName)
                 if (existing.isPresent) {
                     return DiagramShareLinkResponse(
@@ -354,6 +356,7 @@ class DiagramsController(
                     )
                 )
             }
+
             else -> throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "Provide either diagramId or (modelId, diagramName, latest: true)"
@@ -370,16 +373,21 @@ class DiagramsController(
     fun getDiagramSvgPublic(@PathVariable token: UUID): ResponseEntity<ByteArray> {
         val link = diagramPreviewLinksRepository.findByToken(token).orElse(null)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Share link not found or expired")
+        val linkedDiagram = link.diagram
+        val linkedModel = link.model
+        val linkedDiagramName = link.diagramName
         val diagramId: UUID = when {
-            link.diagram != null -> link.diagram.id!!
-            link.model != null && link.diagramName != null -> {
-                val allByName = diagramsRepository.findByModel_IdAndNameAndDeletedFalse(link.model.id!!,
-                    link.diagramName
+            linkedDiagram != null -> linkedDiagram.id!!
+            linkedModel != null && linkedDiagramName != null -> {
+                val allByName = diagramsRepository.findByModelIdAndNameAndDeletedFalse(
+                    linkedModel.id!!,
+                    linkedDiagramName
                 )
                 val latest = allByName.maxWithOrNull(::compareDiagramVersions)
                     ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram not found")
                 latest.id!!
             }
+
             else -> throw ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid share link")
         }
         return when (val svgResult = diagramSvgStorage.getSvg(diagramId)) {
@@ -391,13 +399,18 @@ class DiagramsController(
                 }
                 ResponseEntity.ok().headers(headers).body(svgResult.bytes)
             }
+
             DiagramSvgReadResult.NotFound ->
                 throw ResponseStatusException(
                     HttpStatus.NOT_FOUND,
                     "Preview not found. The diagram owner can upload it in the editor."
                 )
+
             is DiagramSvgReadResult.StorageError ->
-                throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Preview storage is temporarily unavailable")
+                throw ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Preview storage is temporarily unavailable"
+                )
         }
     }
 
@@ -410,9 +423,11 @@ class DiagramsController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Share link not found")
             }
+        val linkedDiagram = link.diagram
+        val linkedModel = link.model
         val canRevoke = when {
-            link.diagram != null -> accessService.canEditDiagram(link.diagram)
-            link.model != null -> accessService.canEditModel(link.model)
+            linkedDiagram != null -> accessService.canEditDiagram(linkedDiagram)
+            linkedModel != null -> accessService.canEditModel(linkedModel)
             else -> false
         }
         if (!canRevoke) {
@@ -472,7 +487,7 @@ class DiagramsController(
         return modelMapper.toResponse(saved)
     }
 
-    /** Bumps minor version and resets patch: 1.2.3 -> 1.3.0 */
+    /** Bumps a minor version and resets patch: 1.2.3 -> 1.3.0 */
     private fun bumpMinorVersion(version: String): String? {
         val parts = version.trim().split(".")
         if (parts.size < 2) return null
@@ -483,7 +498,7 @@ class DiagramsController(
 
     private fun requireLatestDiagramVersion(diagram: Diagrams, action: String) {
         val modelId = diagram.model.id ?: return
-        val allByName = diagramsRepository.findByModel_IdAndNameAndDeletedFalse(modelId, diagram.name)
+        val allByName = diagramsRepository.findByModelIdAndNameAndDeletedFalse(modelId, diagram.name)
         if (allByName.isEmpty()) return
         val latest = allByName.maxWithOrNull(::compareDiagramVersions) ?: return
         if (latest.id != diagram.id) {
@@ -519,7 +534,6 @@ class DiagramsController(
         val path = "$PUBLIC_SVG_URL_PREFIX$token"
         return if (normalizedBase.isBlank()) path else "$normalizedBase$path"
     }
-
 
 
 }

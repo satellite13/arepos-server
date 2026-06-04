@@ -1,14 +1,13 @@
 package ru.kavader.arepos.controller
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.http.HttpStatus
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.web.bind.annotation.*
 import ru.kavader.arepos.dto.document.DocumentItem
 import ru.kavader.arepos.dto.document.RegisterDocumentRefRequest
 import ru.kavader.arepos.service.DocumentRefsService
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/documents")

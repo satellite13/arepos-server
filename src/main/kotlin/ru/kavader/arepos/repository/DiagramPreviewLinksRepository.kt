@@ -5,8 +5,7 @@ import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.DiagramPreviewLinks
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Models
-import java.util.Optional
-import java.util.UUID
+import java.util.*
 
 @Repository
 interface DiagramPreviewLinksRepository : JpaRepository<DiagramPreviewLinks, UUID> {

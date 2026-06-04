@@ -5,9 +5,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
 import org.hibernate.annotations.DynamicUpdate
 import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.*
-import org.hibernate.type.SqlTypes
 
 enum class Role {
     USER, EDITOR, ADMIN
@@ -21,33 +21,33 @@ enum class Role {
     ]
 )
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class Users(
+class Users(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @Column(name = "email", nullable = false, unique = true, columnDefinition = "email_type")
-    val email: String,
+    var email: String,
 
     @JsonIgnore
     @Column(name = "password_hash")
-    val passwordHash: String? = null,
+    var passwordHash: String? = null,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
-    val role: Role = Role.USER,
+    var role: Role = Role.USER,
 
     @Column(name = "is_active", nullable = false)
-    val isActive: Boolean = true,
+    var isActive: Boolean = true,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
-    val attrs: String? = null,
+    var attrs: String? = null,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant? = null,
+    var createdAt: Instant? = null,
 
     @Column(name = "updated_at")
-    val updatedAt: Instant? = null
+    var updatedAt: Instant? = null
 )

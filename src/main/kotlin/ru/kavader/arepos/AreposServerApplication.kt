@@ -12,5 +12,5 @@ import org.springframework.scheduling.annotation.EnableScheduling
 class AreposServerApplication
 
 fun main(args: Array<String>) {
-	runApplication<AreposServerApplication>(*args)
+    runApplication<AreposServerApplication>(*args)
 }

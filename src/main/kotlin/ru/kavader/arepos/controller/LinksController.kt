@@ -3,32 +3,27 @@ package ru.kavader.arepos.controller
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.dto.model.*
+import ru.kavader.arepos.dto.model.LinkRequest
+import ru.kavader.arepos.dto.model.LinkResponse
+import ru.kavader.arepos.dto.model.LinkUpdateRequest
 import ru.kavader.arepos.dto.model.ModelMapper
 import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.dto.system.ModelSyncEventType
 import ru.kavader.arepos.model.Links
-import ru.kavader.arepos.repository.DiagramsRepository
-import ru.kavader.arepos.repository.LinksRepository
-import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodesRepository
-import ru.kavader.arepos.repository.RelationsRepository
-import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.OwnerResolutionService
+import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.ModelSyncBroadcaster
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/links")
@@ -39,8 +34,6 @@ class LinksController(
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
     private val linkTypesRepository: LinkTypesRepository,
-    private val diagramsRepository: DiagramsRepository,
-    private val relationsRepository: RelationsRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
     private val mdFileLinkValidator: MdFileLinkValidator,
@@ -83,6 +76,7 @@ class LinksController(
                     linksRepository.findAll(pageable)
                 }
             }
+
             modelId != null -> {
                 val model = modelsRepository.findById(modelId).orElse(null)
                 if (model != null) {
@@ -91,6 +85,7 @@ class LinksController(
                     linksRepository.findAll(pageable)
                 }
             }
+
             ownerId != null -> {
                 val owner = usersRepository.findById(ownerId).orElse(null)
                 if (owner != null) {
@@ -99,6 +94,7 @@ class LinksController(
                     linksRepository.findAll(pageable)
                 }
             }
+
             sourceId != null -> {
                 val source = nodesRepository.findById(sourceId).orElse(null)
                 if (source != null) {
@@ -107,6 +103,7 @@ class LinksController(
                     linksRepository.findAll(pageable)
                 }
             }
+
             targetId != null -> {
                 val target = nodesRepository.findById(targetId).orElse(null)
                 if (target != null) {
@@ -115,6 +112,7 @@ class LinksController(
                     linksRepository.findAll(pageable)
                 }
             }
+
             linkTypeId != null -> {
                 val linkType = linkTypesRepository.findById(linkTypeId).orElse(null)
                 if (linkType != null) {
@@ -123,6 +121,7 @@ class LinksController(
                     linksRepository.findAll(pageable)
                 }
             }
+
             else -> {
                 linksRepository.findAll(pageable)
             }
@@ -208,14 +207,15 @@ class LinksController(
             }
         accessService.requireCanEditLink(link)
 
-        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, link.owner)
-        val model = request.modelId?.let {
-            modelsRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Model $it not found")
-            }
-        }?.also { newModel ->
-            accessService.requireCanEditModel(newModel)
-        } ?: link.model
+        val (owner, model) = ModelBoundEntityUpdateSupport.resolveOwnerAndModel(
+            requestOwnerId = request.ownerId,
+            requestModelId = request.modelId,
+            currentOwner = link.owner,
+            currentModel = link.model,
+            ownerResolutionService = ownerResolutionService,
+            modelsRepository = modelsRepository,
+            accessService = accessService
+        )
         val source = request.sourceId?.let {
             nodesRepository.findById(it).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Source node $it not found")
@@ -239,16 +239,13 @@ class LinksController(
         } ?: link.linkType
 
         mdFileLinkValidator.validate(request.attrs)
-        val updated = linksRepository.save(
-            link.copy(
-                source = source,
-                target = target,
-                attrs = request.attrs ?: link.attrs,
-                owner = owner,
-                linkType = linkType,
-                model = model
-            )
-        )
+        link.source = source
+        link.target = target
+        link.attrs = request.attrs ?: link.attrs
+        link.owner = owner
+        link.linkType = linkType
+        link.model = model
+        val updated = linksRepository.save(link)
         modelSyncBroadcaster.broadcastModelChanged(
             requireNotNull(model.id),
             ModelSyncChangeType.LINK_UPDATE.wireValue,
@@ -283,7 +280,13 @@ class LinksController(
         modelSyncBroadcaster.broadcastModelChanged(
             modelId,
             ModelSyncChangeType.LINK_DELETE.wireValue,
-            listOf(ModelSyncEntityEvent(ModelSyncEventType.LINK_DELETED.wireValue, ModelSyncEventType.LINK_DELETED.entity, id))
+            listOf(
+                ModelSyncEntityEvent(
+                    ModelSyncEventType.LINK_DELETED.wireValue,
+                    ModelSyncEventType.LINK_DELETED.entity,
+                    id
+                )
+            )
         )
     }
 

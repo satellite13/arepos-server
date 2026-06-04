@@ -4,7 +4,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.repository.UsersRepository
-import java.util.UUID
+import java.util.*
 
 @Service
 class OwnerResolutionService(
@@ -34,7 +34,10 @@ class OwnerResolutionService(
      * Resolves the owner for entity update. Admins may reassign ownership;
      * other users always keep the existing owner.
      */
-    fun resolveOwnerForUpdate(requestOwnerId: UUID?, currentOwner: ru.kavader.arepos.model.Users): ru.kavader.arepos.model.Users {
+    fun resolveOwnerForUpdate(
+        requestOwnerId: UUID?,
+        currentOwner: ru.kavader.arepos.model.Users
+    ): ru.kavader.arepos.model.Users {
         return if (accessService.canViewAdminPanel()) {
             requestOwnerId?.let {
                 usersRepository.findById(it).orElseThrow {

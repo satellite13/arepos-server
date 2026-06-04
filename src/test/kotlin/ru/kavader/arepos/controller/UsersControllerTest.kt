@@ -1,20 +1,23 @@
 package ru.kavader.arepos.controller
-import ru.kavader.arepos.dto.user.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.doAnswer
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
-import org.mockito.Mockito.doAnswer
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.dto.user.BatchUserPublicRequest
+import ru.kavader.arepos.dto.user.UserProfileUpdateRequest
+import ru.kavader.arepos.dto.user.UserRequest
+import ru.kavader.arepos.dto.user.UserUpdateRequest
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser

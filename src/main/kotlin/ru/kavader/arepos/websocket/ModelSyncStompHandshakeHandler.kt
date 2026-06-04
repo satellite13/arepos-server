@@ -8,7 +8,6 @@ import org.springframework.web.socket.WebSocketHandler
 import org.springframework.web.socket.server.support.DefaultHandshakeHandler
 import ru.kavader.arepos.security.JwtTokenProvider
 import java.security.Principal
-import java.util.UUID
 
 @Component
 class ModelSyncStompHandshakeHandler(

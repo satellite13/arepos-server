@@ -1,6 +1,5 @@
 package ru.kavader.arepos.controller
 
-import ru.kavader.arepos.dto.notation.*
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
@@ -9,14 +8,18 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.notation.NodeTypeRequest
+import ru.kavader.arepos.dto.notation.NodeTypeResponse
+import ru.kavader.arepos.dto.notation.NodeTypeUpdateRequest
+import ru.kavader.arepos.dto.notation.NotationMapper
 import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.OwnerResolutionService
+import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.TypeCatalogListService
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/node-types")
@@ -87,16 +90,14 @@ class NodeTypesController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
             }
         accessService.requireCanEditNodeType(nodeType)
-        val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, nodeType.owner)
-
-        val updated = nodeTypesRepository.save(
-            nodeType.copy(
-                name = request.name ?: nodeType.name,
-                attrs = request.attrs ?: nodeType.attrs,
-                owner = owner
-            )
+        return CatalogTypeWriteSupport.persistUpdate(
+            entity = nodeType,
+            request = request,
+            ownerResolutionService = ownerResolutionService,
+            mdFileLinkValidator = mdFileLinkValidator,
+            save = nodeTypesRepository::save,
+            toResponse = notationMapper::toResponse
         )
-        return notationMapper.toResponse(updated)
     }
 
     @DeleteMapping("/{id}")

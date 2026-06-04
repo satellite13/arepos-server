@@ -3,7 +3,7 @@ package ru.kavader.arepos.service.modelbatch
 import org.springframework.stereotype.Component
 import ru.kavader.arepos.dto.model.BatchSaveRequest
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
-import java.util.UUID
+import java.util.*
 
 @Component
 class BatchEventBuilder {

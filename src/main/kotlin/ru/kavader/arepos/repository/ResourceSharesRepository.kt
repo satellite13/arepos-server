@@ -5,7 +5,7 @@ import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.ResourceShares
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.ShareResourceType
-import java.util.UUID
+import java.util.*
 
 @Repository
 interface ResourceSharesRepository : JpaRepository<ResourceShares, UUID> {
@@ -15,12 +15,6 @@ interface ResourceSharesRepository : JpaRepository<ResourceShares, UUID> {
         granteeUserId: UUID,
         permission: SharePermission
     ): Boolean
-
-    fun findByResourceTypeAndResourceIdAndPermission(
-        resourceType: ShareResourceType,
-        resourceId: UUID,
-        permission: SharePermission
-    ): List<ResourceShares>
 
     fun findByResourceTypeAndResourceIdInAndGranteeUserIdAndPermissionIn(
         resourceType: ShareResourceType,
@@ -36,23 +30,6 @@ interface ResourceSharesRepository : JpaRepository<ResourceShares, UUID> {
     ): List<ResourceShares>
 
     fun findByResourceTypeAndResourceId(resourceType: ShareResourceType, resourceId: UUID): List<ResourceShares>
-
-    fun findByGranteeUserIdAndPermission(
-        granteeUserId: UUID,
-        permission: SharePermission
-    ): List<ResourceShares>
-
-    fun findByGranteeUserIdAndPermissionIn(
-        granteeUserId: UUID,
-        permissions: Collection<SharePermission>
-    ): List<ResourceShares>
-
-    fun findByResourceTypeAndResourceIdAndGranteeUserIdAndPermission(
-        resourceType: ShareResourceType,
-        resourceId: UUID,
-        granteeUserId: UUID,
-        permission: SharePermission
-    ): ResourceShares?
 
     fun findByResourceTypeAndResourceIdAndGranteeUserId(
         resourceType: ShareResourceType,
@@ -84,7 +61,4 @@ interface ResourceSharesRepository : JpaRepository<ResourceShares, UUID> {
         permission: SharePermission
     ): Boolean
 
-    fun findByGranteeUserIsNullAndPermissionIn(
-        permissions: Collection<SharePermission>
-    ): List<ResourceShares>
 }

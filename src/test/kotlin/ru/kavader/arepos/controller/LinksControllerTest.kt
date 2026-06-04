@@ -1,5 +1,4 @@
 package ru.kavader.arepos.controller
-import ru.kavader.arepos.dto.model.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
@@ -12,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.dto.model.LinkRequest
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.*
 import java.time.Instant
@@ -22,14 +22,22 @@ import kotlin.test.assertEquals
 @AutoConfigureMockMvc
 class LinksControllerTest : ControllerIntegrationTest() {
 
-    @Autowired lateinit var mockMvc: MockMvc
-    @Autowired lateinit var objectMapper: ObjectMapper
-    @Autowired lateinit var usersRepository: UsersRepository
-    @Autowired lateinit var modelsRepository: ModelsRepository
-    @Autowired lateinit var nodeTypesRepository: NodeTypesRepository
-    @Autowired lateinit var nodesRepository: NodesRepository
-    @Autowired lateinit var linkTypesRepository: LinkTypesRepository
-    @Autowired lateinit var linksRepository: LinksRepository
+    @Autowired
+    lateinit var mockMvc: MockMvc
+    @Autowired
+    lateinit var objectMapper: ObjectMapper
+    @Autowired
+    lateinit var usersRepository: UsersRepository
+    @Autowired
+    lateinit var modelsRepository: ModelsRepository
+    @Autowired
+    lateinit var nodeTypesRepository: NodeTypesRepository
+    @Autowired
+    lateinit var nodesRepository: NodesRepository
+    @Autowired
+    lateinit var linkTypesRepository: LinkTypesRepository
+    @Autowired
+    lateinit var linksRepository: LinksRepository
 
     private lateinit var owner: ru.kavader.arepos.model.Users
     private lateinit var model: ru.kavader.arepos.model.Models
@@ -64,7 +72,7 @@ class LinksControllerTest : ControllerIntegrationTest() {
         )
         sourceNode = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 name = "source-node",
                 model = model,
                 owner = owner,
@@ -74,7 +82,7 @@ class LinksControllerTest : ControllerIntegrationTest() {
         )
         targetNode = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 name = "target-node",
                 model = model,
                 owner = owner,

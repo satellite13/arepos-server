@@ -17,16 +17,16 @@ Arepos Server is a Kotlin/Spring Boot backend service for managing domain models
 
 ## Technology Stack
 
-| Component | Version/Technology |
-|-----------|-------------------|
-| Language | Kotlin 2.2.21 |
-| Framework | Spring Boot 3.5.7 |
-| JDK | 24-25 |
-| Database | PostgreSQL 16+ |
-| Migrations | Liquibase |
-| Build Tool | Gradle (Kotlin DSL) |
-| Testing | JUnit 5, TestContainers, Mockito |
-| Deployment | Kubernetes + Helm |
+| Component  | Version/Technology               |
+|------------|----------------------------------|
+| Language   | Kotlin 2.2.21                    |
+| Framework  | Spring Boot 3.5.7                |
+| JDK        | 24-25                            |
+| Database   | PostgreSQL 16+                   |
+| Migrations | Liquibase                        |
+| Build Tool | Gradle (Kotlin DSL)              |
+| Testing    | JUnit 5, TestContainers, Mockito |
+| Deployment | Kubernetes + Helm                |
 
 ## Project Structure
 
@@ -298,39 +298,43 @@ Creates two deployments (`-blue` and `-green`), service routes to active color.
 
 - **Language**: Kotlin with idiomatic patterns
 - **Null Safety**: Use nullable types (`UUID?`) for JPA entity IDs
-- **Immutability**: Use `val` for entity properties where possible
-- **Entity Pattern**: Data classes with JPA annotations
+- **Immutability**: Use `val` in DTOs; JPA entities are mutable (`var`) for Hibernate updates
+- **Entity Pattern**: Regular `class` with JPA annotations (not `data class`)
 
 ### Entity Conventions
+
+JPA entities use `class` + `var` so Hibernate can mutate loaded instances. Shared field sets are expressed as interfaces (`CatalogTypeEntity` for node/link types, `NotationBoundEntity` for components/relations).
 
 ```kotlin
 @Entity
 @Table(name = "entities", schema = "public")
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class EntityName(
+class EntityName(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @Column(name = "name", nullable = false)
-    val name: String,
+    var name: String,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant? = null,
+    var createdAt: Instant? = null,
 
     @Column(name = "updated_at")
-    val updatedAt: Instant? = null,
+    var updatedAt: Instant? = null,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
-    val attrs: String? = null,
+    var attrs: String? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner", nullable = false)
-    val owner: Users
+    var owner: Users
 )
 ```
+
+List/update helpers in `controller/`: `listPageByOwnerAndName`, `ResourceAccessService.listPageWithAdminBypass`, `CatalogTypeWriteSupport`, `NotationBoundEntityWriteSupport`, `ModelBoundEntityUpdateSupport`.
 
 ### Controller Conventions
 

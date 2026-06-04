@@ -1,7 +1,7 @@
 package ru.kavader.arepos.dto.dashboard
 
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 data class DashboardStatsResponse(
     val models: Int,

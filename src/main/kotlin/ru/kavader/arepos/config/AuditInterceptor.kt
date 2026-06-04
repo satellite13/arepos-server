@@ -1,7 +1,7 @@
 package ru.kavader.arepos.config
 
-import org.hibernate.event.spi.*
 import org.hibernate.engine.spi.SessionImplementor
+import org.hibernate.event.spi.*
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import java.util.*
@@ -22,7 +22,7 @@ class AuditInterceptor : PreInsertEventListener, PreUpdateEventListener, PreDele
 
     companion object {
         private val threadLocalUserId = ThreadLocal<UUID?>()
-        
+
         /**
          * Устанавливает идентификатор текущего пользователя для текущего потока.
          * Используется для программной установки userId вне HTTP-запросов.
@@ -30,14 +30,14 @@ class AuditInterceptor : PreInsertEventListener, PreUpdateEventListener, PreDele
         fun setCurrentUserId(userId: UUID?) {
             threadLocalUserId.set(userId)
         }
-        
+
         /**
          * Очищает идентификатор текущего пользователя для текущего потока.
          */
         fun clearCurrentUserId() {
             threadLocalUserId.remove()
         }
-        
+
         /**
          * Получает идентификатор текущего пользователя.
          * Приоритет у SecurityContext, чтобы избежать утечек из stale ThreadLocal.

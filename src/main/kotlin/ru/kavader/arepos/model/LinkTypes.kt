@@ -6,9 +6,9 @@ import org.hibernate.annotations.Cache
 import org.hibernate.annotations.CacheConcurrencyStrategy
 import org.hibernate.annotations.DynamicUpdate
 import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.*
-import org.hibernate.type.SqlTypes
 
 @Entity
 @DynamicUpdate
@@ -21,26 +21,26 @@ import org.hibernate.type.SqlTypes
     ]
 )
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class LinkTypes(
+class LinkTypes(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant? = null,
+    var createdAt: Instant? = null,
 
     @Column(name = "updated_at")
-    val updatedAt: Instant? = null,
+    var updatedAt: Instant? = null,
 
     @Column(name = "name", nullable = false, unique = true)
-    val name: String,
+    override var name: String,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
-    val attrs: String? = null,
+    override var attrs: String? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner", nullable = false)
-    val owner: Users
-)
+    override var owner: Users
+) : CatalogTypeEntity

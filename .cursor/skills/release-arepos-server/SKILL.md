@@ -1,6 +1,6 @@
 ---
 name: release-arepos-server
-description: Executes the full release cycle for arepos-server: bump version in build.gradle.kts and Helm/chart files, run build, create release commit and annotated tag, push. Use when the user asks to release arepos-server, make a release, tag a version, or when following MEMORY.md release playbook.
+description: Executes the full release cycle for arepos-server - bump version in build.gradle.kts and Helm/chart files, run build, create release commit and annotated tag, push. Use when the user asks to release arepos-server, make a release, tag a version, or when following MEMORY.md release playbook.
 ---
 
 # Релиз arepos-server
@@ -18,7 +18,7 @@ description: Executes the full release cycle for arepos-server: bump version in 
 
 ### 2. Поднять версии
 
-- Обновить версию X.Y.Z во всех файлах:
+- Обновить версию "X.Y.Z" во всех файлах:
   - `build.gradle.kts` — `version = "X.Y.Z"` (без `-SNAPSHOT`)
   - `charts/arepos-server/values.yaml` — `image.tag: "X.Y.Z"`
   - `deploy-values.yaml` — `image.tag: "X.Y.Z"`

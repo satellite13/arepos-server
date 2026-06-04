@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
 import ru.kavader.arepos.model.Role
-import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.security.JwtTokenProvider
 import ru.kavader.arepos.support.PostgresContainerTest
 import java.util.*

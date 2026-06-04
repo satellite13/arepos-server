@@ -2,7 +2,7 @@ package ru.kavader.arepos.model
 
 import jakarta.persistence.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Entity
 @Table(
@@ -22,56 +22,56 @@ import java.util.UUID
         Index(name = "document_refs_node_shape_id_idx", columnList = "node_shape_id")
     ]
 )
-data class DocumentRefs(
+class DocumentRefs(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "file_id", nullable = false)
-    val file: Files,
+    var file: Files,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
-    val createdBy: Users,
+    var createdBy: Users,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant? = null,
+    var createdAt: Instant? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "node_type_id")
-    val nodeType: NodeTypes? = null,
+    var nodeType: NodeTypes? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "link_type_id")
-    val linkType: LinkTypes? = null,
+    var linkType: LinkTypes? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "notation_id")
-    val notation: Notations? = null,
+    var notation: Notations? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "component_id")
-    val component: Components? = null,
+    var component: Components? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "model_id")
-    val model: Models? = null,
+    var model: Models? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "node_id")
-    val node: Nodes? = null,
+    var node: Nodes? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "diagram_id")
-    val diagram: Diagrams? = null,
+    var diagram: Diagrams? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "relation_id")
-    val relation: Relations? = null,
+    var relation: Relations? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "node_shape_id")
-    val nodeShape: NodeShapes? = null,
+    var nodeShape: NodeShapes? = null,
 )

@@ -1,7 +1,7 @@
 package ru.kavader.arepos.config
 
 import org.slf4j.MDC
-import java.util.UUID
+import java.util.*
 
 object MdcRequestId {
     fun <T> withGeneratedIfMissing(prefix: String, block: () -> T): T {

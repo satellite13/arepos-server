@@ -7,12 +7,12 @@ This project is available under a commercial license as an alternative to AGPL-3
 You need a commercial license if you:
 
 - distribute or use Arepos Server in a proprietary/closed-source product;
-- do not want to disclose source code of your modifications under AGPL;
+- do not want to disclose the source code of your modifications under AGPL;
 - use Arepos Server in a commercial offering with terms incompatible with AGPL.
 
 ## Commercial Terms
 
-Commercial licensing terms are provided by the copyright holder under a separate written agreement.
+The copyright holder provides commercial licensing terms under a separate written agreement.
 
 To request commercial licensing:
 

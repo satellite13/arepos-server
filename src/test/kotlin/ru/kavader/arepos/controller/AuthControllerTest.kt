@@ -1,5 +1,4 @@
 package ru.kavader.arepos.controller
-import ru.kavader.arepos.dto.auth.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.assertNotEquals
@@ -13,6 +12,10 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.dto.auth.AuthResponse
+import ru.kavader.arepos.dto.auth.LoginRequest
+import ru.kavader.arepos.dto.auth.RefreshRequest
+import ru.kavader.arepos.dto.auth.RegisterRequest
 import ru.kavader.arepos.repository.UsersRepository
 
 @SpringBootTest

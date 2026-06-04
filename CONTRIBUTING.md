@@ -32,7 +32,7 @@ Run the application:
 
 - Use clear, imperative commit titles
 - Mention *why* the change is needed, not only *what* changed
-- Keep refactors separate from functional changes when possible
+- Keep refactoring separate from functional changes when possible
 
 ## Testing Expectations
 
@@ -54,7 +54,7 @@ bash -n ./scripts/deploy.sh
 
 - [ ] Code builds locally
 - [ ] Tests pass locally
-- [ ] New behavior is covered by tests
+- [ ] Tests are in place to cover new behavior.
 - [ ] Documentation is updated if needed
 - [ ] No secrets or private data were added
 

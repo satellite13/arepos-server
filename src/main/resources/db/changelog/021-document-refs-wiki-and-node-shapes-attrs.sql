@@ -25,7 +25,7 @@ alter table public.document_refs
         diagram_id is not null or
         relation_id is not null or
         node_shape_id is not null
-    );
+        );
 
 comment on column public.document_refs.diagram_id is 'Диаграмма (контекст модели)';
 comment on column public.document_refs.relation_id is 'Отношение нотации';

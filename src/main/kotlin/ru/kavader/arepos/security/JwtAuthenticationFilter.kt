@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import ru.kavader.arepos.config.AuditInterceptor
 import ru.kavader.arepos.repository.UsersRepository
-import java.util.*
 
 @Component
 class JwtAuthenticationFilter(

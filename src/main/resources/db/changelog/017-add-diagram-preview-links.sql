@@ -1,9 +1,9 @@
 -- Share links for diagram SVG preview (public access by token)
 create table public.diagram_preview_links
 (
-    id           uuid      default gen_random_uuid() not null
+    id           uuid        default gen_random_uuid() not null
         constraint diagram_preview_links_pk primary key,
-    token        uuid                                not null
+    token        uuid                                  not null
         constraint diagram_preview_links_token_key unique,
     diagram_id   uuid
         constraint diagram_preview_links_diagram_id_fk
@@ -12,14 +12,14 @@ create table public.diagram_preview_links
         constraint diagram_preview_links_model_id_fk
             references public.models (id) on delete cascade,
     diagram_name varchar(255),
-    created_at   timestamptz default now()          not null,
+    created_at   timestamptz default now()             not null,
     created_by   uuid
         constraint diagram_preview_links_created_by_fk
             references public.users (id) on delete set null,
     constraint diagram_preview_links_target_check check (
         (diagram_id is not null and model_id is null and diagram_name is null)
-        or (diagram_id is null and model_id is not null and diagram_name is not null)
-    )
+            or (diagram_id is null and model_id is not null and diagram_name is not null)
+        )
 );
 
 comment on table public.diagram_preview_links is 'Публичные ссылки на превью диаграммы (SVG по токену)';

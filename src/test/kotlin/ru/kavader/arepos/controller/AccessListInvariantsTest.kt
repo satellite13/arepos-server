@@ -9,29 +9,10 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import ru.kavader.arepos.model.Components
-import ru.kavader.arepos.model.Diagrams
-import ru.kavader.arepos.model.LinkTypes
-import ru.kavader.arepos.model.Models
-import ru.kavader.arepos.model.NodeTypes
-import ru.kavader.arepos.model.Notations
-import ru.kavader.arepos.model.Relations
-import ru.kavader.arepos.model.ResourceShares
-import ru.kavader.arepos.model.Role
-import ru.kavader.arepos.model.SharePermission
-import ru.kavader.arepos.model.ShareResourceType
-import ru.kavader.arepos.model.Users
-import ru.kavader.arepos.repository.DiagramsRepository
-import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.RelationsRepository
-import ru.kavader.arepos.repository.ResourceSharesRepository
-import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.model.*
+import ru.kavader.arepos.repository.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -74,9 +55,9 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
     @Test
     fun `models list keeps access and pagination invariants`() {
         val now = Instant.now()
-        val owner = createUser("owner-model-inv", Role.USER)
-        val sharedUser = createUser("shared-model-inv", Role.USER)
-        val foreign = createUser("foreign-model-inv", Role.USER)
+        val owner = createUser("owner-model-inv")
+        val sharedUser = createUser("shared-model-inv")
+        val foreign = createUser("foreign-model-inv")
 
         val ownModel = modelsRepository.save(
             Models(name = "own-model", createdAt = now, updatedAt = now, version = "1.0.0", owner = sharedUser)
@@ -118,15 +99,21 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
     @Test
     fun `notations list keeps owner filter semantics for shared users`() {
         val now = Instant.now()
-        val owner = createUser("owner-notation-inv", Role.USER)
-        val viewer = createUser("viewer-notation-inv", Role.USER)
-        val otherOwner = createUser("other-notation-inv", Role.USER)
+        val owner = createUser("owner-notation-inv")
+        val viewer = createUser("viewer-notation-inv")
+        val otherOwner = createUser("other-notation-inv")
 
         val sharedNotation = notationsRepository.save(
             Notations(name = "shared-notation", version = "1.0.0", owner = owner, createdAt = now, updatedAt = now)
         )
         notationsRepository.save(
-            Notations(name = "foreign-notation", version = "1.0.0", owner = otherOwner, createdAt = now, updatedAt = now)
+            Notations(
+                name = "foreign-notation",
+                version = "1.0.0",
+                owner = otherOwner,
+                createdAt = now,
+                updatedAt = now
+            )
         )
 
         resourceSharesRepository.save(
@@ -156,15 +143,26 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
     @Test
     fun `components list includes notation from editable model diagrams`() {
         val now = Instant.now()
-        val notationOwner = createUser("notation-owner-inv", Role.USER)
-        val modelOwner = createUser("model-owner-inv", Role.USER)
-        val editor = createUser("editor-inv", Role.USER)
+        val notationOwner = createUser("notation-owner-inv")
+        val modelOwner = createUser("model-owner-inv")
+        val editor = createUser("editor-inv")
 
         val notation = notationsRepository.save(
-            Notations(name = "diagram-notation", version = "1.0.0", owner = notationOwner, createdAt = now, updatedAt = now)
+            Notations(
+                name = "diagram-notation",
+                version = "1.0.0",
+                owner = notationOwner,
+                createdAt = now,
+                updatedAt = now
+            )
         )
         val nodeType = nodeTypesRepository.save(
-            NodeTypes(name = "diagram-node-type-${UUID.randomUUID()}", createdAt = now, updatedAt = now, owner = notationOwner)
+            NodeTypes(
+                name = "diagram-node-type-${UUID.randomUUID()}",
+                createdAt = now,
+                updatedAt = now,
+                owner = notationOwner
+            )
         )
         val model = modelsRepository.save(
             Models(name = "diagram-model", version = "1.0.0", owner = modelOwner, createdAt = now, updatedAt = now)
@@ -183,14 +181,14 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
         )
 
         val persisted = componentsRepository.save(
-            ru.kavader.arepos.model.Components(
-            name = "diagram-component",
-            version = "1.0.0",
-            notation = notation,
-            owner = notationOwner,
-            nodeType = nodeType,
-            createdAt = now,
-            updatedAt = now
+            Components(
+                name = "diagram-component",
+                version = "1.0.0",
+                notation = notation,
+                owner = notationOwner,
+                nodeType = nodeType,
+                createdAt = now,
+                updatedAt = now
             )
         )
 
@@ -222,9 +220,9 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
     @Test
     fun `diagrams list includes diagrams for model VIEW when notation is not shared`() {
         val now = Instant.now()
-        val notationOwner = createUser("notation-owner-diag-view", Role.USER)
-        val modelOwner = createUser("model-owner-diag-view", Role.USER)
-        val viewer = createUser("viewer-diag-view", Role.USER)
+        val notationOwner = createUser("notation-owner-diag-view")
+        val modelOwner = createUser("model-owner-diag-view")
+        val viewer = createUser("viewer-diag-view")
 
         val notation = notationsRepository.save(
             Notations(
@@ -283,10 +281,10 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
     @Test
     fun `GET node-type by id allowed for model viewer when node type has no direct share`() {
         val now = Instant.now()
-        val notationOwner = createUser("nt-n-ow", Role.USER)
-        val nodeTypeOwner = createUser("nt-t-ow", Role.USER)
-        val modelOwner = createUser("nt-m-ow", Role.USER)
-        val viewer = createUser("nt-view", Role.USER)
+        val notationOwner = createUser("nt-n-ow")
+        val nodeTypeOwner = createUser("nt-t-ow")
+        val modelOwner = createUser("nt-m-ow")
+        val viewer = createUser("nt-view")
 
         val notation = notationsRepository.save(
             Notations(
@@ -359,10 +357,10 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
     @Test
     fun `GET link-type by id allowed for model viewer when link type has no direct share`() {
         val now = Instant.now()
-        val notationOwner = createUser("lt-n-ow", Role.USER)
-        val linkTypeOwner = createUser("lt-t-ow", Role.USER)
-        val modelOwner = createUser("lt-m-ow", Role.USER)
-        val viewer = createUser("lt-view", Role.USER)
+        val notationOwner = createUser("lt-n-ow")
+        val linkTypeOwner = createUser("lt-t-ow")
+        val modelOwner = createUser("lt-m-ow")
+        val viewer = createUser("lt-view")
 
         val notation = notationsRepository.save(
             Notations(
@@ -435,10 +433,10 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
     @Test
     fun `model editor with EDIT can list components but not unrelated notation catalog without diagram`() {
         val now = Instant.now()
-        val notationOwner = createUser("ed-n-ow", Role.USER)
-        val nodeTypeOwner = createUser("ed-nt-ow", Role.USER)
-        val modelOwner = createUser("ed-m-ow", Role.USER)
-        val editor = createUser("ed-editor", Role.USER)
+        val notationOwner = createUser("ed-n-ow")
+        val nodeTypeOwner = createUser("ed-nt-ow")
+        val modelOwner = createUser("ed-m-ow")
+        val editor = createUser("ed-editor")
 
         val notation = notationsRepository.save(
             Notations(
@@ -522,8 +520,8 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
     @Test
     fun `link types list respects shared and query filters`() {
         val now = Instant.now()
-        val owner = createUser("owner-link-type-inv", Role.USER)
-        val viewer = createUser("viewer-link-type-inv", Role.USER)
+        val owner = createUser("owner-link-type-inv")
+        val viewer = createUser("viewer-link-type-inv")
 
         val sharedLinkType = linkTypesRepository.save(
             LinkTypes(name = "Shared Link Type ${UUID.randomUUID()}", owner = owner, createdAt = now, updatedAt = now)
@@ -558,11 +556,11 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
         assertTrue(ids.contains(sharedLinkType.id.toString()))
     }
 
-    private fun createUser(prefix: String, role: Role): Users =
+    private fun createUser(prefix: String): Users =
         usersRepository.save(
             Users(
                 email = "$prefix-${UUID.randomUUID()}@test.com",
-                role = role,
+                role = Role.USER,
                 createdAt = Instant.now(),
                 updatedAt = Instant.now()
             )

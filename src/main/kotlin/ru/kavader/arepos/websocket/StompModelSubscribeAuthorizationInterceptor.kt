@@ -11,7 +11,7 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.security.ResourceAccessService
-import java.util.UUID
+import java.util.*
 
 /**
  * Разрешает только подписку на `/topic/models/{modelId}` при праве просмотра модели.
@@ -36,6 +36,7 @@ class StompModelSubscribeAuthorizationInterceptor(
             StompCommand.UNSUBSCRIBE,
             StompCommand.ACK,
             StompCommand.NACK -> return message
+
             StompCommand.SEND -> throw SecurityException("Client STOMP SEND is not allowed")
             StompCommand.SUBSCRIBE -> {
                 val dest = accessor.destination
@@ -58,6 +59,7 @@ class StompModelSubscribeAuthorizationInterceptor(
                     SecurityContextHolder.getContext().authentication = previous
                 }
             }
+
             else -> return message
         }
         return message

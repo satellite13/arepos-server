@@ -14,9 +14,4 @@ object CurrentUser {
             ?.firstOrNull()?.authority?.removePrefix("ROLE_")
     }
 
-    fun isAdmin(): Boolean = getRole() == "ADMIN"
-
-    fun isEditor(): Boolean = getRole() == "EDITOR"
-
-    fun isEditorOrAdmin(): Boolean = isAdmin() || isEditor()
 }

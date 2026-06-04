@@ -9,15 +9,13 @@ import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.Relations
 import ru.kavader.arepos.model.Users
-import java.util.UUID
+import java.util.*
 
 @Repository
 interface RelationsRepository : JpaRepository<Relations, UUID> {
     fun findByNotation(notation: Notations, pageable: Pageable): Page<Relations>
     fun findByOwner(owner: Users, pageable: Pageable): Page<Relations>
     fun findByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<Relations>
-    fun findByNotationAndNameContainingIgnoreCase(notation: Notations, name: String, pageable: Pageable): Page<Relations>
-    fun findByOwnerAndNameContainingIgnoreCase(owner: Users, name: String, pageable: Pageable): Page<Relations>
 
     @Query(
         value = """
@@ -207,7 +205,7 @@ interface RelationsRepository : JpaRepository<Relations, UUID> {
     )
     fun findDistinctLinkTypeIdsByNotationId(@Param("notationId") notationId: UUID): List<UUID>
 
-    fun existsByLinkType_IdAndNotation_IdIn(linkTypeId: UUID, notationIds: Collection<UUID>): Boolean
+    fun existsByLinkTypeIdAndNotationIdIn(linkTypeId: UUID, notationIds: Collection<UUID>): Boolean
 
     /** Тип связи используется отношением в «видимой» нотации (прямой шаринг или диаграмма в доступной модели). */
     @Query(

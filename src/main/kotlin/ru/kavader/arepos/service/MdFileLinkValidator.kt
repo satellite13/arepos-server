@@ -32,12 +32,12 @@ class MdFileLinkValidator(
         val uuids = mutableSetOf<UUID>()
         extractUuidsFromNode(root, uuids, 0)
         if (uuids.isEmpty()) return
-        
+
         // Check all files exist
         val missingUuids = uuids.filter { uuid ->
             !filesRepository.existsById(uuid)
         }
-        
+
         if (missingUuids.isNotEmpty()) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
@@ -60,7 +60,7 @@ class MdFileLinkValidator(
 
     private fun extractUuidsFromNode(node: JsonNode, uuids: MutableSet<UUID>, depth: Int) {
         if (depth > MAX_DEPTH) return
-        
+
         when {
             node.isTextual -> {
                 val text = node.asText()
@@ -73,11 +73,13 @@ class MdFileLinkValidator(
                     }
                 }
             }
+
             node.isObject -> {
                 node.properties().forEach { (_, value) ->
                     extractUuidsFromNode(value, uuids, depth + 1)
                 }
             }
+
             node.isArray -> {
                 node.forEach { element ->
                     extractUuidsFromNode(element, uuids, depth + 1)
@@ -86,19 +88,11 @@ class MdFileLinkValidator(
         }
     }
 
-    /**
-     * Checks if the given string contains any mdfile:// references.
-     */
-    fun containsMdFileRefs(attrs: String?): Boolean {
-        if (attrs.isNullOrBlank()) return false
-        return MDFILE_PATTERN.containsMatchIn(attrs)
-    }
-
     private fun parseSafe(attrs: String): JsonNode {
         if (attrs.toByteArray(Charsets.UTF_8).size > MAX_ATTRS_BYTES) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "Attrs payload is too large for mdfile validation (max ${MAX_ATTRS_BYTES} bytes)"
+                "Attrs payload is too large for mdfile validation (max $MAX_ATTRS_BYTES bytes)"
             )
         }
         return try {

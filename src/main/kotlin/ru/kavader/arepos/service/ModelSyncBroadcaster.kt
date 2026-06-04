@@ -14,7 +14,7 @@ import ru.kavader.arepos.repository.ModelSyncOutboxRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.security.CurrentUser
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 /**
  * Push-уведомление подписчикам модели: пора обновить снимок (дерево / связи / диаграммы).

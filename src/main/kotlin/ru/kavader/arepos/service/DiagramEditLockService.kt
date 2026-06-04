@@ -1,13 +1,14 @@
 package ru.kavader.arepos.service
 
-import org.springframework.http.HttpStatus
-import org.springframework.dao.DataIntegrityViolationException
-import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.http.HttpStatus
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.DiagramLockStatusResponse
+import ru.kavader.arepos.metrics.CustomMetricsService
 import ru.kavader.arepos.model.DiagramEditLocks
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Users
@@ -15,11 +16,10 @@ import ru.kavader.arepos.repository.DiagramEditLocksRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.metrics.CustomMetricsService
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Duration
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Service
 class DiagramEditLockService(
@@ -174,6 +174,7 @@ class DiagramEditLockService(
                 accessService.requireCanViewModel(model)
                 locksRepository.findActiveByModelId(modelId, now)
             }
+
             accessService.canViewAdminPanel() -> locksRepository.findAllActive(now)
             else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, "modelId is required")
         }

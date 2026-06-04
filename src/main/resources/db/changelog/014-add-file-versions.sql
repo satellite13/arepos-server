@@ -8,8 +8,8 @@ create table public.file_versions
         constraint file_versions_files_id_fk
             references public.files
             ON DELETE CASCADE,
-    version_id     varchar(255)                        not null,  -- MinIO/S3 version ID
-    version_number integer                             not null,  -- sequential version number (1, 2, 3...)
+    version_id     varchar(255)                        not null, -- MinIO/S3 version ID
+    version_number integer                             not null, -- sequential version number (1, 2, 3...)
     created_at     timestamp default now()             not null,
     created_by     uuid                                not null
         constraint file_versions_users_id_fk

@@ -7,10 +7,10 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import ru.kavader.arepos.model.DiagramEditLocks
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 interface DiagramEditLocksRepository : JpaRepository<DiagramEditLocks, UUID> {
-    fun findByDiagram_Id(diagramId: UUID): DiagramEditLocks?
+    fun findByDiagramId(diagramId: UUID): DiagramEditLocks?
 
     @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT l FROM DiagramEditLocks l WHERE l.diagram.id = :diagramId")
@@ -18,13 +18,13 @@ interface DiagramEditLocksRepository : JpaRepository<DiagramEditLocks, UUID> {
 
     @Query(
         "SELECT l FROM DiagramEditLocks l JOIN FETCH l.diagram d JOIN FETCH l.lockedBy " +
-            "WHERE d.model.id = :modelId AND l.expiresAt >= :now"
+                "WHERE d.model.id = :modelId AND l.expiresAt >= :now"
     )
     fun findActiveByModelId(@Param("modelId") modelId: UUID, @Param("now") now: Instant): List<DiagramEditLocks>
 
     @Query(
         "SELECT l FROM DiagramEditLocks l JOIN FETCH l.diagram d JOIN FETCH l.lockedBy " +
-            "WHERE l.expiresAt >= :now"
+                "WHERE l.expiresAt >= :now"
     )
     fun findAllActive(@Param("now") now: Instant): List<DiagramEditLocks>
 
@@ -38,7 +38,7 @@ interface DiagramEditLocksRepository : JpaRepository<DiagramEditLocks, UUID> {
 
     @Query(
         "SELECT l FROM DiagramEditLocks l JOIN FETCH l.lockedBy JOIN FETCH l.diagram d JOIN FETCH d.model " +
-            "WHERE l.diagram.id = :diagramId AND l.expiresAt >= :now"
+                "WHERE l.diagram.id = :diagramId AND l.expiresAt >= :now"
     )
     fun findActiveWithDiagram(
         @Param("diagramId") diagramId: UUID,

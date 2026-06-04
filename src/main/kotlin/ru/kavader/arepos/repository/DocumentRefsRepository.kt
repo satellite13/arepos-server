@@ -5,17 +5,15 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.DocumentRefs
-import ru.kavader.arepos.model.Users
-import java.util.Optional
-import java.util.UUID
+import java.util.*
 
 @Repository
 interface DocumentRefsRepository : JpaRepository<DocumentRefs, UUID> {
 
-    fun findFirstByFile_IdAndNodeType_Id(fileId: UUID, nodeTypeId: UUID): Optional<DocumentRefs>
-    fun findFirstByFile_IdAndLinkType_Id(fileId: UUID, linkTypeId: UUID): Optional<DocumentRefs>
+    fun findFirstByFileIdAndNodeTypeId(fileId: UUID, nodeTypeId: UUID): Optional<DocumentRefs>
+    fun findFirstByFileIdAndLinkTypeId(fileId: UUID, linkTypeId: UUID): Optional<DocumentRefs>
 
-    fun findAllByFile_Id(fileId: UUID): List<DocumentRefs>
+    fun findAllByFileId(fileId: UUID): List<DocumentRefs>
 
     @Query(
         """

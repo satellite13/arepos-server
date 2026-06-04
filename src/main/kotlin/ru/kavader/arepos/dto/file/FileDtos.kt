@@ -3,7 +3,7 @@ package ru.kavader.arepos.dto.file
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 data class FileUploadResponse(
     val id: UUID,

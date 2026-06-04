@@ -11,21 +11,10 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import ru.kavader.arepos.model.Models
-import ru.kavader.arepos.model.LinkTypes
-import ru.kavader.arepos.model.NodeShapes
-import ru.kavader.arepos.model.NodeTypes
-import ru.kavader.arepos.model.Files
-import ru.kavader.arepos.model.Role
-import ru.kavader.arepos.model.Users
-import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.FilesRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodeShapesRepository
-import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.model.*
+import ru.kavader.arepos.repository.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @SpringBootTest
 @AutoConfigureMockMvc

@@ -2,7 +2,7 @@ package ru.kavader.arepos.dto.user
 
 import ru.kavader.arepos.model.Role
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 data class UserRequest(
     val email: String,

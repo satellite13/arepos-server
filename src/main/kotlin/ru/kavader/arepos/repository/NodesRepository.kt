@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.model.Users
-import java.util.UUID
+import java.util.*
 
 @Repository
 interface NodesRepository : JpaRepository<Nodes, UUID> {
@@ -108,7 +108,7 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
     )
     fun findDistinctNodeTypeIdsByModelId(@Param("modelId") modelId: UUID): List<UUID>
 
-    fun findByModel_IdAndStableIdIn(modelId: UUID, stableIds: Collection<UUID>): List<Nodes>
+    fun findByModelIdAndStableIdIn(modelId: UUID, stableIds: Collection<UUID>): List<Nodes>
 }
 
 

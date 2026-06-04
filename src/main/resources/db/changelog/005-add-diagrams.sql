@@ -1,24 +1,24 @@
 -- Создание таблицы diagrams для хранения диаграмм в рамках модели и нотации
 create table public.diagrams
 (
-    id          uuid         default gen_random_uuid() not null
+    id          uuid      default gen_random_uuid() not null
         constraint diagrams_pk
             primary key,
-    name        varchar(256)                           not null,
-    created_at  timestamp    default now()             not null,
+    name        varchar(256)                        not null,
+    created_at  timestamp default now()             not null,
     updated_at  timestamp,
     attrs       jsonb,
-    version     version_type                           not null,
-    owner       uuid                                   not null
+    version     version_type                        not null,
+    owner       uuid                                not null
         constraint diagrams_users_id_fk
             references public.users
             on delete restrict,
-    deleted     boolean      default false             not null,
-    model       uuid                                   not null
+    deleted     boolean   default false             not null,
+    model       uuid                                not null
         constraint diagrams_models_id_fk
             references public.models
             on delete cascade,
-    notation_id uuid                                   not null
+    notation_id uuid                                not null
         constraint diagrams_notations_id_fk
             references public.notations
             on delete restrict,

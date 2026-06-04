@@ -2,11 +2,31 @@ package ru.kavader.arepos.controller
 
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
+import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.security.ResourceAccessService
-import java.util.UUID
+import java.util.*
+
+data class OwnerNamePageQueries<T>(
+    val byOwnerAndName: (Users, String, Pageable) -> Page<T>,
+    val byOwner: (Users, Pageable) -> Page<T>,
+    val byName: (String, Pageable) -> Page<T>,
+    val all: (Pageable) -> Page<T>
+)
+
+fun <T> listPageByOwnerAndName(
+    effectiveOwner: Users?,
+    name: String?,
+    pageable: Pageable,
+    queries: OwnerNamePageQueries<T>
+): Page<T> =
+    when {
+        effectiveOwner != null && name != null -> queries.byOwnerAndName(effectiveOwner, name, pageable)
+        effectiveOwner != null -> queries.byOwner(effectiveOwner, pageable)
+        name != null -> queries.byName(name, pageable)
+        else -> queries.all(pageable)
+    }
 
 fun <T> ResourceAccessService.listPageWithAdminBypass(
-    pageable: Pageable,
     adminQuery: () -> Page<T>,
     userQuery: (currentUserId: UUID) -> Page<T>
 ): Page<T> =
@@ -22,4 +42,4 @@ fun <T, R> ResourceAccessService.listPageWithAdminBypass(
     userQuery: (currentUserId: UUID) -> Page<T>,
     map: (T) -> R
 ): Page<R> =
-    listPageWithAdminBypass(pageable, adminQuery, userQuery).map(map)
+    listPageWithAdminBypass(adminQuery, userQuery).map(map)

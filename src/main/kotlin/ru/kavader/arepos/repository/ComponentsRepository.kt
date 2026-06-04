@@ -9,15 +9,13 @@ import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.Users
-import java.util.UUID
+import java.util.*
 
 @Repository
 interface ComponentsRepository : JpaRepository<Components, UUID> {
     fun findByNotation(notation: Notations, pageable: Pageable): Page<Components>
     fun findByOwner(owner: Users, pageable: Pageable): Page<Components>
     fun findByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<Components>
-    fun findByNotationAndNameContainingIgnoreCase(notation: Notations, name: String, pageable: Pageable): Page<Components>
-    fun findByOwnerAndNameContainingIgnoreCase(owner: Users, name: String, pageable: Pageable): Page<Components>
 
     @Query(
         value = """
@@ -207,7 +205,7 @@ interface ComponentsRepository : JpaRepository<Components, UUID> {
     )
     fun findDistinctNodeTypeIdsByNotationId(@Param("notationId") notationId: UUID): List<UUID>
 
-    fun existsByNodeType_IdAndNotation_IdIn(nodeTypeId: UUID, notationIds: Collection<UUID>): Boolean
+    fun existsByNodeTypeIdAndNotationIdIn(nodeTypeId: UUID, notationIds: Collection<UUID>): Boolean
 
     /** Тип узла используется компонентом в «видимой» нотации (прямой шаринг или диаграмма в доступной модели). */
     @Query(

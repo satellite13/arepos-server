@@ -16,7 +16,7 @@ import ru.kavader.arepos.service.modelbatch.BatchConflictCollector
 import ru.kavader.arepos.service.modelbatch.BatchEventBuilder
 import ru.kavader.arepos.service.modelbatch.BatchGraphOpsExecutor
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Service
 class ModelBatchSaveService(

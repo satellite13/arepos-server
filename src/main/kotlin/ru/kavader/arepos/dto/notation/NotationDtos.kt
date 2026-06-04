@@ -2,7 +2,7 @@ package ru.kavader.arepos.dto.notation
 
 import jakarta.validation.constraints.NotBlank
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 data class NotationRequest(
     @field:NotBlank val name: String,
@@ -48,13 +48,13 @@ data class ComponentRequest(
 )
 
 data class ComponentUpdateRequest(
-    val name: String? = null,
-    val version: String? = null,
+    override val name: String? = null,
+    override val version: String? = null,
     val notationId: UUID? = null,
     val ownerId: UUID? = null,
     val nodeTypeId: UUID? = null,
-    val attrs: String? = null
-)
+    override val attrs: String? = null
+) : NotationBoundEntityUpdateRequest
 
 data class ComponentResponse(
     val id: UUID,
@@ -78,13 +78,13 @@ data class RelationRequest(
 )
 
 data class RelationUpdateRequest(
-    val name: String? = null,
-    val version: String? = null,
+    override val name: String? = null,
+    override val version: String? = null,
     val notationId: UUID? = null,
     val ownerId: UUID? = null,
     val linkTypeId: UUID? = null,
-    val attrs: String? = null
-)
+    override val attrs: String? = null
+) : NotationBoundEntityUpdateRequest
 
 data class RelationResponse(
     val id: UUID,
@@ -105,10 +105,10 @@ data class NodeTypeRequest(
 )
 
 data class NodeTypeUpdateRequest(
-    val name: String? = null,
-    val ownerId: UUID? = null,
-    val attrs: String? = null
-)
+    override val name: String? = null,
+    override val ownerId: UUID? = null,
+    override val attrs: String? = null
+) : CatalogTypeUpdateRequest
 
 data class NodeTypeResponse(
     val id: UUID,
@@ -127,10 +127,10 @@ data class LinkTypeRequest(
 )
 
 data class LinkTypeUpdateRequest(
-    val name: String? = null,
-    val ownerId: UUID? = null,
-    val attrs: String? = null
-)
+    override val name: String? = null,
+    override val ownerId: UUID? = null,
+    override val attrs: String? = null
+) : CatalogTypeUpdateRequest
 
 data class LinkTypeResponse(
     val id: UUID,

@@ -1,39 +1,39 @@
 -- Document refs: bindings of files (documents) to context (type, notation, component, model, node) and author
 create table public.document_refs
 (
-    id             uuid      default gen_random_uuid() not null
+    id           uuid      default gen_random_uuid() not null
         constraint document_refs_pk
             primary key,
-    file_id        uuid                                not null
+    file_id      uuid                                not null
         constraint document_refs_files_id_fk
             references public.files
             ON DELETE CASCADE,
-    created_by     uuid                                not null
+    created_by   uuid                                not null
         constraint document_refs_users_id_fk
             references public.users
             ON DELETE RESTRICT,
-    created_at     timestamp default now()             not null,
-    node_type_id   uuid
+    created_at   timestamp default now()             not null,
+    node_type_id uuid
         constraint document_refs_node_types_id_fk
             references public.node_types
             ON DELETE SET NULL,
-    link_type_id   uuid
+    link_type_id uuid
         constraint document_refs_link_types_id_fk
             references public.link_types
             ON DELETE SET NULL,
-    notation_id    uuid
+    notation_id  uuid
         constraint document_refs_notations_id_fk
             references public.notations
             ON DELETE SET NULL,
-    component_id   uuid
+    component_id uuid
         constraint document_refs_components_id_fk
             references public.components
             ON DELETE SET NULL,
-    model_id       uuid
+    model_id     uuid
         constraint document_refs_models_id_fk
             references public.models
             ON DELETE SET NULL,
-    node_id        uuid
+    node_id      uuid
         constraint document_refs_nodes_id_fk
             references public.nodes
             ON DELETE SET NULL,
@@ -44,7 +44,7 @@ create table public.document_refs
         component_id is not null or
         model_id is not null or
         node_id is not null
-    )
+        )
 );
 
 comment on table public.document_refs is 'Привязки документов (файлов) к контексту: тип, нотация, компонент, модель, нода; для селекта документов в UI';

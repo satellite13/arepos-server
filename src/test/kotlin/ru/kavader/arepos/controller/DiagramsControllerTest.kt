@@ -1,5 +1,4 @@
 package ru.kavader.arepos.controller
-import ru.kavader.arepos.dto.model.*
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
@@ -8,25 +7,19 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.dto.model.DiagramRequest
+import ru.kavader.arepos.dto.model.DiagramResponse
+import ru.kavader.arepos.dto.model.DiagramUpdateRequest
 import ru.kavader.arepos.model.ResourceShares
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.ShareResourceType
-import ru.kavader.arepos.repository.DiagramsRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.NodesRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.ResourceSharesRepository
-import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.repository.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 import kotlin.test.assertEquals
 
 @SpringBootTest
@@ -94,7 +87,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         )
         val node = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 name = "diagram-node",
                 model = model,
                 owner = owner,
@@ -484,7 +477,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         )
         val node1 = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 name = "list-node-1",
                 model = model,
                 owner = owner,
@@ -494,7 +487,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         )
         val node2 = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
-                stableId = java.util.UUID.randomUUID(),
+                stableId = UUID.randomUUID(),
                 name = "list-node-2",
                 model = model,
                 owner = owner,

@@ -4,9 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
 import org.hibernate.annotations.DynamicUpdate
 import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.*
-import org.hibernate.type.SqlTypes
 
 @Entity
 @DynamicUpdate
@@ -19,39 +19,39 @@ import org.hibernate.type.SqlTypes
     ]
 )
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class Models(
+class Models(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @Column(name = "name", nullable = false)
-    val name: String,
+    var name: String,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant? = null,
+    var createdAt: Instant? = null,
 
     @Column(name = "updated_at")
-    val updatedAt: Instant? = null,
+    var updatedAt: Instant? = null,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
-    val attrs: String? = null,
+    var attrs: String? = null,
 
     @Column(name = "version", nullable = false, columnDefinition = "version_type")
-    val version: String,
+    var version: String,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner", nullable = false)
-    val owner: Users,
+    var owner: Users,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_id")
-    val source: Models? = null,
+    var source: Models? = null,
 
     @Column(name = "deleted", nullable = false)
-    val deleted: Boolean = false,
+    var deleted: Boolean = false,
 
     @Column(name = "sync_revision", nullable = false)
-    val syncRevision: Long = 0
+    var syncRevision: Long = 0
 )

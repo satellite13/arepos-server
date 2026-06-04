@@ -2,7 +2,7 @@ package ru.kavader.arepos.model
 
 import jakarta.persistence.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Entity
 @Table(
@@ -13,29 +13,29 @@ import java.util.UUID
         Index(name = "file_versions_created_by_idx", columnList = "created_by")
     ]
 )
-data class FileVersions(
+class FileVersions(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "file_id", nullable = false)
-    val file: Files,
+    var file: Files,
 
     @Column(name = "version_id", nullable = false)
-    val versionId: String,
+    var versionId: String,
 
     @Column(name = "version_number", nullable = false)
-    val versionNumber: Int,
+    var versionNumber: Int,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant? = null,
+    var createdAt: Instant? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
-    val createdBy: Users,
+    var createdBy: Users,
 
     @Column(name = "size", nullable = false)
-    val size: Long
+    var size: Long
 )

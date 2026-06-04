@@ -14,11 +14,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.BatchConflictItem
 import ru.kavader.arepos.dto.model.BatchSaveConflictException
-import java.util.UUID
+import java.util.*
 
 /**
  * Global exception handler that produces structured error responses.
- * Provides consistent { error, message, traceId } body for all error paths.
+ * Provides a consistent {error, message, traceId } body for all error paths.
  */
 @RestControllerAdvice
 class GlobalExceptionHandler {
@@ -57,7 +57,14 @@ class GlobalExceptionHandler {
         log.warn("Validation failed [{}]: {}", traceId, fieldErrors)
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
-            .body(ValidationErrorBody("VALIDATION_ERROR", ex.body?.detail ?: "Request validation failed", traceId, fieldErrors))
+            .body(
+                ValidationErrorBody(
+                    "VALIDATION_ERROR",
+                    ex.body?.detail ?: "Request validation failed",
+                    traceId,
+                    fieldErrors
+                )
+            )
     }
 
     @ExceptionHandler(ConstraintViolationException::class)
@@ -71,7 +78,12 @@ class GlobalExceptionHandler {
     fun handleMalformedBody(ex: HttpMessageNotReadableException): ResponseEntity<ErrorBody> {
         val traceId = newTraceId()
         log.warn("Malformed request body [{}]: {}", traceId, ex.message)
-        return buildResponse(HttpStatus.BAD_REQUEST, "MALFORMED_BODY", "Request body is malformed or unreadable", traceId)
+        return buildResponse(
+            HttpStatus.BAD_REQUEST,
+            "MALFORMED_BODY",
+            "Request body is malformed or unreadable",
+            traceId
+        )
     }
 
     @ExceptionHandler(IllegalArgumentException::class)

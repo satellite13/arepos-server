@@ -25,7 +25,8 @@ data class JwtProperties(
 class JwtTokenProvider(private val jwtProperties: JwtProperties) {
     companion object {
         private val log = LoggerFactory.getLogger(JwtTokenProvider::class.java)
-        const val INSECURE_DEFAULT_SECRET = "default-dev-secret-key-change-in-production-must-be-at-least-256-bits-long!!"
+        const val INSECURE_DEFAULT_SECRET =
+            "default-dev-secret-key-change-in-production-must-be-at-least-256-bits-long!!"
         private const val MIN_SECRET_BYTES = 32
         private const val INVALID_TOKEN_LOG_SAMPLE_EVERY = 100L
     }

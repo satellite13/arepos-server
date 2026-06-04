@@ -3,21 +3,17 @@ package ru.kavader.arepos.controller
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.PageRequest
-import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
-import org.springframework.web.bind.annotation.*
-import ru.kavader.arepos.dto.dashboard.*
-import ru.kavader.arepos.dto.system.*
-import ru.kavader.arepos.repository.AuditLogRepository
-import ru.kavader.arepos.repository.LinkTypesRepository
-import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodeTypesRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.ResourceAccessService
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.RestController
+import ru.kavader.arepos.dto.dashboard.DashboardRecentResponse
+import ru.kavader.arepos.dto.dashboard.DashboardStatsResponse
+import ru.kavader.arepos.dto.system.AuditMapper
 import ru.kavader.arepos.model.SharePermission
-import java.time.Instant
-import java.util.UUID
+import ru.kavader.arepos.repository.*
+import ru.kavader.arepos.security.ResourceAccessService
 
 @RestController
 @RequestMapping("/api/v1/dashboard")

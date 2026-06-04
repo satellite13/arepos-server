@@ -1,6 +1,6 @@
 package ru.kavader.arepos.dto.system
 
-import java.util.UUID
+import java.util.*
 
 data class RelationRulesSyncRequest(
     val rules: List<RelationRuleSyncItem>

@@ -1,18 +1,9 @@
 package ru.kavader.arepos.model
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.FetchType
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
-import jakarta.persistence.Index
-import jakarta.persistence.JoinColumn
-import jakarta.persistence.ManyToOne
-import jakarta.persistence.Table
+import jakarta.persistence.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Entity
 @Table(
@@ -27,17 +18,17 @@ class ModelSyncOutbox(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "model_id", nullable = false)
-    val model: Models,
+    var model: Models,
 
     @Column(name = "payload", nullable = false, columnDefinition = "text")
-    val payload: String,
+    var payload: String,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant = Instant.now(),
+    var createdAt: Instant = Instant.now(),
 
     @Column(name = "published_at")
     var publishedAt: Instant? = null,

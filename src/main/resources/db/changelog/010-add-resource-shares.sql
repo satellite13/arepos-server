@@ -1,20 +1,20 @@
 CREATE TABLE IF NOT EXISTS public.resource_shares
 (
-    id                 uuid         DEFAULT gen_random_uuid() NOT NULL
+    id                 uuid      DEFAULT gen_random_uuid() NOT NULL
         CONSTRAINT resource_shares_pk
             PRIMARY KEY,
-    resource_type      VARCHAR(40)                                NOT NULL,
-    resource_id        uuid                                       NOT NULL,
-    grantee_user_id    uuid                                       NOT NULL
+    resource_type      VARCHAR(40)                         NOT NULL,
+    resource_id        uuid                                NOT NULL,
+    grantee_user_id    uuid                                NOT NULL
         CONSTRAINT resource_shares_grantee_user_fk
             REFERENCES public.users (id)
             ON DELETE CASCADE,
-    granted_by_user_id uuid                                       NOT NULL
+    granted_by_user_id uuid                                NOT NULL
         CONSTRAINT resource_shares_granted_by_user_fk
             REFERENCES public.users (id)
             ON DELETE CASCADE,
-    permission         VARCHAR(20)                                NOT NULL DEFAULT 'EDIT',
-    created_at         timestamp    DEFAULT now()                 NOT NULL,
+    permission         VARCHAR(20)                         NOT NULL DEFAULT 'EDIT',
+    created_at         timestamp DEFAULT now()             NOT NULL,
     updated_at         timestamp
 );
 

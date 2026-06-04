@@ -19,6 +19,11 @@ val reflectiveAccessOpens = listOf(
     "--add-opens=java.base/java.util=ALL-UNNAMED",
     "--add-opens=java.base/java.time=ALL-UNNAMED"
 )
+// Ehcache на JDK 24+ и CDS при -javaagent (Mockito) — косметические предупреждения в test output.
+val testNoiseSuppressionJvmArgs = listOf(
+    "--sun-misc-unsafe-memory-access=allow",
+    "-Xshare:off"
+)
 
 java {
     sourceCompatibility = JavaVersion.VERSION_24
@@ -94,6 +99,7 @@ tasks {
             "-javaagent:${agentFile.absolutePath}"
         )
         jvmArgs(reflectiveAccessOpens)
+        jvmArgs(testNoiseSuppressionJvmArgs)
     }
     withType<JavaExec>().configureEach {
         jvmArgs(reflectiveAccessOpens)

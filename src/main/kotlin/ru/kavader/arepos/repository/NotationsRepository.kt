@@ -9,24 +9,23 @@ import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.Users
-import java.util.Optional
-import java.util.UUID
+import java.util.*
 
 @Repository
 interface NotationsRepository : JpaRepository<Notations, UUID> {
     // Методы для получения только неудаленных нотаций
     @Query("SELECT n FROM Notations n WHERE n.deleted = false")
     override fun findAll(pageable: Pageable): Page<Notations>
-    
+
     @Query("SELECT n FROM Notations n WHERE n.id = :id AND n.deleted = false")
     override fun findById(id: UUID): Optional<Notations>
-    
+
     @Query("SELECT n FROM Notations n WHERE n.owner = :owner AND n.deleted = false")
     fun findByOwner(owner: Users, pageable: Pageable): Page<Notations>
-    
+
     @Query("SELECT n FROM Notations n WHERE LOWER(n.name) LIKE LOWER(CONCAT('%', :name, '%')) AND n.deleted = false")
     fun findByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<Notations>
-    
+
     @Query("SELECT n FROM Notations n WHERE n.owner = :owner AND LOWER(n.name) LIKE LOWER(CONCAT('%', :name, '%')) AND n.deleted = false")
     fun findByOwnerAndNameContainingIgnoreCase(owner: Users, name: String, pageable: Pageable): Page<Notations>
 
@@ -38,7 +37,7 @@ interface NotationsRepository : JpaRepository<Notations, UUID> {
 
     @Query("SELECT CASE WHEN COUNT(n) > 0 THEN true ELSE false END FROM Notations n WHERE n.id = :id AND n.deleted = false")
     override fun existsById(id: UUID): Boolean
-    
+
     @Query("SELECT n FROM Notations n WHERE n.deleted = true")
     fun findByDeletedTrue(pageable: Pageable): Page<Notations>
 

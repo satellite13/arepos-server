@@ -2,22 +2,18 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import ru.kavader.arepos.dto.system.*
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.system.RelationRulesSyncRequest
+import ru.kavader.arepos.dto.system.RelationRulesSyncResponse
 import ru.kavader.arepos.model.RelationRules
-import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.NotationsRepository
-import ru.kavader.arepos.repository.RelationRulesRepository
-import ru.kavader.arepos.repository.RelationsRepository
-import ru.kavader.arepos.repository.UsersRepository
-import ru.kavader.arepos.security.CurrentUser
+import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/notations/{notationId}/relation-rules")
