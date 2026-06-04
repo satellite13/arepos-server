@@ -17,6 +17,9 @@
         <expiry>
             <ttl unit="minutes">15</ttl>
         </expiry>
+        <resources>
+            <heap unit="kB">10000</heap>
+        </resources>
     </cache>
 
     <cache-template name="reference-entity-template">
@@ -25,6 +28,9 @@
         <expiry>
             <ttl unit="minutes">60</ttl>
         </expiry>
+        <resources>
+            <heap unit="kB">5000</heap>
+        </resources>
     </cache-template>
 
     <cache alias="ru.kavader.arepos.model.Notations" uses-template="reference-entity-template"/>
