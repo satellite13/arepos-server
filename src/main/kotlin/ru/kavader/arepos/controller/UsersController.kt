@@ -14,6 +14,7 @@ import ru.kavader.arepos.dto.user.*
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.PasswordPolicyValidator
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.UserProfileAttrsService
 import java.time.Instant
@@ -27,7 +28,8 @@ class UsersController(
     private val passwordEncoder: PasswordEncoder,
     private val userProfileAttrsService: UserProfileAttrsService,
     private val accessService: ResourceAccessService,
-    private val userMapper: UserMapper
+    private val userMapper: UserMapper,
+    private val passwordPolicyValidator: PasswordPolicyValidator
 ) {
 
     @GetMapping
@@ -165,9 +167,7 @@ class UsersController(
             }
         }
         request.password?.let { newPassword ->
-            if (newPassword.length < 6) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be at least 6 characters")
-            }
+            passwordPolicyValidator.validateOrThrow(newPassword, user.email)
         }
 
         val nextAttrs = userProfileAttrsService.mergeProfile(

@@ -53,6 +53,12 @@ springdoc:
     path: /swagger-ui.html
 
 arepos:
+  auth:
+    registration-enabled: ${AREPOS_AUTH_REGISTRATION_ENABLED:true}
+    cookie-secure: ${AREPOS_AUTH_COOKIE_SECURE:false}
+    csrf-enabled: ${AREPOS_AUTH_CSRF_ENABLED:true}
+  swagger:
+    enabled: ${AREPOS_SWAGGER_ENABLED:true}
   # Публичная база URL для формирования внешних ссылок (например, share-link preview SVG).
   # Пример: https://api.example.com
   public-url-base: ${AREPOS_PUBLIC_URL_BASE:}

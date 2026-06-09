@@ -15,8 +15,12 @@ class CustomMetricsService(
         .register(meterRegistry)
 
     val authLoginFailure: Counter = Counter.builder("arepos_auth_login_failure_total")
-        .description("Failed login attempts")
+        .description("Failed login attempts (legacy, without reason tag)")
         .register(meterRegistry)
+
+    fun recordLoginFailure(reason: String) {
+        meterRegistry.counter("arepos_auth_login_failure_total", "reason", reason).increment()
+    }
 
     // Diagram edit locks
     val editLockAcquire: Counter = Counter.builder("arepos_diagram_edit_lock_acquire_total")

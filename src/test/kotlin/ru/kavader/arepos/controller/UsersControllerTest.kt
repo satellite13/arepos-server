@@ -194,12 +194,12 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val user = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "password@test.com",
-                passwordHash = passwordEncoder.encode("oldpass123"),
+                passwordHash = passwordEncoder.encode("Oldpass1"),
                 createdAt = Instant.now()
             )
         )
 
-        val payload = UserUpdateRequest(password = "newpass123")
+        val payload = UserUpdateRequest(password = "Newpass2")
 
         mockMvc.perform(
             put("/api/v1/users/${user.id}")
@@ -211,8 +211,8 @@ class UsersControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.email").value("password@test.com"))
 
         val updated = usersRepository.findById(user.id!!).orElseThrow()
-        assertTrue(passwordEncoder.matches("newpass123", updated.passwordHash))
-        assertFalse(passwordEncoder.matches("oldpass123", updated.passwordHash))
+        assertTrue(passwordEncoder.matches("Newpass2", updated.passwordHash))
+        assertFalse(passwordEncoder.matches("Oldpass1", updated.passwordHash))
     }
 
     @Test

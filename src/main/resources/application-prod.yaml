@@ -1,0 +1,6 @@
+arepos:
+  auth:
+    registration-enabled: false
+    cookie-secure: true
+  swagger:
+    enabled: false

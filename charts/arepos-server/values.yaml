@@ -56,16 +56,17 @@ podAnnotations: {}
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: {}
 
-podSecurityContext: {}
-  # fsGroup: 2000
+podSecurityContext:
+  fsGroup: 1001
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
 
 # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:
@@ -141,18 +142,14 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
 
-# Additional volumes on the output Deployment definition.
-volumes: []
-# - name: foo
-#   secret:
-#     secretName: mysecret
-#     optional: false
+# Writable path for JVM temp files with readOnlyRootFilesystem.
+volumes:
+  - name: tmp
+    emptyDir: {}
 
-# Additional volumeMounts on the output Deployment definition.
-volumeMounts: []
-# - name: foo
-#   mountPath: "/etc/foo"
-#   readOnly: true
+volumeMounts:
+  - name: tmp
+    mountPath: /tmp
 
 nodeSelector: {}
 
@@ -256,6 +253,18 @@ env: []
 #   value: "500"
 # - name: MODEL_SYNC_OUTBOX_BATCH_SIZE
 #   value: "50"
+
+# Restrict arepos-server traffic (enable after warchi release name/labels are confirmed).
+networkPolicy:
+  enabled: false
+  ingress:
+    warchiPodLabels:
+      app.kubernetes.io/name: warchi
+  egress:
+    allowDns: true
+    allowPostgresql: true
+    allowMinio: true
+    allowCerbos: true
 
 # Cerbos authorization configuration
 cerbos:

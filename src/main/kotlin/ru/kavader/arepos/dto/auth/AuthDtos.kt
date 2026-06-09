@@ -37,9 +37,8 @@ data class LoginRequest(
 )
 
 data class RefreshRequest(
-    @field:NotBlank
     @field:Size(max = 4096)
-    val refreshToken: String
+    val refreshToken: String? = null
 )
 
 data class AdminRegisterRequest(

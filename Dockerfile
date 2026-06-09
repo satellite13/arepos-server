@@ -12,7 +12,7 @@ RUN --mount=type=cache,id=arepos-gradle-cache,target=/root/.gradle \
 # Runtime stage
 FROM eclipse-temurin:24-jre-alpine
 WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app
+RUN addgroup -g 1001 -S app && adduser -u 1001 -S app -G app
 COPY --from=builder /app/build/libs/*.jar app.jar
 USER app
 EXPOSE 8080

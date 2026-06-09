@@ -33,7 +33,7 @@ class AuthControllerTest : ControllerIntegrationTest() {
 
     private fun registerRequest(email: String): RegisterRequest = RegisterRequest(
         email = email,
-        password = "password123",
+        password = "ValidPass1",
         firstName = "Иван",
         lastName = "Иванов",
         middleName = "Иванович",
@@ -87,7 +87,7 @@ class AuthControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(LoginRequest("login@test.com", "password123")))
+                .content(objectMapper.writeValueAsString(LoginRequest("login@test.com", "ValidPass1")))
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accessToken").isNotEmpty)

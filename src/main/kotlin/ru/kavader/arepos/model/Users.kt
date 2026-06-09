@@ -41,6 +41,12 @@ class Users(
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true,
 
+    @Column(name = "failed_login_attempts", nullable = false)
+    var failedLoginAttempts: Int = 0,
+
+    @Column(name = "locked_until")
+    var lockedUntil: Instant? = null,
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
     var attrs: String? = null,

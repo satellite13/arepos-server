@@ -3,6 +3,7 @@ package ru.kavader.arepos.security
 import jakarta.servlet.DispatcherType
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -16,21 +17,25 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+import ru.kavader.arepos.config.AreposAuthProperties
+import ru.kavader.arepos.config.AreposSwaggerProperties
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties::class)
+@EnableConfigurationProperties(JwtProperties::class, AreposAuthProperties::class, AreposSwaggerProperties::class)
 class SecurityConfig(
-    private val jwtAuthenticationFilter: JwtAuthenticationFilter
+    private val jwtAuthenticationFilter: JwtAuthenticationFilter,
+    private val csrfFilter: CsrfFilter
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(SecurityConfig::class.java)
     }
 
-    /** Публичные пути (/, Swagger UI, api-docs) — без JWT, всегда permitAll. */
+    /** Публичные пути (/, Swagger UI, api-docs) — без JWT, только если swagger включён. */
     @Bean
     @Order(0)
+    @ConditionalOnProperty(prefix = "arepos.swagger", name = ["enabled"], havingValue = "true", matchIfMissing = true)
     fun publicSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
         return http
             .securityMatchers { matchers ->
@@ -81,6 +86,7 @@ class SecurityConfig(
                     response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized")
                 }
             }
+            .addFilterBefore(csrfFilter, UsernamePasswordAuthenticationFilter::class.java)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
 
         return http.build()

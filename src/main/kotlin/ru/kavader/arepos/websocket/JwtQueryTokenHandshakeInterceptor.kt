@@ -6,6 +6,7 @@ import org.springframework.http.server.ServletServerHttpRequest
 import org.springframework.stereotype.Component
 import org.springframework.web.socket.WebSocketHandler
 import org.springframework.web.socket.server.HandshakeInterceptor
+import ru.kavader.arepos.security.AuthCookies
 import ru.kavader.arepos.security.JwtTokenProvider
 import ru.kavader.arepos.security.TokenType
 
@@ -21,7 +22,14 @@ class JwtQueryTokenHandshakeInterceptor(
         attributes: MutableMap<String, Any>
     ): Boolean {
         val servletRequest = (request as? ServletServerHttpRequest)?.servletRequest ?: return false
-        val token = servletRequest.getParameter("token")?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+        val cookieToken = servletRequest.cookies
+            ?.firstOrNull { it.name == AuthCookies.ACCESS }
+            ?.value
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+        val token = cookieToken
+            ?: servletRequest.getParameter("token")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: return false
         if (!jwtTokenProvider.validateToken(token)) {
             return false
         }

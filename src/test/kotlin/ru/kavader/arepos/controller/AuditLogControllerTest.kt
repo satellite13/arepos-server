@@ -62,7 +62,7 @@ class AuditLogControllerTest : ControllerIntegrationTest() {
                     objectMapper.writeValueAsString(
                         RegisterRequest(
                             email = "audit@test.com",
-                            password = "password123",
+                            password = "ValidPass1",
                             firstName = "Аудит",
                             lastName = "Тестов",
                             middleName = null,

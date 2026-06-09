@@ -105,6 +105,10 @@ class JwtTokenProvider(private val jwtProperties: JwtProperties) {
         return parseClaims(token).expiration.toInstant()
     }
 
+    fun accessExpirationSeconds(): Long = jwtProperties.accessExpiration.seconds
+
+    fun refreshExpirationSeconds(): Long = jwtProperties.refreshExpiration.seconds
+
     private fun parseClaims(token: String): Claims {
         val claims = Jwts.parser()
             .verifyWith(key)

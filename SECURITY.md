@@ -31,6 +31,14 @@ If no private channel is available yet, create one before public release and upd
 
 - Always provide a strong `JWT_SECRET` (minimum 32 bytes); startup fails when blank/weak
 - Configure explicit `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` in `prod` (wildcard `*` is rejected)
+
+### CORS and WebSocket origins (same-origin default)
+
+Typical wArchi enterprise deployment is **same-origin**: the browser talks only to warchi (nginx), which proxies `/api/` and `/ws` to arepos-server. In this setup **REST CORS is not required** — the browser sees a single origin.
+
+- **REST CORS:** enable only for split-domain setups (SPA and API on different origins). Use an explicit origin whitelist with `allowCredentials: true`; never use `*` with cookies.
+- **WebSocket origins:** always set `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` in production to match the public UI origin(s), e.g. `https://warchi.example.com`. Wildcard `*` is rejected in `prod`.
+- **Runbook:** if live sync fails after hardening, check browser console for CSP/connect errors and server logs for WebSocket origin rejection before enabling REST CORS.
 - Keep `ADMIN_SECRET` disabled unless admin bootstrap is intentionally required
 - Ensure MinIO credentials are non-default in `prod`
 - Monitor `/actuator/health` and `/actuator/prometheus` (especially authz/outbox contributors)
