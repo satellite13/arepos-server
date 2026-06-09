@@ -1,6 +1,7 @@
 package ru.kavader.arepos.dto.notation
 
 import org.springframework.stereotype.Component
+import ru.kavader.arepos.dto.user.UserMapper
 import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.RelationRuleListLightProjection
 import ru.kavader.arepos.repository.RelationRuleListProjection
@@ -8,13 +9,16 @@ import ru.kavader.arepos.security.ResourceAccessService
 
 @Component
 class NotationMapper(
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val userMapper: UserMapper
 ) {
     fun toResponse(notation: Notations, accessPermission: String?): NotationResponse = NotationResponse(
         id = requireNotNull(notation.id),
         name = notation.name,
         version = notation.version,
         ownerId = notation.owner.id!!,
+        ownerEmail = notation.owner.email,
+        ownerDisplayName = userMapper.ownerDisplayName(notation.owner),
         accessPermission = accessPermission,
         attrs = notation.attrs,
         createdAt = notation.createdAt,
@@ -27,6 +31,8 @@ class NotationMapper(
         name = notation.name,
         version = notation.version,
         ownerId = notation.owner.id!!,
+        ownerEmail = notation.owner.email,
+        ownerDisplayName = userMapper.ownerDisplayName(notation.owner),
         accessPermission = accessService.notationAccessPermission(notation),
         attrs = notation.attrs,
         createdAt = notation.createdAt,
@@ -34,10 +40,21 @@ class NotationMapper(
         sourceId = notation.source?.id
     )
 
+    fun toMetaResponse(notation: Notations): NotationMetaResponse = NotationMetaResponse(
+        id = requireNotNull(notation.id),
+        name = notation.name,
+        version = notation.version,
+        ownerId = notation.owner.id!!,
+        ownerEmail = notation.owner.email,
+        ownerDisplayName = userMapper.ownerDisplayName(notation.owner)
+    )
+
     fun toResponse(nodeType: NodeTypes, accessPermission: String?): NodeTypeResponse = NodeTypeResponse(
         id = requireNotNull(nodeType.id),
         name = nodeType.name,
         ownerId = nodeType.owner.id!!,
+        ownerEmail = nodeType.owner.email,
+        ownerDisplayName = userMapper.ownerDisplayName(nodeType.owner),
         accessPermission = accessPermission,
         attrs = nodeType.attrs,
         createdAt = nodeType.createdAt,
@@ -106,6 +123,8 @@ class NotationMapper(
         id = requireNotNull(nodeType.id),
         name = nodeType.name,
         ownerId = nodeType.owner.id!!,
+        ownerEmail = nodeType.owner.email,
+        ownerDisplayName = userMapper.ownerDisplayName(nodeType.owner),
         accessPermission = accessService.nodeTypeAccessPermission(nodeType),
         attrs = nodeType.attrs,
         createdAt = nodeType.createdAt,
@@ -116,6 +135,8 @@ class NotationMapper(
         id = requireNotNull(linkType.id),
         name = linkType.name,
         ownerId = linkType.owner.id!!,
+        ownerEmail = linkType.owner.email,
+        ownerDisplayName = userMapper.ownerDisplayName(linkType.owner),
         accessPermission = accessPermission,
         attrs = linkType.attrs,
         createdAt = linkType.createdAt,
@@ -126,6 +147,8 @@ class NotationMapper(
         id = requireNotNull(linkType.id),
         name = linkType.name,
         ownerId = linkType.owner.id!!,
+        ownerEmail = linkType.owner.email,
+        ownerDisplayName = userMapper.ownerDisplayName(linkType.owner),
         accessPermission = accessService.linkTypeAccessPermission(linkType),
         attrs = linkType.attrs,
         createdAt = linkType.createdAt,

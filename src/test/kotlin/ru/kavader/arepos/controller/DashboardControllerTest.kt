@@ -13,9 +13,13 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.model.AuditLog
+import ru.kavader.arepos.model.LinkTypes
+import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.AuditLogRepository
+import ru.kavader.arepos.repository.LinkTypesRepository
+import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
@@ -35,6 +39,12 @@ class DashboardControllerTest : ControllerIntegrationTest() {
     @Autowired
     lateinit var auditLogRepository: AuditLogRepository
 
+    @Autowired
+    lateinit var nodeTypesRepository: NodeTypesRepository
+
+    @Autowired
+    lateinit var linkTypesRepository: LinkTypesRepository
+
     @MockitoSpyBean
     lateinit var accessService: ResourceAccessService
 
@@ -43,6 +53,70 @@ class DashboardControllerTest : ControllerIntegrationTest() {
         doAnswer { CurrentUser.getRole() == "ADMIN" }
             .`when`(accessService)
             .canViewAdminPanel()
+    }
+
+    @Test
+    fun `stats nodeTypes count reflects accessible types for non-admin`() {
+        val currentUser = usersRepository.save(
+            Users(
+                email = "dashboard-stats-user@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val otherUser = usersRepository.save(
+            Users(
+                email = "dashboard-stats-other@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val now = Instant.now()
+        nodeTypesRepository.saveAll(
+            listOf(
+                NodeTypes(name = "OwnType", createdAt = now, updatedAt = now, owner = currentUser),
+                NodeTypes(name = "ForeignType", createdAt = now, updatedAt = now, owner = otherUser)
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/dashboard/stats")
+                .withAuth(currentUser.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.nodeTypes").value(1))
+    }
+
+    @Test
+    fun `stats linkTypes count reflects accessible types for non-admin`() {
+        val currentUser = usersRepository.save(
+            Users(
+                email = "dashboard-stats-link-user@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val otherUser = usersRepository.save(
+            Users(
+                email = "dashboard-stats-link-other@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val now = Instant.now()
+        linkTypesRepository.saveAll(
+            listOf(
+                LinkTypes(name = "OwnLink", createdAt = now, updatedAt = now, owner = currentUser),
+                LinkTypes(name = "ForeignLink", createdAt = now, updatedAt = now, owner = otherUser)
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/dashboard/stats")
+                .withAuth(currentUser.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.linkTypes").value(1))
     }
 
     @Test

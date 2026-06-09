@@ -185,13 +185,7 @@ class NotationsController(
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
                 }
 
-                NotationMetaResponse(
-                    id = requireNotNull(notation.id),
-                    name = notation.name,
-                    version = notation.version,
-                    ownerId = notation.owner.id!!,
-                    ownerEmail = notation.owner.email
-                )
+                notationMapper.toMetaResponse(notation)
             }
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")

@@ -47,8 +47,8 @@ class DashboardController(
         return DashboardStatsResponse(
             models = modelsRepository.countDistinctAccessibleNamesForUser(currentUserId, viewPermissions).toInt(),
             notations = notationsRepository.countDistinctAccessibleNamesForUser(currentUserId, viewPermissions).toInt(),
-            nodeTypes = nodeTypesRepository.count().toInt(),
-            linkTypes = linkTypesRepository.count().toInt()
+            nodeTypes = nodeTypesRepository.countAccessibleForUser(currentUserId, viewPermissions).toInt(),
+            linkTypes = linkTypesRepository.countAccessibleForUser(currentUserId, viewPermissions).toInt()
         )
     }
 

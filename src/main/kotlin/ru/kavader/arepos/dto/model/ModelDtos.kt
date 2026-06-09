@@ -24,6 +24,8 @@ data class ModelResponse(
     val name: String,
     val version: String,
     val ownerId: UUID,
+    val ownerEmail: String,
+    val ownerDisplayName: String,
     val accessPermission: String? = null,
     val attrs: String?,
     val createdAt: Instant?,

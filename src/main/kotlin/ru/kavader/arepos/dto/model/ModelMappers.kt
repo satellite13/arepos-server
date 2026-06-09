@@ -1,6 +1,7 @@
 package ru.kavader.arepos.dto.model
 
 import org.springframework.stereotype.Component
+import ru.kavader.arepos.dto.user.UserMapper
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.model.Models
@@ -9,13 +10,16 @@ import ru.kavader.arepos.security.ResourceAccessService
 
 @Component
 class ModelMapper(
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val userMapper: UserMapper
 ) {
     fun toResponse(model: Models, accessPermission: String?): ModelResponse = ModelResponse(
         id = requireNotNull(model.id),
         name = model.name,
         version = model.version,
         ownerId = model.owner.id!!,
+        ownerEmail = model.owner.email,
+        ownerDisplayName = userMapper.ownerDisplayName(model.owner),
         accessPermission = accessPermission,
         attrs = model.attrs,
         createdAt = model.createdAt,
@@ -28,6 +32,8 @@ class ModelMapper(
         name = model.name,
         version = model.version,
         ownerId = model.owner.id!!,
+        ownerEmail = model.owner.email,
+        ownerDisplayName = userMapper.ownerDisplayName(model.owner),
         accessPermission = accessService.modelAccessPermission(model),
         attrs = model.attrs,
         createdAt = model.createdAt,

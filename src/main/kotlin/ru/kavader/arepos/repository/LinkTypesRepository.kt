@@ -44,6 +44,28 @@ interface LinkTypesRepository : JpaRepository<LinkTypes, UUID> {
         pageable: Pageable
     ): Page<LinkTypes>
 
+    @Query(
+        """
+        SELECT COUNT(lt)
+        FROM LinkTypes lt
+        WHERE (
+            lt.owner.id = :userId
+            OR EXISTS (
+                SELECT rs.id
+                FROM ResourceShares rs
+                WHERE rs.resourceType = ru.kavader.arepos.model.ShareResourceType.LINK_TYPE
+                  AND rs.resourceId = lt.id
+                  AND rs.permission IN :viewPermissions
+                  AND (rs.granteeUser.id = :userId OR rs.granteeUser IS NULL)
+            )
+        )
+        """
+    )
+    fun countAccessibleForUser(
+        userId: UUID,
+        viewPermissions: Collection<SharePermission>
+    ): Long
+
     fun findByIdIn(ids: Collection<UUID>): List<LinkTypes>
     fun findByOwnerIdIn(ownerIds: Collection<UUID>): List<LinkTypes>
 }

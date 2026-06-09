@@ -23,6 +23,8 @@ data class NotationResponse(
     val name: String,
     val version: String,
     val ownerId: UUID,
+    val ownerEmail: String,
+    val ownerDisplayName: String,
     val accessPermission: String? = null,
     val attrs: String?,
     val createdAt: Instant?,
@@ -35,7 +37,8 @@ data class NotationMetaResponse(
     val name: String,
     val version: String,
     val ownerId: UUID,
-    val ownerEmail: String
+    val ownerEmail: String,
+    val ownerDisplayName: String
 )
 
 data class ComponentRequest(
@@ -114,6 +117,8 @@ data class NodeTypeResponse(
     val id: UUID,
     val name: String,
     val ownerId: UUID,
+    val ownerEmail: String,
+    val ownerDisplayName: String,
     val accessPermission: String? = null,
     val attrs: String?,
     val createdAt: Instant?,
@@ -136,6 +141,8 @@ data class LinkTypeResponse(
     val id: UUID,
     val name: String,
     val ownerId: UUID,
+    val ownerEmail: String,
+    val ownerDisplayName: String,
     val accessPermission: String? = null,
     val attrs: String?,
     val createdAt: Instant?,

@@ -44,6 +44,28 @@ interface NodeTypesRepository : JpaRepository<NodeTypes, UUID> {
         pageable: Pageable
     ): Page<NodeTypes>
 
+    @Query(
+        """
+        SELECT COUNT(nt)
+        FROM NodeTypes nt
+        WHERE (
+            nt.owner.id = :userId
+            OR EXISTS (
+                SELECT rs.id
+                FROM ResourceShares rs
+                WHERE rs.resourceType = ru.kavader.arepos.model.ShareResourceType.NODE_TYPE
+                  AND rs.resourceId = nt.id
+                  AND rs.permission IN :viewPermissions
+                  AND (rs.granteeUser.id = :userId OR rs.granteeUser IS NULL)
+            )
+        )
+        """
+    )
+    fun countAccessibleForUser(
+        userId: UUID,
+        viewPermissions: Collection<SharePermission>
+    ): Long
+
     fun findByIdIn(ids: Collection<UUID>): List<NodeTypes>
     fun findByOwnerIdIn(ownerIds: Collection<UUID>): List<NodeTypes>
 }

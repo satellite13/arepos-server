@@ -9,6 +9,15 @@ import ru.kavader.arepos.service.UserProfileAttrsService
 class UserMapper(
     private val profileService: UserProfileAttrsService
 ) {
+    fun ownerDisplayName(user: Users): String {
+        val profile = profileService.readProfile(user.attrs)
+        val parts = listOfNotNull(
+            profile.firstName?.trim()?.takeIf { it.isNotEmpty() },
+            profile.lastName?.trim()?.takeIf { it.isNotEmpty() }
+        )
+        return parts.joinToString(" ").ifEmpty { user.email }
+    }
+
     fun toResponse(user: Users): UserResponse {
         val profile = profileService.readProfile(user.attrs)
         return UserResponse(
