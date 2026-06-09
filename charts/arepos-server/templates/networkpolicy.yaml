@@ -59,4 +59,14 @@ spec:
         - protocol: TCP
           port: 3593
     {{- end }}
+    {{- range .Values.networkPolicy.egress.externalTcp }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+      ports:
+        {{- range .ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
 {{- end }}

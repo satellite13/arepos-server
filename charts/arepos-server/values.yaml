@@ -265,6 +265,8 @@ networkPolicy:
     allowPostgresql: true
     allowMinio: true
     allowCerbos: true
+    # External TCP endpoints (managed DB, object storage) when in-cluster deps are disabled.
+    externalTcp: []
 
 # Cerbos authorization configuration
 cerbos:
