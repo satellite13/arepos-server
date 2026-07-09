@@ -169,10 +169,11 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         )
 
         mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(other.id!!, Role.USER))
-            .andExpect(status().isConflict)
-            .andExpect(jsonPath("$.error").value("CONFLICT"))
-            .andExpect(jsonPath("$.message").value("Diagram lock is held by another user"))
-            .andExpect(jsonPath("$.traceId").isNotEmpty)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.isLocked").value(true))
+            .andExpect(jsonPath("$.reason").value("LOCKED_BY_OTHER"))
+            .andExpect(jsonPath("$.lockedByUserId").value(s.ownerId.toString()))
+            .andExpect(jsonPath("$.lockedByDisplay").isNotEmpty)
     }
 
     @Test
