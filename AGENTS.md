@@ -231,7 +231,7 @@ enum class Role { USER, EDITOR, ADMIN }
 - `ResourceShares` allows sharing resources with specific permissions
 - `ResourceAccessService` checks view/edit permissions via Cerbos (enforce-only)
 - Model-editor notation reads with `?modelId=` (`NotationsController`, `NodeTypesController`, `LinkTypesController`): allowed when the user can view the notation directly **or** can edit the model and the notation version is used by an active diagram in that model (`canUseNotationInModelDiagramEditor`)
-- Cerbos outage behavior: see `authz/cerbos/README.md` (typical failure → default-deny → **403**; explicit **503** only if `CerbosDecisionService` throws)
+- Cerbos outage behavior: unavailable Cerbos → **503** `Authorization service is unavailable` (see `authz/cerbos/README.md`); policy deny remains **403**
 
 ### Collaboration / batch APIs
 

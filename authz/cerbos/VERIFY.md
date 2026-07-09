@@ -31,9 +31,8 @@ npm run build
 
 Проверить, что:
 - при ответах backend `502/503/504` и сетевых ошибках включается глобальный блокер backend;
-- при `503` с `Authorization service is unavailable` включается глобальный блокер authz (если такой ответ получен);
-- **учёт runtime:** типичный outage Cerbos сейчас даёт **403** (default-deny), а не 503 — authz-overlay на фронте в этом случае может не сработать (см. `authz/cerbos/README.md`);
-- блокер снимается автоматически после восстановления backend (для 502/503/504 путей);
+- при `503` с `Authorization service is unavailable` включается глобальный блокер authz (типичный outage Cerbos);
+- блокер снимается автоматически после восстановления backend / успешного `/permissions/check`;
 - role/owner обходы в критичных местах UI отсутствуют (используется permission-based модель).
 
 ## 3) Аудит покрытия endpoint -> Cerbos

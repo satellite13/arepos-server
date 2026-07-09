@@ -216,7 +216,61 @@ class CerbosDecisionServiceTest {
     }
 
     @Test
-    fun `opens circuit after repeated cerbos failures`() {
+    fun `throws CerbosUnavailableException when cerbos returns HTTP error`() {
+        withServer(
+            body = """{"error":"unavailable"}""",
+            statusCode = 503
+        ) { endpoint ->
+            val service = CerbosDecisionService(
+                cerbosProperties = CerbosProperties(
+                    endpoint = endpoint,
+                    requestTimeout = Duration.ofSeconds(1)
+                ),
+                objectMapper = jacksonObjectMapper()
+            )
+            setCurrentUser(role = "USER")
+
+            assertFailsWith<CerbosUnavailableException> {
+                service.check(
+                    CerbosAccessRequest(
+                        resourceKind = CerbosResourceKind.MODEL,
+                        action = CerbosAction.VIEW,
+                        resourceId = UUID.randomUUID()
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `throws CerbosUnavailableException when cerbos response cannot be parsed`() {
+        withServer(
+            body = """{"results":[]}""",
+            statusCode = 200
+        ) { endpoint ->
+            val service = CerbosDecisionService(
+                cerbosProperties = CerbosProperties(
+                    endpoint = endpoint,
+                    requestTimeout = Duration.ofSeconds(1)
+                ),
+                objectMapper = jacksonObjectMapper()
+            )
+            setCurrentUser(role = "USER")
+
+            assertFailsWith<CerbosUnavailableException> {
+                service.check(
+                    CerbosAccessRequest(
+                        resourceKind = CerbosResourceKind.MODEL,
+                        action = CerbosAction.VIEW,
+                        resourceId = UUID.randomUUID()
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `throws CerbosUnavailableException after circuit opens on repeated failures`() {
         withServer(
             body = """{"error":"unavailable"}""",
             statusCode = 503
@@ -237,9 +291,10 @@ class CerbosDecisionServiceTest {
                 resourceId = UUID.randomUUID()
             )
 
-            assertFalse(service.check(request))
-            assertFalse(service.check(request))
-            assertFalse(service.check(request))
+            assertFailsWith<CerbosUnavailableException> { service.check(request) }
+            assertFailsWith<CerbosUnavailableException> { service.check(request) }
+            // Circuit open still surfaces as unavailable, not silent deny.
+            assertFailsWith<CerbosUnavailableException> { service.check(request) }
         }
     }
 

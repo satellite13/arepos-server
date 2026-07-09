@@ -3,17 +3,17 @@
 Этот каталог хранит policy bundle для `arepos-server` в единственном рабочем режиме:
 - Cerbos всегда включен;
 - fallback на legacy авторизацию отсутствует;
-- при недоступности Cerbos действует **default-deny** (см. ниже).
+- при недоступности Cerbos backend возвращает **503** `Authorization service is unavailable`.
 
 ### Поведение при outage Cerbos
 
 Фактический runtime (`CerbosDecisionService` + `ResourceAccessService`):
 
-1. Сетевой сбой / circuit open / неразбираемый ответ Cerbos → `CerbosDecisionService` возвращает **deny** (`false`) без исключения.
-2. `ResourceAccessService` при `false` обычно отвечает клиенту **403 Access denied** (как при обычном запрете).
-3. **HTTP 503** с текстом `Authorization service is unavailable` выставляется только если `CerbosDecisionService.check*` **бросает** исключение (редкий путь; helper `cerbosUnavailable`).
+1. Сетевой сбой / circuit open / неразбираемый ответ Cerbos → `CerbosDecisionService` бросает `CerbosUnavailableException` (не silent deny).
+2. `ResourceAccessService` ловит исключение и отвечает клиенту **HTTP 503** с текстом `Authorization service is unavailable`.
+3. Обычный policy deny по-прежнему **403 Access denied**.
 
-Итог для операторов и фронта: типичный outage Cerbos выглядит как массовые **403**, а не как глобальный 503. wArchi authz-blocker реагирует на `503` + `Authorization service is unavailable`; при default-deny UI может не показать authz-outage overlay.
+wArchi authz-blocker реагирует на `503` + это сообщение (`authz_unavailable`).
 
 ## Структура
 

@@ -22,7 +22,7 @@ ALLOW_DIRTY=false DRY_RUN=true DEPLOY_TARGET=none ./scripts/release-cerbos-polic
 CERBOS_DEPLOY=true CERBOS_BUNDLE_VERSION=policy-<sha> ./scripts/deploy.sh
 ```
 
-Критерий успеха: backend отвечает, авторизация работает; нет массовых ложных **403** из-за недоступного Cerbos и нет `503 Authorization service is unavailable` (если этот путь всё же сработал).
+Критерий успеха: backend отвечает, авторизация работает, нет `503 Authorization service is unavailable`.
 
 ## 3) Parity перед infra rollout
 
