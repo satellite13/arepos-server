@@ -31,6 +31,8 @@
 
 - Всегда задавайте сильный `JWT_SECRET` (минимум 32 байта); при пустом/слабом значении сервис не стартует
 - В `prod` задавайте явный `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` (wildcard `*` запрещён)
+- За HTTPS включайте `AREPOS_AUTH_COOKIE_SECURE=true` (Secure на auth-cookies)
+- Оставляйте `AREPOS_AUTH_CSRF_ENABLED=true` для cookie-сессии браузера
 - Оставляйте `ADMIN_SECRET` выключенным, если bootstrap админа не нужен
 - Для MinIO используйте недефолтные креды в `prod`
 - Мониторьте `/actuator/health` и `/actuator/prometheus` (особенно authz/outbox contributors)
@@ -38,4 +40,11 @@
 - Не используйте дефолтные креды в production
 - Ограничивайте сетевой доступ к БД и сервису
 - Используйте HTTPS на ingress/load balancer уровне
+
+### CORS и WebSocket origins (same-origin по умолчанию)
+
+Типичный enterprise-деплой wArchi — **same-origin**: браузер ходит только в warchi (nginx), который проксирует `/api/` и `/ws` в arepos-server. В такой схеме **REST CORS не нужен** — браузер видит один origin.
+
+- **REST CORS:** включайте только при split-domain (SPA и API на разных origin). Явный whitelist origin с `allowCredentials: true`; никогда не используйте `*` вместе с cookies.
+- **WebSocket origins:** в production всегда задавайте `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` под публичный UI origin, например `https://warchi.example.com`. Wildcard `*` в `prod` запрещён.
 - Регулярно обновляйте зависимости и базовые образы

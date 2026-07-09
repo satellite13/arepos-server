@@ -12,6 +12,7 @@ English version: `README.md`
 - Автоматические миграции схемы через Liquibase
 - Аудит изменений данных
 - JWT-аутентификация с rotation refresh-токенов (одноразовые refresh-токены хранятся на сервере)
+- Cookie-сессия для браузера (`warchi_access` / `warchi_refresh`) + CSRF (`warchi_csrf` / `X-CSRF-Token`); Bearer-заголовок поддерживается для API-клиентов
 - Авторизация через Cerbos в enforce-only режиме
 - Model live-sync через STOMP/WebSocket с опциональным transactional outbox
 - Встроенные health-индикаторы для Cerbos, MinIO и model-sync outbox
@@ -36,17 +37,20 @@ src/main/kotlin/ru/kavader/arepos/
   controller/   # REST-контроллеры
   model/        # JPA-сущности
   repository/   # Spring Data репозитории
-  security/     # JWT и компоненты безопасности
+  security/     # JWT, cookies/CSRF, Cerbos, ResourceAccessService
+  service/      # Бизнес-сервисы (batch save, блокировки диаграмм, файлы, …)
   config/       # конфигурация и интерсепторы
 
 src/main/resources/
   application.yaml
-  db/changelog/ # миграции Liquibase
+  db/changelog/ # миграции Liquibase (001–039+)
 
 charts/arepos-server/
   templates/    # Helm templates
   values.yaml   # значения chart
 ```
+
+Политики Cerbos: `authz/cerbos/`. Контракты коллаборации: `docs/api-collaboration.md`.
 
 ## Требования
 
@@ -70,6 +74,9 @@ charts/arepos-server/
 - `JWT_SECRET` (обязательно; минимум 32 байта)
 - `JWT_ISSUER` / `JWT_AUDIENCE` (валидация issuer/audience токенов)
 - `ADMIN_SECRET` (рекомендуется для bootstrap администраторов)
+- `AREPOS_AUTH_COOKIE_SECURE` (`true` за HTTPS — флаг Secure на auth-cookies)
+- `AREPOS_AUTH_CSRF_ENABLED` (по умолчанию `true`; double-submit CSRF для mutating-запросов cookie-сессии)
+- `AREPOS_AUTH_REGISTRATION_ENABLED` (по умолчанию `true`)
 - `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` (в профиле `prod` значение `*` запрещено, иначе fail-fast на старте)
 - `MODEL_SYNC_OUTBOX_ENABLED` (включение transactional outbox для model sync)
 - `MODEL_SYNC_OUTBOX_PUBLISH_MS`, `MODEL_SYNC_OUTBOX_BATCH_SIZE` (тюнинг outbox-паблишера)
@@ -105,6 +112,8 @@ docker build -f Dockerfile -t arch/arepos-server:dev .  # сборка чере�
 
 - Swagger UI: `/swagger-ui.html` — интерактивная документация API
 - OpenAPI-спецификация (JSON): `/v3/api-docs`
+- Auth: cookie-сессия (основной путь для wArchi) или `Authorization: Bearer`; CSRF обязателен для mutating-запросов cookie-сессии — см. `AGENTS.md` и описание в OpenAPI
+- Контракты коллаборации: `docs/api-collaboration.md` (блокировки диаграмм, batch-save)
 - Ошибки API из exception handlers имеют формат `{ error, message, traceId }`
 - Чтение нотаций, типов нод и типов связей из редактора модели может передавать `?modelId=`; доступ даётся при прямом праве на нотацию **или** при праве редактировать модель, если эта версия нотации используется активной диаграммой модели
 - Health endpoints:

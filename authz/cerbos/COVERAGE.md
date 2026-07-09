@@ -6,7 +6,7 @@
 
 - Все бизнес-проверки доступа выполняются через `ResourceAccessService`.
 - `ResourceAccessService` принимает финальное решение только через Cerbos.
-- При недоступности Cerbos backend возвращает `503`.
+- При недоступности Cerbos: типично **default-deny → 403**; явный **503** `Authorization service is unavailable` — только если `CerbosDecisionService` бросает (см. `authz/cerbos/README.md`).
 - Role-based bypass (`CurrentUser.isAdmin`, `hasRole('ADMIN')` в контроллерах) отсутствуют.
 
 ## Resource policies

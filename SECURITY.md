@@ -31,6 +31,8 @@ If no private channel is available yet, create one before public release and upd
 
 - Always provide a strong `JWT_SECRET` (minimum 32 bytes); startup fails when blank/weak
 - Configure explicit `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` in `prod` (wildcard `*` is rejected)
+- Set `AREPOS_AUTH_COOKIE_SECURE=true` behind HTTPS (Secure flag on auth cookies)
+- Keep `AREPOS_AUTH_CSRF_ENABLED=true` for browser cookie sessions
 
 ### CORS and WebSocket origins (same-origin default)
 
