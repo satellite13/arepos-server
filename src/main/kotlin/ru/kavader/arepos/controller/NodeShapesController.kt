@@ -2,8 +2,8 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -11,7 +11,7 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.notation.NodeShapeRequest
 import ru.kavader.arepos.dto.notation.NodeShapeResponse
 import ru.kavader.arepos.dto.notation.NodeShapeUpdateRequest
-import ru.kavader.arepos.dto.notation.NotationMapper
+import ru.kavader.arepos.mapper.NotationMapper
 import ru.kavader.arepos.model.NodeShapes
 import ru.kavader.arepos.repository.NodeShapesRepository
 import ru.kavader.arepos.repository.UsersRepository
@@ -69,7 +69,7 @@ class NodeShapesController(
     @PostMapping
     @Operation(summary = "Create node shape")
     @ResponseStatus(HttpStatus.CREATED)
-    fun create(@RequestBody request: NodeShapeRequest): NodeShapeResponse {
+    fun create(@RequestBody @Valid request: NodeShapeRequest): NodeShapeResponse {
         val currentUserId = accessService.currentUserId()
         val owner = usersRepository.findById(currentUserId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $currentUserId not found")
@@ -93,7 +93,7 @@ class NodeShapesController(
     @Operation(summary = "Update node shape")
     fun update(
         @PathVariable id: UUID,
-        @RequestBody request: NodeShapeUpdateRequest
+        @RequestBody @Valid request: NodeShapeUpdateRequest
     ): NodeShapeResponse {
         val shape = nodeShapesRepository.findById(id).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "NodeShape $id not found")
@@ -119,13 +119,11 @@ class NodeShapesController(
         nodeShapesRepository.deleteById(id)
     }
 
-    private fun mapNodeShapesPage(page: Page<NodeShapes>): Page<NodeShapeResponse> {
-        val permissions = accessService.nodeShapeAccessPermissions(page.content)
-        val mapped = page.content.map { shape ->
-            val shapeId = requireNotNull(shape.id)
-            notationMapper.toResponse(shape, permissions[shapeId])
-        }
-        return PageImpl(mapped, page.pageable, page.totalElements)
-    }
+    private fun mapNodeShapesPage(page: Page<NodeShapes>): Page<NodeShapeResponse> =
+        page.mapWithPermissions(
+            loadPermissions = accessService::nodeShapeAccessPermissions,
+            idOf = NodeShapes::id,
+            transform = notationMapper::toResponse
+        )
 
 }

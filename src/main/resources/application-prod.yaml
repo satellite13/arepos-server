@@ -4,3 +4,9 @@ arepos:
     cookie-secure: true
   swagger:
     enabled: false
+
+server:
+  error:
+    include-stacktrace: never
+    include-message: always
+    include-binding-errors: never

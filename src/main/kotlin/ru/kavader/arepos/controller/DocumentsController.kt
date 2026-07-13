@@ -2,6 +2,7 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.web.bind.annotation.*
 import ru.kavader.arepos.dto.document.DocumentItem
@@ -19,7 +20,7 @@ class DocumentsController(
 
     @PostMapping
     @Operation(summary = "Register document reference in entity context")
-    fun registerRef(@RequestBody request: RegisterDocumentRefRequest): DocumentItem =
+    fun registerRef(@RequestBody @Valid request: RegisterDocumentRefRequest): DocumentItem =
         documentRefsService.registerRef(request)
 
     @GetMapping

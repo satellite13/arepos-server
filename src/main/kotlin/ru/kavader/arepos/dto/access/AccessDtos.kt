@@ -1,13 +1,14 @@
 package ru.kavader.arepos.dto.access
 
+import jakarta.validation.constraints.NotNull
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.ShareResourceType
 import java.time.Instant
 import java.util.*
 
 data class AccessShareRequest(
-    val resourceType: ShareResourceType? = null,
-    val resourceId: UUID? = null,
+    @field:NotNull val resourceType: ShareResourceType? = null,
+    @field:NotNull val resourceId: UUID? = null,
     val granteeUserId: UUID? = null,
     val permission: SharePermission? = null
 )

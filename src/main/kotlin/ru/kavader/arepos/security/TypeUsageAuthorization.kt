@@ -47,5 +47,5 @@ class TypeUsageAuthorization(
     }
 
     private fun deny(): Nothing =
-        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
 }

@@ -1,8 +1,9 @@
-package ru.kavader.arepos.dto.system
+package ru.kavader.arepos.mapper
 
 import org.springframework.stereotype.Component
 import ru.kavader.arepos.dto.dashboard.DashboardActivityItem
 import ru.kavader.arepos.dto.dashboard.DashboardRecentItem
+import ru.kavader.arepos.dto.system.AuditLogResponse
 import ru.kavader.arepos.model.AuditLog
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Notations

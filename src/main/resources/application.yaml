@@ -67,6 +67,8 @@ arepos:
     outbox-enabled: ${MODEL_SYNC_OUTBOX_ENABLED:false}
     outbox-publish-interval-ms: ${MODEL_SYNC_OUTBOX_PUBLISH_MS:500}
     outbox-batch-size: ${MODEL_SYNC_OUTBOX_BATCH_SIZE:50}
+  diagram-lock:
+    ttl-seconds: ${DIAGRAM_LOCK_TTL_SECONDS:180}
   audit:
     retention: ${AUDIT_RETENTION:PT24H}
     cleanup-cron: ${AUDIT_CLEANUP_CRON:0 0 * * * *}

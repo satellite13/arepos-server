@@ -1,6 +1,7 @@
 package ru.kavader.arepos.service
 
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.orm.ObjectOptimisticLockingFailureException
@@ -16,6 +17,7 @@ import ru.kavader.arepos.repository.DiagramEditLocksRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.ADMIN_ONLY
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Duration
 import java.time.Instant
@@ -28,12 +30,13 @@ class DiagramEditLockService(
     private val locksRepository: DiagramEditLocksRepository,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
-    private val metrics: CustomMetricsService
+    private val metrics: CustomMetricsService,
+    @Value($$"${arepos.diagram-lock.ttl-seconds:180}") lockTtlSeconds: Long = 180
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+    private val lockTtl = Duration.ofSeconds(lockTtlSeconds)
 
     companion object {
-        val LOCK_TTL: Duration = Duration.ofSeconds(180)
         const val REASON_LOCKED_BY_OTHER = "LOCKED_BY_OTHER"
     }
 
@@ -46,7 +49,7 @@ class DiagramEditLockService(
             ResponseStatusException(HttpStatus.NOT_FOUND, "Current user not found")
         }
         val now = Instant.now()
-        val newExpiry = now.plus(LOCK_TTL)
+        val newExpiry = now.plus(lockTtl)
 
         val row = locksRepository.lockByDiagramIdForUpdate(diagramId)
         if (row == null) {
@@ -116,7 +119,7 @@ class DiagramEditLockService(
         accessService.requireCanEditDiagram(diagram)
         val meId = accessService.currentUserId()
         val now = Instant.now()
-        val newExpiry = now.plus(LOCK_TTL)
+        val newExpiry = now.plus(lockTtl)
 
         val row = locksRepository.lockByDiagramIdForUpdate(diagramId)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No active lock for diagram $diagramId")
@@ -156,7 +159,7 @@ class DiagramEditLockService(
     @Transactional
     fun forceRelease(diagramId: UUID) {
         if (!accessService.canViewAdminPanel()) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
         }
         loadDiagram(diagramId)
         locksRepository.deleteByDiagramId(diagramId)

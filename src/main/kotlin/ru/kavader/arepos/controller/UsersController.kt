@@ -2,6 +2,7 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
@@ -11,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.common.ListResponse
 import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.dto.user.*
+import ru.kavader.arepos.mapper.UserMapper
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.UsersRepository
@@ -106,7 +108,7 @@ class UsersController(
     @PostMapping("/public/batch")
     @Operation(summary = "Get public user profiles in batch")
     @PreAuthorize("isAuthenticated()")
-    fun getUsersBatch(@RequestBody request: BatchUserPublicRequest): ListResponse<UserPublicResponse> {
+    fun getUsersBatch(@RequestBody @Valid request: BatchUserPublicRequest): ListResponse<UserPublicResponse> {
         if (request.ids.isEmpty()) return emptyList<UserPublicResponse>().toListResponse()
         val ids = request.ids.distinct().take(100)
         return usersRepository.findAllById(ids)
@@ -131,7 +133,7 @@ class UsersController(
     @PostMapping
     @Operation(summary = "Create user")
     @ResponseStatus(HttpStatus.CREATED)
-    fun createUser(@RequestBody request: UserRequest): UserResponse {
+    fun createUser(@RequestBody @Valid request: UserRequest): UserResponse {
         accessService.requireCanManageUsers()
         if (usersRepository.existsByEmail(request.email)) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "User with email ${request.email} already exists")
@@ -153,7 +155,7 @@ class UsersController(
     @Operation(summary = "Update user")
     fun updateUser(
         @PathVariable id: UUID,
-        @RequestBody request: UserUpdateRequest
+        @RequestBody @Valid request: UserUpdateRequest
     ): UserResponse {
         accessService.requireCanManageUsers()
         val user = usersRepository.findById(id)
@@ -192,7 +194,7 @@ class UsersController(
     @PutMapping("/me/profile")
     @Operation(summary = "Update current user profile")
     @PreAuthorize("isAuthenticated()")
-    fun updateMyProfile(@RequestBody request: UserProfileUpdateRequest): UserPublicResponse {
+    fun updateMyProfile(@RequestBody @Valid request: UserProfileUpdateRequest): UserPublicResponse {
         val currentUserId = accessService.currentUserId()
 
         val user = usersRepository.findById(currentUserId)

@@ -3,27 +3,25 @@ package ru.kavader.arepos.controller
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
-import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.*
 import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.dto.system.ModelSyncEventType
-import ru.kavader.arepos.model.DiagramPreviewLinks
+import ru.kavader.arepos.mapper.ModelMapper
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.repository.*
+import ru.kavader.arepos.security.ACCESS_DENIED
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.*
-import ru.kavader.arepos.util.VersionUtils
 import java.time.Instant
 import java.util.*
 
@@ -32,7 +30,6 @@ import java.util.*
 @Tag(name = "Diagrams", description = "Diagram CRUD, previews and share-link endpoints")
 class DiagramsController(
     private val diagramsRepository: DiagramsRepository,
-    private val usersRepository: UsersRepository,
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
     private val notationsRepository: NotationsRepository,
@@ -41,16 +38,11 @@ class DiagramsController(
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val svgPreviewSecurityValidator: SvgPreviewSecurityValidator,
     private val diagramSvgStorage: DiagramSvgStorage,
-    private val diagramPreviewLinksRepository: DiagramPreviewLinksRepository,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val modelMapper: ModelMapper,
-    @Value($$"${arepos.public-url-base:}") private val publicUrlBase: String = ""
+    private val diagramLifecycleService: DiagramLifecycleService,
+    private val diagramShareLinkService: DiagramShareLinkService
 ) {
-    companion object {
-        private const val PUBLIC_SVG_URL_PREFIX = "/api/v1/diagrams/svg/public/"
-    }
-
-
     @GetMapping
     @Operation(summary = "List diagrams")
     fun listDiagrams(
@@ -164,14 +156,14 @@ class DiagramsController(
     @Operation(summary = "Update diagram")
     fun updateDiagram(
         @PathVariable id: UUID,
-        @RequestBody request: DiagramUpdateRequest
+        @RequestBody @Valid request: DiagramUpdateRequest
     ): DiagramResponse {
         val diagram = diagramsRepository.findById(id)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
             }
         accessService.requireCanEditDiagram(diagram)
-        requireLatestDiagramVersion(diagram, "updated")
+        diagramLifecycleService.requireLatestDiagramVersion(diagram, "updated")
 
         val (owner, model) = ModelBoundEntityUpdateSupport.resolveOwnerAndModel(
             requestOwnerId = request.ownerId,
@@ -193,7 +185,7 @@ class DiagramsController(
         } else {
             request.notationId?.let {
                 if (it != diagram.notation.id) {
-                    throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
                 }
             }
             diagram.notation
@@ -240,7 +232,6 @@ class DiagramsController(
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Transactional
     @Operation(summary = "Soft-delete diagram")
     fun deleteDiagram(@PathVariable id: UUID) {
         val diagram = diagramsRepository.findById(id)
@@ -248,21 +239,7 @@ class DiagramsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
             }
         accessService.requireCanEditDiagram(diagram)
-        val deletedCount = diagramsRepository.softDeleteById(id)
-        if (deletedCount == 0) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
-        }
-        modelSyncBroadcaster.broadcastModelChanged(
-            requireNotNull(diagram.model.id),
-            ModelSyncChangeType.DIAGRAM_DELETE.wireValue,
-            listOf(
-                ModelSyncEntityEvent(
-                    ModelSyncEventType.DIAGRAM_DELETED.wireValue,
-                    ModelSyncEventType.DIAGRAM_DELETED.entity,
-                    id
-                )
-            )
-        )
+        diagramLifecycleService.softDeleteDiagram(diagram)
     }
 
     @PutMapping("/{id}/svg")
@@ -293,148 +270,24 @@ class DiagramsController(
 
     @PostMapping("/share-link")
     @Operation(summary = "Create or reuse public diagram preview link")
-    fun createShareLink(@RequestBody request: DiagramShareLinkRequest): DiagramShareLinkResponse {
-        val currentUser = accessService.currentUserId()
-        val user = usersRepository.findById(currentUser)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Current user not found")
-            }
-        val link: DiagramPreviewLinks = when {
-            request.diagramId != null -> {
-                val diagram = diagramsRepository.findById(request.diagramId)
-                    .orElseThrow {
-                        ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram ${request.diagramId} not found")
-                    }
-                accessService.requireCanViewDiagram(diagram)
-                val existing = diagramPreviewLinksRepository.findByDiagram(diagram)
-                if (existing.isPresent) {
-                    return DiagramShareLinkResponse(
-                        url = buildPublicSvgUrl(existing.get().token),
-                        token = existing.get().token
-                    )
-                }
-                diagramPreviewLinksRepository.save(
-                    DiagramPreviewLinks(
-                        token = UUID.randomUUID(),
-                        diagram = diagram,
-                        model = null,
-                        diagramName = null,
-                        createdAt = Instant.now(),
-                        createdBy = user
-                    )
-                )
-            }
-
-            request.modelId != null && request.diagramName != null && request.latest == true -> {
-                val model = modelsRepository.findById(request.modelId)
-                    .orElseThrow {
-                        ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
-                    }
-                accessService.requireCanViewModel(model)
-                val allByName = diagramsRepository.findByModelIdAndNameAndDeletedFalse(model.id!!, request.diagramName)
-                    .let { accessService.filterViewableDiagrams(it) }
-                allByName.maxWithOrNull(::compareDiagramVersions)
-                    ?: throw ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "No diagram named '${request.diagramName}' found"
-                    )
-                val existing = diagramPreviewLinksRepository.findByModelAndDiagramName(model, request.diagramName)
-                if (existing.isPresent) {
-                    return DiagramShareLinkResponse(
-                        url = buildPublicSvgUrl(existing.get().token),
-                        token = existing.get().token
-                    )
-                }
-                diagramPreviewLinksRepository.save(
-                    DiagramPreviewLinks(
-                        token = UUID.randomUUID(),
-                        diagram = null,
-                        model = model,
-                        diagramName = request.diagramName,
-                        createdAt = Instant.now(),
-                        createdBy = user
-                    )
-                )
-            }
-
-            else -> throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Provide either diagramId or (modelId, diagramName, latest: true)"
-            )
-        }
-        return DiagramShareLinkResponse(
-            url = buildPublicSvgUrl(link.token),
-            token = link.token
-        )
-    }
+    fun createShareLink(@RequestBody @Valid request: DiagramShareLinkRequest): DiagramShareLinkResponse =
+        diagramShareLinkService.createShareLink(request)
 
     @GetMapping("svg/public/{token}")
     @Operation(summary = "Get public diagram preview by share token")
     fun getDiagramSvgPublic(@PathVariable token: UUID): ResponseEntity<ByteArray> {
-        val link = diagramPreviewLinksRepository.findByToken(token).orElse(null)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Share link not found or expired")
-        val linkedDiagram = link.diagram
-        val linkedModel = link.model
-        val linkedDiagramName = link.diagramName
-        val diagramId: UUID = when {
-            linkedDiagram != null -> linkedDiagram.id!!
-            linkedModel != null && linkedDiagramName != null -> {
-                val allByName = diagramsRepository.findByModelIdAndNameAndDeletedFalse(
-                    linkedModel.id!!,
-                    linkedDiagramName
-                )
-                val latest = allByName.maxWithOrNull(::compareDiagramVersions)
-                    ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram not found")
-                latest.id!!
-            }
-
-            else -> throw ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid share link")
+        val headers = HttpHeaders().apply {
+            contentType = MediaType.APPLICATION_OCTET_STREAM
+            set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"diagram-preview.svg\"")
+            cacheControl = "public, max-age=300"
         }
-        return when (val svgResult = diagramSvgStorage.getSvg(diagramId)) {
-            is DiagramSvgReadResult.Found -> {
-                val headers = HttpHeaders().apply {
-                    contentType = MediaType.APPLICATION_OCTET_STREAM
-                    set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"diagram-preview.svg\"")
-                    cacheControl = "public, max-age=300"
-                }
-                ResponseEntity.ok().headers(headers).body(svgResult.bytes)
-            }
-
-            DiagramSvgReadResult.NotFound ->
-                throw ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Preview not found. The diagram owner can upload it in the editor."
-                )
-
-            is DiagramSvgReadResult.StorageError ->
-                throw ResponseStatusException(
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    "Preview storage is temporarily unavailable"
-                )
-        }
+        return ResponseEntity.ok().headers(headers).body(diagramShareLinkService.resolvePublicSvg(token))
     }
 
     @DeleteMapping("share-link/{token}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Transactional
     @Operation(summary = "Revoke diagram preview share link")
-    fun revokeShareLink(@PathVariable token: UUID) {
-        val link = diagramPreviewLinksRepository.findByToken(token)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Share link not found")
-            }
-        val linkedDiagram = link.diagram
-        val linkedModel = link.model
-        val canRevoke = when {
-            linkedDiagram != null -> accessService.canEditDiagram(linkedDiagram)
-            linkedModel != null -> accessService.canEditModel(linkedModel)
-            else -> false
-        }
-        if (!canRevoke) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot revoke this link")
-        }
-        diagramPreviewLinksRepository.delete(link)
-    }
+    fun revokeShareLink(@PathVariable token: UUID) = diagramShareLinkService.revokeShareLink(token)
 
     @PostMapping("/{id}/baseline")
     @ResponseStatus(HttpStatus.CREATED)
@@ -445,94 +298,7 @@ class DiagramsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
             }
         accessService.requireCanEditDiagram(diagram)
-        requireLatestDiagramVersion(diagram, "used to create baseline")
-        val newVersion = bumpMinorVersion(diagram.version)
-            ?: throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Invalid diagram version '${diagram.version}'; expected semantic version (e.g. 1.2.3)"
-            )
-        if (diagramsRepository.existsByModelAndNameAndVersion(diagram.model, diagram.name, newVersion)) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Diagram with name '${diagram.name}' and version '$newVersion' already exists"
-            )
-        }
-        mdFileLinkValidator.validate(diagram.attrs)
-        val now = Instant.now()
-        val saved = diagramsRepository.save(
-            Diagrams(
-                name = diagram.name,
-                createdAt = now,
-                updatedAt = now,
-                attrs = diagram.attrs,
-                version = newVersion,
-                owner = diagram.owner,
-                deleted = false,
-                model = diagram.model,
-                notation = diagram.notation,
-                node = diagram.node
-            )
-        )
-        modelSyncBroadcaster.broadcastModelChanged(
-            requireNotNull(diagram.model.id),
-            ModelSyncChangeType.DIAGRAM_BASELINE.wireValue,
-            listOf(
-                ModelSyncEntityEvent(
-                    ModelSyncEventType.DIAGRAM_CREATED.wireValue,
-                    ModelSyncEventType.DIAGRAM_CREATED.entity,
-                    requireNotNull(saved.id)
-                )
-            )
-        )
-        return modelMapper.toResponse(saved)
-    }
-
-    /** Bumps a minor version and resets patch: 1.2.3 -> 1.3.0 */
-    private fun bumpMinorVersion(version: String): String? {
-        val parts = version.trim().split(".")
-        if (parts.size < 2) return null
-        val major = parts[0].toIntOrNull() ?: return null
-        val minor = parts.getOrNull(1)?.toIntOrNull() ?: return null
-        return "$major.${minor + 1}.0"
-    }
-
-    private fun requireLatestDiagramVersion(diagram: Diagrams, action: String) {
-        val modelId = diagram.model.id ?: return
-        val allByName = diagramsRepository.findByModelIdAndNameAndDeletedFalse(modelId, diagram.name)
-        if (allByName.isEmpty()) return
-        val latest = allByName.maxWithOrNull(::compareDiagramVersions) ?: return
-        if (latest.id != diagram.id) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Only latest diagram version can be $action. Latest version is '${latest.version}'."
-            )
-        }
-    }
-
-    private fun compareDiagramVersions(a: Diagrams, b: Diagrams): Int {
-        val aSemver = VersionUtils.parseSemver(a.version)
-        val bSemver = VersionUtils.parseSemver(b.version)
-        if (aSemver != null && bSemver != null) {
-            val majorCmp = aSemver.first.compareTo(bSemver.first)
-            if (majorCmp != 0) return majorCmp
-            val minorCmp = aSemver.second.compareTo(bSemver.second)
-            if (minorCmp != 0) return minorCmp
-            val patchCmp = aSemver.third.compareTo(bSemver.third)
-            if (patchCmp != 0) return patchCmp
-        }
-        val aUpdated = a.updatedAt ?: a.createdAt ?: Instant.EPOCH
-        val bUpdated = b.updatedAt ?: b.createdAt ?: Instant.EPOCH
-        val timeCmp = aUpdated.compareTo(bUpdated)
-        if (timeCmp != 0) return timeCmp
-        val aId = a.id?.toString().orEmpty()
-        val bId = b.id?.toString().orEmpty()
-        return aId.compareTo(bId)
-    }
-
-    private fun buildPublicSvgUrl(token: UUID): String {
-        val normalizedBase = publicUrlBase.trim().removeSuffix("/")
-        val path = "$PUBLIC_SVG_URL_PREFIX$token"
-        return if (normalizedBase.isBlank()) path else "$normalizedBase$path"
+        return modelMapper.toResponse(diagramLifecycleService.createBaseline(diagram))
     }
 
 

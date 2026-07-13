@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import ru.kavader.arepos.dto.dashboard.DashboardRecentResponse
 import ru.kavader.arepos.dto.dashboard.DashboardStatsResponse
-import ru.kavader.arepos.dto.system.AuditMapper
+import ru.kavader.arepos.mapper.AuditMapper
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService

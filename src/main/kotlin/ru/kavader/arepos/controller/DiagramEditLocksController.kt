@@ -3,6 +3,7 @@ package ru.kavader.arepos.controller
 import com.fasterxml.jackson.databind.JsonNode
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import ru.kavader.arepos.dto.common.ListResponse
@@ -65,7 +66,7 @@ class DiagramEditLocksController(
 
     @PostMapping("/{diagramId}/pointer")
     @Operation(summary = "Relay collaborator pointer")
-    fun relayPointer(@PathVariable diagramId: UUID, @RequestBody request: DiagramPointerRequest) {
+    fun relayPointer(@PathVariable diagramId: UUID, @RequestBody @Valid request: DiagramPointerRequest) {
         diagramCollaborationService.relayPointer(diagramId, request)
     }
 

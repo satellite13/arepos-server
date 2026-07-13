@@ -23,7 +23,13 @@ abstract class ControllerIntegrationTest : PostgresContainerTest() {
             """
             TRUNCATE TABLE
                 public.audit_log,
+                public.model_sync_outbox,
+                public.resource_shares,
+                public.diagram_preview_links,
+                public.document_refs,
+                public.file_versions,
                 public.diagram_edit_locks,
+                public.refresh_tokens,
                 public.files,
                 public.relation_rules,
                 public.relations,
@@ -31,6 +37,7 @@ abstract class ControllerIntegrationTest : PostgresContainerTest() {
                 public.components,
                 public.diagrams,
                 public.nodes,
+                public.node_shapes,
                 public.node_types,
                 public.link_types,
                 public.notations,

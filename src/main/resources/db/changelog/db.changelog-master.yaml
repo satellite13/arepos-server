@@ -2,7 +2,6 @@ databaseChangeLog:
   - changeSet:
       id: 001-initial-schema
       author: Nikolay Groznykh
-      runOnChange: true
       changes:
         - sqlFile:
             path: classpath:db/changelog/001-init.sql

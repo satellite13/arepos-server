@@ -2,6 +2,7 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -32,7 +33,7 @@ class PermissionsController(
 ) {
     @PostMapping("/check")
     @Operation(summary = "Check resource permissions")
-    fun check(@RequestBody request: PermissionCheckRequest): PermissionCheckResponse {
+    fun check(@RequestBody @Valid request: PermissionCheckRequest): PermissionCheckResponse {
         val resourceType = request.resourceType ?: throw ResponseStatusException(
             HttpStatus.BAD_REQUEST,
             "resourceType is required"

@@ -1,171 +1,79 @@
 package ru.kavader.arepos.security
 
-import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
-import org.springframework.web.context.request.RequestAttributes
-import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.model.*
-import ru.kavader.arepos.repository.ComponentsRepository
-import ru.kavader.arepos.repository.DiagramsRepository
-import ru.kavader.arepos.repository.RelationsRepository
-import ru.kavader.arepos.repository.ResourceSharesRepository
-import java.util.*
+import ru.kavader.arepos.model.Components
+import ru.kavader.arepos.model.Diagrams
+import ru.kavader.arepos.model.Files
+import ru.kavader.arepos.model.LinkTypes
+import ru.kavader.arepos.model.Links
+import ru.kavader.arepos.model.Models
+import ru.kavader.arepos.model.NodeShapes
+import ru.kavader.arepos.model.NodeTypes
+import ru.kavader.arepos.model.Nodes
+import ru.kavader.arepos.model.Notations
+import ru.kavader.arepos.model.RelationRules
+import ru.kavader.arepos.model.Relations
+import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.security.access.BatchEvaluator
+import ru.kavader.arepos.security.access.NotationDiagramAccess
+import ru.kavader.arepos.security.access.TopLevelAccess
+import java.util.UUID
 
 @Service
 class ResourceAccessService(
-    private val resourceSharesRepository: ResourceSharesRepository,
-    private val diagramsRepository: DiagramsRepository,
-    private val componentsRepository: ComponentsRepository,
-    private val relationsRepository: RelationsRepository,
-    private val cerbosDecisionService: CerbosDecisionService,
-    private val authzObservabilityService: AuthzObservabilityService,
+    private val topLevelAccess: TopLevelAccess,
+    private val notationDiagramAccess: NotationDiagramAccess,
+    private val batchEvaluator: BatchEvaluator,
     @Lazy private val ownerResolutionService: OwnerResolutionService
 ) {
-    companion object {
-        private val log = LoggerFactory.getLogger(ResourceAccessService::class.java)
-        private const val REQUEST_CACHE_ATTR = "arepos.authz.request.decision.cache"
-    }
-
-    private val viewPermissions = setOf(SharePermission.VIEW, SharePermission.EDIT)
-
-    private data class ShareFlags(val hasView: Boolean, val hasEdit: Boolean)
-    private data class DecisionCacheKey(
-        val resourceKind: CerbosResourceKind,
-        val action: CerbosAction,
-        val resourceId: UUID,
-        val ownerId: UUID?,
-        val attrsHash: Int
-    )
-
-    private data class TopLevelDecisionInput(
-        val resourceKind: CerbosResourceKind,
-        val action: CerbosAction,
-        val resourceId: UUID,
-        val ownerId: UUID,
-        val isOwner: Boolean,
-        val shareFlags: ShareFlags
-    )
-
     fun currentUserId(): UUID = ownerResolutionService.currentUserId()
 
-    fun canEditModel(model: Models): Boolean = canEditTopLevel(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
+    fun canEditModel(model: Models): Boolean = topLevelAccess.canEditModel(model)
 
-    fun canViewModel(model: Models): Boolean = canViewTopLevel(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
+    fun canViewModel(model: Models): Boolean = topLevelAccess.canViewModel(model)
 
     fun canViewModels(models: Collection<Models>): Map<UUID, Boolean> =
-        evaluateTopLevelBatch(
-            entries = models.mapNotNull { model ->
-                model.id?.let { id ->
-                    Triple(model.owner.id!!, ShareResourceType.MODEL, id)
-                }
-            },
-            action = CerbosAction.VIEW
-        )
+        topLevelAccess.canViewModels(models)
 
     fun canViewNotations(notations: Collection<Notations>): Map<UUID, Boolean> =
-        evaluateTopLevelBatch(
-            entries = notations.mapNotNull { notation ->
-                notation.id?.let { id ->
-                    Triple(notation.owner.id!!, ShareResourceType.NOTATION, id)
-                }
-            },
-            action = CerbosAction.VIEW
-        )
+        topLevelAccess.canViewNotationsDirect(notations)
 
-    fun filterViewableModels(models: Collection<Models>): List<Models> {
-        val decisions = canViewModels(models)
-        return models.filter { model -> model.id?.let { decisions[it] } == true }
-    }
+    fun filterViewableModels(models: Collection<Models>): List<Models> =
+        topLevelAccess.filterViewableModels(models)
 
-    fun filterViewableNotations(notations: Collection<Notations>): List<Notations> {
-        if (notations.isEmpty()) {
-            return emptyList()
-        }
-        val direct = canViewNotations(notations)
-        val userId = currentUserId()
-        return notations.filter { notation ->
-            val id = notation.id ?: return@filter false
-            direct[id] == true || diagramsRepository.existsViewableModelDiagramWithNotation(id, userId)
-        }
-    }
+    fun filterViewableNotations(notations: Collection<Notations>): List<Notations> =
+        notationDiagramAccess.filterViewableNotations(notations)
 
-    fun canViewDiagrams(diagrams: Collection<Diagrams>): Map<UUID, Boolean> {
-        if (diagrams.isEmpty()) {
-            return emptyMap()
-        }
+    fun canViewDiagrams(diagrams: Collection<Diagrams>): Map<UUID, Boolean> =
+        notationDiagramAccess.canViewDiagrams(diagrams)
 
-        val models = diagrams.map { it.model }.distinctBy { it.id }
-        val modelView = canViewModels(models)
+    fun filterViewableDiagrams(diagrams: Collection<Diagrams>): List<Diagrams> =
+        notationDiagramAccess.filterViewableDiagrams(diagrams)
 
-        return diagrams.mapNotNull { diagram ->
-            val diagramId = diagram.id ?: return@mapNotNull null
-            val modelId = diagram.model.id ?: return@mapNotNull diagramId to false
-            val canViewModel = modelView[modelId] == true
-            diagramId to canViewModel
-        }.toMap()
-    }
+    fun canEditNotation(notation: Notations): Boolean = topLevelAccess.canEditNotation(notation)
 
-    fun filterViewableDiagrams(diagrams: Collection<Diagrams>): List<Diagrams> {
-        val decisions = canViewDiagrams(diagrams)
-        return diagrams.filter { diagram -> diagram.id?.let { decisions[it] } == true }
-    }
+    fun canViewNotation(notation: Notations): Boolean = notationDiagramAccess.canViewNotation(notation)
 
-    fun canEditNotation(notation: Notations): Boolean =
-        canEditTopLevel(notation.owner.id!!, ShareResourceType.NOTATION, notation.id!!)
+    fun canEditNodeType(nodeType: NodeTypes): Boolean = topLevelAccess.canEditNodeType(nodeType)
 
-    fun canViewNotation(notation: Notations): Boolean {
-        val id = notation.id ?: return false
-        if (canViewTopLevel(notation.owner.id!!, ShareResourceType.NOTATION, id)) {
-            return true
-        }
-        return diagramsRepository.existsViewableModelDiagramWithNotation(id, currentUserId())
-    }
+    fun canViewNodeType(nodeType: NodeTypes): Boolean = notationDiagramAccess.canViewNodeType(nodeType)
 
-    fun canEditNodeType(nodeType: NodeTypes): Boolean =
-        canEditTopLevel(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, nodeType.id!!)
+    fun canEditLinkType(linkType: LinkTypes): Boolean = topLevelAccess.canEditLinkType(linkType)
 
-    fun canViewNodeType(nodeType: NodeTypes): Boolean {
-        val id = nodeType.id ?: return false
-        if (canViewTopLevel(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, id)) {
-            return true
-        }
-        return componentsRepository.existsNodeTypeReachableViaViewableNotation(id, currentUserId())
-    }
+    fun canViewLinkType(linkType: LinkTypes): Boolean = notationDiagramAccess.canViewLinkType(linkType)
 
-    fun canEditLinkType(linkType: LinkTypes): Boolean =
-        canEditTopLevel(linkType.owner.id!!, ShareResourceType.LINK_TYPE, linkType.id!!)
+    fun canEditNodeShape(shape: NodeShapes): Boolean = topLevelAccess.canEditNodeShape(shape)
 
-    fun canViewLinkType(linkType: LinkTypes): Boolean {
-        val id = linkType.id ?: return false
-        if (canViewTopLevel(linkType.owner.id!!, ShareResourceType.LINK_TYPE, id)) {
-            return true
-        }
-        return relationsRepository.existsLinkTypeReachableViaViewableNotation(id, currentUserId())
-    }
-
-    fun canEditNodeShape(shape: NodeShapes): Boolean =
-        canEditTopLevel(shape.owner.id!!, ShareResourceType.NODE_SHAPE, shape.id!!)
-
-    fun canViewNodeShape(shape: NodeShapes): Boolean =
-        canViewTopLevel(shape.owner.id!!, ShareResourceType.NODE_SHAPE, shape.id!!)
+    fun canViewNodeShape(shape: NodeShapes): Boolean = topLevelAccess.canViewNodeShape(shape)
 
     fun canViewNodeShapes(shapes: Collection<NodeShapes>): Map<UUID, Boolean> =
-        evaluateTopLevelBatch(
-            entries = shapes.mapNotNull { shape ->
-                shape.id?.let { id ->
-                    Triple(shape.owner.id!!, ShareResourceType.NODE_SHAPE, id)
-                }
-            },
-            action = CerbosAction.VIEW
-        )
+        topLevelAccess.canViewNodeShapes(shapes)
 
-    fun filterViewableNodeShapes(shapes: Collection<NodeShapes>): List<NodeShapes> {
-        val decisions = canViewNodeShapes(shapes)
-        return shapes.filter { shape -> shape.id?.let { decisions[it] } == true }
-    }
+    fun filterViewableNodeShapes(shapes: Collection<NodeShapes>): List<NodeShapes> =
+        topLevelAccess.filterViewableNodeShapes(shapes)
 
     fun canUseNodeType(nodeType: NodeTypes): Boolean = canViewNodeType(nodeType) || isCommonType(nodeType.owner)
 
@@ -195,191 +103,84 @@ class ResourceAccessService(
 
     fun canViewDiagram(diagram: Diagrams): Boolean = canViewModel(diagram.model)
 
-    fun canViewFile(file: Files): Boolean {
-        return applyCerbosDecision(
+    fun canViewFile(file: Files): Boolean =
+        batchEvaluator.applyCerbosDecision(
             resourceKind = CerbosResourceKind.FILE,
             action = CerbosAction.VIEW,
             resourceId = file.id!!,
             ownerId = file.owner.id
         )
-    }
 
-    fun requireCanViewFile(file: Files) {
-        if (!canViewFile(file)) {
-            deny()
-        }
-    }
+    fun requireCanViewFile(file: Files) = requireAllowed(canViewFile(file))
 
-    fun requireCanEditModel(model: Models) {
-        if (!canEditModel(model)) {
-            deny()
-        }
-    }
+    fun requireCanEditModel(model: Models) = requireAllowed(canEditModel(model))
 
-    fun requireCanViewModel(model: Models) {
-        if (!canViewModel(model)) {
-            deny()
-        }
-    }
+    fun requireCanViewModel(model: Models) = requireAllowed(canViewModel(model))
 
-    fun requireCanEditNotation(notation: Notations) {
-        if (!canEditNotation(notation)) {
-            deny()
-        }
-    }
+    fun requireCanEditNotation(notation: Notations) = requireAllowed(canEditNotation(notation))
 
-    fun requireCanViewNotation(notation: Notations) {
-        if (!canViewNotation(notation)) {
-            deny()
-        }
-    }
+    fun requireCanViewNotation(notation: Notations) = requireAllowed(canViewNotation(notation))
 
     /**
-     * Чтение нотации в режиме редактора модели:
-     * - прямой доступ к нотации по ACL, либо
-     * - право редактировать модель и нотация реально используется активной диаграммой этой модели.
+     * Allows direct notation access, or access through an editable model that actively uses it.
      */
-    fun canUseNotationInModelDiagramEditor(notation: Notations, model: Models): Boolean {
-        if (canViewNotation(notation)) {
-            return true
-        }
-        val notationId = notation.id ?: return false
-        val modelId = model.id ?: return false
-        return canEditModel(model) && diagramsRepository.existsByModelIdAndNotationIdAndDeletedFalse(
-            modelId,
-            notationId
-        )
-    }
+    fun canUseNotationInModelDiagramEditor(notation: Notations, model: Models): Boolean =
+        notationDiagramAccess.canUseNotationInModelDiagramEditor(notation, model)
 
-    /**
-     * Создание/обновление диаграммы в модели:
-     * - прямой доступ к нотации по ACL, либо
-     * - право редактировать модель и нотация уже используется активной диаграммой этой модели.
-     *
-     * Это guardrail от подстановки произвольной чужой нотации по `notationId` при наличии
-     * прав только на модель.
-     */
     fun canReferenceNotationForModelDiagram(notation: Notations, model: Models): Boolean =
         canUseNotationInModelDiagramEditor(notation, model)
 
-    fun requireCanReferenceNotationForModelDiagram(notation: Notations, model: Models) {
-        if (!canReferenceNotationForModelDiagram(notation, model)) {
-            deny()
-        }
-    }
+    fun requireCanReferenceNotationForModelDiagram(notation: Notations, model: Models) =
+        requireAllowed(canReferenceNotationForModelDiagram(notation, model))
 
-    fun requireCanEditNodeType(nodeType: NodeTypes) {
-        if (!canEditNodeType(nodeType)) {
-            deny()
-        }
-    }
+    fun requireCanEditNodeType(nodeType: NodeTypes) = requireAllowed(canEditNodeType(nodeType))
 
-    fun requireCanEditLinkType(linkType: LinkTypes) {
-        if (!canEditLinkType(linkType)) {
-            deny()
-        }
-    }
+    fun requireCanEditLinkType(linkType: LinkTypes) = requireAllowed(canEditLinkType(linkType))
 
-    fun requireCanEditNodeShape(shape: NodeShapes) {
-        if (!canEditNodeShape(shape)) {
-            deny()
-        }
-    }
+    fun requireCanEditNodeShape(shape: NodeShapes) = requireAllowed(canEditNodeShape(shape))
 
-    fun requireCanViewNodeShape(shape: NodeShapes) {
-        if (!canViewNodeShape(shape)) {
-            deny()
-        }
-    }
+    fun requireCanViewNodeShape(shape: NodeShapes) = requireAllowed(canViewNodeShape(shape))
 
-    fun requireCanEditNode(node: Nodes) {
-        if (!canEditNode(node)) {
-            deny()
-        }
-    }
+    fun requireCanEditNode(node: Nodes) = requireAllowed(canEditNode(node))
 
-    fun requireCanViewNode(node: Nodes) {
-        if (!canViewNode(node)) {
-            deny()
-        }
-    }
+    fun requireCanViewNode(node: Nodes) = requireAllowed(canViewNode(node))
 
-    fun requireCanEditLink(link: Links) {
-        if (!canEditLink(link)) {
-            deny()
-        }
-    }
+    fun requireCanEditLink(link: Links) = requireAllowed(canEditLink(link))
 
-    fun requireCanViewLink(link: Links) {
-        if (!canViewLink(link)) {
-            deny()
-        }
-    }
+    fun requireCanViewLink(link: Links) = requireAllowed(canViewLink(link))
 
-    fun requireCanEditComponent(component: Components) {
-        if (!canEditComponent(component)) {
-            deny()
-        }
-    }
+    fun requireCanEditComponent(component: Components) = requireAllowed(canEditComponent(component))
 
-    fun requireCanViewComponent(component: Components) {
-        if (!canViewComponent(component)) {
-            deny()
-        }
-    }
+    fun requireCanViewComponent(component: Components) = requireAllowed(canViewComponent(component))
 
-    fun requireCanEditRelation(relation: Relations) {
-        if (!canEditRelation(relation)) {
-            deny()
-        }
-    }
+    fun requireCanEditRelation(relation: Relations) = requireAllowed(canEditRelation(relation))
 
-    fun requireCanViewRelation(relation: Relations) {
-        if (!canViewRelation(relation)) {
-            deny()
-        }
-    }
+    fun requireCanViewRelation(relation: Relations) = requireAllowed(canViewRelation(relation))
 
-    fun requireCanEditRelationRule(relationRule: RelationRules) {
-        if (!canEditRelationRule(relationRule)) {
-            deny()
-        }
-    }
+    fun requireCanEditRelationRule(relationRule: RelationRules) =
+        requireAllowed(canEditRelationRule(relationRule))
 
-    fun requireCanViewRelationRule(relationRule: RelationRules) {
-        if (!canViewRelationRule(relationRule)) {
-            deny()
-        }
-    }
+    fun requireCanViewRelationRule(relationRule: RelationRules) =
+        requireAllowed(canViewRelationRule(relationRule))
 
-    fun requireCanEditDiagram(diagram: Diagrams) {
-        if (!canEditDiagram(diagram)) {
-            deny()
-        }
-    }
+    fun requireCanEditDiagram(diagram: Diagrams) = requireAllowed(canEditDiagram(diagram))
 
-    fun requireCanViewDiagram(diagram: Diagrams) {
-        if (!canViewDiagram(diagram)) {
-            deny()
-        }
-    }
+    fun requireCanViewDiagram(diagram: Diagrams) = requireAllowed(canViewDiagram(diagram))
 
     fun canManageShares(ownerId: UUID): Boolean {
         val userId = CurrentUser.getId()
-        val isOwner = userId == ownerId
-        // AccessShares is owner/admin controlled; use owner UUID as resource id.
-        return applyCerbosDecision(
+        return batchEvaluator.applyCerbosDecision(
             resourceKind = CerbosResourceKind.SHARE,
             action = CerbosAction.MANAGE,
             resourceId = ownerId,
             ownerId = ownerId,
-            resourceAttributes = mapOf("isOwner" to isOwner)
+            resourceAttributes = mapOf("isOwner" to (userId == ownerId))
         )
     }
 
     fun canViewAdminPanel(): Boolean {
         val userId = currentUserId()
-        return applyCerbosDecision(
+        return batchEvaluator.applyCerbosDecision(
             resourceKind = CerbosResourceKind.ADMIN_PANEL,
             action = CerbosAction.VIEW,
             resourceId = userId,
@@ -389,7 +190,7 @@ class ResourceAccessService(
 
     fun canManageUsers(): Boolean {
         val userId = currentUserId()
-        return applyCerbosDecision(
+        return batchEvaluator.applyCerbosDecision(
             resourceKind = CerbosResourceKind.USER_ADMIN,
             action = CerbosAction.MANAGE,
             resourceId = userId,
@@ -397,469 +198,44 @@ class ResourceAccessService(
         )
     }
 
-    fun requireCanManageUsers() {
-        if (!canManageUsers()) {
-            deny()
-        }
-    }
+    fun requireCanManageUsers() = requireAllowed(canManageUsers())
 
     fun modelAccessPermission(model: Models): String? =
-        topLevelAccessPermission(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
+        topLevelAccess.modelAccessPermission(model, ::canViewAdminPanel)
 
     fun modelAccessPermissions(models: Collection<Models>): Map<UUID, String?> =
-        topLevelAccessPermissions(
-            entries = models.mapNotNull { model ->
-                model.id?.let { id -> Triple(model.owner.id!!, ShareResourceType.MODEL, id) }
-            }
-        )
+        topLevelAccess.modelAccessPermissions(models, ::canViewAdminPanel)
 
     fun notationAccessPermission(notation: Notations): String? =
-        topLevelAccessPermission(notation.owner.id!!, ShareResourceType.NOTATION, notation.id!!)
+        topLevelAccess.notationAccessPermission(notation, ::canViewAdminPanel)
 
     fun notationAccessPermissions(notations: Collection<Notations>): Map<UUID, String?> =
-        topLevelAccessPermissions(
-            entries = notations.mapNotNull { notation ->
-                notation.id?.let { id -> Triple(notation.owner.id!!, ShareResourceType.NOTATION, id) }
-            }
-        )
+        topLevelAccess.notationAccessPermissions(notations, ::canViewAdminPanel)
 
     fun nodeTypeAccessPermission(nodeType: NodeTypes): String? =
-        topLevelAccessPermission(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, nodeType.id!!)
+        topLevelAccess.nodeTypeAccessPermission(nodeType, ::canViewAdminPanel)
 
     fun nodeTypeAccessPermissions(nodeTypes: Collection<NodeTypes>): Map<UUID, String?> =
-        topLevelAccessPermissions(
-            entries = nodeTypes.mapNotNull { nodeType ->
-                nodeType.id?.let { id -> Triple(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, id) }
-            }
-        )
+        topLevelAccess.nodeTypeAccessPermissions(nodeTypes, ::canViewAdminPanel)
 
     fun linkTypeAccessPermission(linkType: LinkTypes): String? =
-        topLevelAccessPermission(linkType.owner.id!!, ShareResourceType.LINK_TYPE, linkType.id!!)
+        topLevelAccess.linkTypeAccessPermission(linkType, ::canViewAdminPanel)
 
     fun linkTypeAccessPermissions(linkTypes: Collection<LinkTypes>): Map<UUID, String?> =
-        topLevelAccessPermissions(
-            entries = linkTypes.mapNotNull { linkType ->
-                linkType.id?.let { id -> Triple(linkType.owner.id!!, ShareResourceType.LINK_TYPE, id) }
-            }
-        )
+        topLevelAccess.linkTypeAccessPermissions(linkTypes, ::canViewAdminPanel)
 
     fun nodeShapeAccessPermission(shape: NodeShapes): String? =
-        topLevelAccessPermission(shape.owner.id!!, ShareResourceType.NODE_SHAPE, shape.id!!)
+        topLevelAccess.nodeShapeAccessPermission(shape, ::canViewAdminPanel)
 
     fun nodeShapeAccessPermissions(shapes: Collection<NodeShapes>): Map<UUID, String?> =
-        topLevelAccessPermissions(
-            entries = shapes.mapNotNull { shape ->
-                shape.id?.let { id -> Triple(shape.owner.id!!, ShareResourceType.NODE_SHAPE, id) }
-            }
-        )
+        topLevelAccess.nodeShapeAccessPermissions(shapes, ::canViewAdminPanel)
 
-    private fun canEditTopLevel(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): Boolean {
-        val userId = CurrentUser.getId()
-        val isOwner = userId != null && ownerId == userId
-        val shareFlags = resolveShareFlags(resourceType, resourceId, userId)
+    private fun isCommonType(owner: Users): Boolean =
+        owner.email.equals("system@arepos.local", ignoreCase = true) || !owner.isActive
 
-        return applyCerbosDecision(
-            resourceKind = CerbosMappers.fromShareResourceType(resourceType),
-            action = CerbosAction.EDIT,
-            resourceId = resourceId,
-            ownerId = ownerId,
-            resourceAttributes = mapOf(
-                "isOwner" to isOwner,
-                "hasShareView" to shareFlags.hasView,
-                "hasShareEdit" to shareFlags.hasEdit
-            )
-        )
-    }
-
-    private fun canViewTopLevel(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): Boolean {
-        val userId = CurrentUser.getId()
-        val isOwner = userId != null && ownerId == userId
-        val shareFlags = resolveShareFlags(resourceType, resourceId, userId)
-
-        return applyCerbosDecision(
-            resourceKind = CerbosMappers.fromShareResourceType(resourceType),
-            action = CerbosAction.VIEW,
-            resourceId = resourceId,
-            ownerId = ownerId,
-            resourceAttributes = mapOf(
-                "isOwner" to isOwner,
-                "hasShareView" to shareFlags.hasView,
-                "hasShareEdit" to shareFlags.hasEdit
-            )
-        )
-    }
-
-    private fun applyCerbosDecision(
-        resourceKind: CerbosResourceKind,
-        action: CerbosAction,
-        resourceId: UUID,
-        ownerId: UUID?,
-        resourceAttributes: Map<String, Any?> = emptyMap()
-    ): Boolean {
-        val cacheKey = decisionCacheKey(resourceKind, action, resourceId, ownerId, resourceAttributes)
-        readDecisionFromRequestCache(cacheKey)?.let { cached ->
-            authzObservabilityService.recordFinalDecision(
-                resourceKind.policyValue,
-                action.policyValue,
-                "request_cache",
-                cached
-            )
-            return cached
-        }
-
-        val startNanos = System.nanoTime()
-        val cerbosDecision = try {
-            val decision = cerbosDecisionService.check(
-                CerbosAccessRequest(
-                    resourceKind = resourceKind,
-                    action = action,
-                    resourceId = resourceId,
-                    ownerId = ownerId,
-                    resourceAttributes = resourceAttributes
-                )
-            )
-            authzObservabilityService.recordCerbosRequest(
-                resourceKind = resourceKind.policyValue,
-                action = action.policyValue,
-                outcome = "ok",
-                durationNanos = System.nanoTime() - startNanos
-            )
-            decision
-        } catch (ex: Exception) {
-            authzObservabilityService.recordCerbosRequest(
-                resourceKind.policyValue,
-                action.policyValue,
-                "error",
-                System.nanoTime() - startNanos
-            )
-            throw cerbosUnavailable(resourceKind, action, resourceId, ex)
-        }
-
-        authzObservabilityService.recordFinalDecision(
-            resourceKind.policyValue,
-            action.policyValue,
-            "cerbos_enforce",
-            cerbosDecision
-        )
-        storeDecisionInRequestCache(cacheKey, cerbosDecision)
-        return cerbosDecision
-    }
-
-    private fun evaluateTopLevelBatch(
-        entries: Collection<Triple<UUID, ShareResourceType, UUID>>,
-        action: CerbosAction
-    ): Map<UUID, Boolean> {
-        if (entries.isEmpty()) {
-            return emptyMap()
-        }
-        val userId = CurrentUser.getId() ?: return entries.associate { (_, _, resourceId) -> resourceId to false }
-
-        val byType = entries.groupBy { it.second }
-        val shareFlagsByType = byType.mapValues { (resourceType, groupedEntries) ->
-            resolveShareFlagsBatch(
-                resourceType = resourceType,
-                resourceIds = groupedEntries.map { it.third }.toSet(),
-                userId = userId
-            )
-        }
-
-        val inputs = entries.map { (ownerId, resourceType, resourceId) ->
-            val shareFlags =
-                shareFlagsByType[resourceType]?.get(resourceId) ?: ShareFlags(hasView = false, hasEdit = false)
-            val isOwner = ownerId == userId
-            TopLevelDecisionInput(
-                resourceKind = CerbosMappers.fromShareResourceType(resourceType),
-                action = action,
-                resourceId = resourceId,
-                ownerId = ownerId,
-                isOwner = isOwner,
-                shareFlags = shareFlags
-            )
-        }
-
-        return applyCerbosDecisionBatch(inputs)
-    }
-
-    private fun applyCerbosDecisionBatch(inputs: List<TopLevelDecisionInput>): Map<UUID, Boolean> {
-        if (inputs.isEmpty()) {
-            return emptyMap()
-        }
-
-        val unresolved = mutableListOf<TopLevelDecisionInput>()
-        val resolved = mutableMapOf<UUID, Boolean>()
-        inputs.forEach { input ->
-            val attrs = mapOf(
-                "isOwner" to input.isOwner,
-                "hasShareView" to input.shareFlags.hasView,
-                "hasShareEdit" to input.shareFlags.hasEdit
-            )
-            val cacheKey = decisionCacheKey(
-                resourceKind = input.resourceKind,
-                action = input.action,
-                resourceId = input.resourceId,
-                ownerId = input.ownerId,
-                resourceAttributes = attrs
-            )
-            val cached = readDecisionFromRequestCache(cacheKey)
-            if (cached != null) {
-                authzObservabilityService.recordFinalDecision(
-                    input.resourceKind.policyValue,
-                    input.action.policyValue,
-                    "request_cache",
-                    cached
-                )
-                resolved[input.resourceId] = cached
-            } else {
-                unresolved += input
-            }
-        }
-
-        if (unresolved.isEmpty()) {
-            return resolved
-        }
-
-        val groupedByKindAndAction = unresolved.groupBy { it.resourceKind to it.action }
-        groupedByKindAndAction.forEach { (kindAction, groupedInputs) ->
-            val (resourceKind, action) = kindAction
-            val requestStartNanos = System.nanoTime()
-            val decisionsById = try {
-                cerbosDecisionService.checkBatch(
-                    groupedInputs.map { input ->
-                        CerbosBatchAccessRequest(
-                            resourceKind = input.resourceKind,
-                            action = input.action,
-                            resourceId = input.resourceId,
-                            ownerId = input.ownerId,
-                            resourceAttributes = mapOf(
-                                "isOwner" to input.isOwner,
-                                "hasShareView" to input.shareFlags.hasView,
-                                "hasShareEdit" to input.shareFlags.hasEdit
-                            )
-                        )
-                    }
-                )
-            } catch (ex: Exception) {
-                groupedInputs.forEach { input ->
-                    authzObservabilityService.recordCerbosRequest(
-                        resourceKind = input.resourceKind.policyValue,
-                        action = input.action.policyValue,
-                        outcome = "error",
-                        durationNanos = System.nanoTime() - requestStartNanos
-                    )
-                }
-                throw cerbosUnavailable(resourceKind, action, groupedInputs.first().resourceId, ex)
-            }
-
-            groupedInputs.forEach { input ->
-                val decisionDuration = System.nanoTime() - requestStartNanos
-                val cerbosDecision = decisionsById[input.resourceId]
-                    ?: throw cerbosUnavailable(
-                        input.resourceKind,
-                        input.action,
-                        input.resourceId,
-                        IllegalStateException("Cerbos batch response missing decision")
-                    )
-                authzObservabilityService.recordCerbosRequest(
-                    resourceKind = resourceKind.policyValue,
-                    action = action.policyValue,
-                    outcome = "ok",
-                    durationNanos = decisionDuration
-                )
-
-                resolved[input.resourceId] = cerbosDecision
-                authzObservabilityService.recordFinalDecision(
-                    resourceKind.policyValue,
-                    action.policyValue,
-                    "cerbos_enforce",
-                    cerbosDecision
-                )
-                storeDecisionInRequestCache(
-                    decisionCacheKey(
-                        input.resourceKind,
-                        input.action,
-                        input.resourceId,
-                        input.ownerId,
-                        mapOf(
-                            "isOwner" to input.isOwner,
-                            "hasShareView" to input.shareFlags.hasView,
-                            "hasShareEdit" to input.shareFlags.hasEdit
-                        )
-                    ),
-                    cerbosDecision
-                )
-            }
-        }
-
-        return resolved
-    }
-
-    private fun cerbosUnavailable(
-        resourceKind: CerbosResourceKind,
-        action: CerbosAction,
-        resourceId: UUID,
-        cause: Exception
-    ): ResponseStatusException {
-        log.error(
-            "Cerbos unavailable in enforce-only mode. resourceKind={}, action={}, resourceId={}",
-            resourceKind,
-            action,
-            resourceId,
-            cause
-        )
-        return ResponseStatusException(
-            HttpStatus.SERVICE_UNAVAILABLE,
-            "Authorization service is unavailable"
-        )
-    }
-
-    private fun resolveShareFlags(resourceType: ShareResourceType, resourceId: UUID, userId: UUID?): ShareFlags {
-        if (userId == null) {
-            return ShareFlags(hasView = false, hasEdit = false)
-        }
-
-        val hasEdit = resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermission(
-            resourceType = resourceType,
-            resourceId = resourceId,
-            granteeUserId = userId,
-            permission = SharePermission.EDIT
-        ) || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermission(
-            resourceType = resourceType,
-            resourceId = resourceId,
-            permission = SharePermission.EDIT
-        )
-
-        val hasView =
-            hasEdit || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIdAndPermissionIn(
-                resourceType = resourceType,
-                resourceId = resourceId,
-                granteeUserId = userId,
-                permissions = viewPermissions
-            ) || resourceSharesRepository.existsByResourceTypeAndResourceIdAndGranteeUserIsNullAndPermissionIn(
-                resourceType = resourceType,
-                resourceId = resourceId,
-                permissions = viewPermissions
-            )
-
-        return ShareFlags(hasView = hasView, hasEdit = hasEdit)
-    }
-
-    private fun resolveShareFlagsBatch(
-        resourceType: ShareResourceType,
-        resourceIds: Set<UUID>,
-        userId: UUID?
-    ): Map<UUID, ShareFlags> {
-        if (resourceIds.isEmpty() || userId == null) {
-            return resourceIds.associateWith { ShareFlags(hasView = false, hasEdit = false) }
-        }
-
-        val userShares = resourceSharesRepository.findByResourceTypeAndResourceIdInAndGranteeUserIdAndPermissionIn(
-            resourceType = resourceType,
-            resourceIds = resourceIds,
-            granteeUserId = userId,
-            permissions = viewPermissions
-        )
-        val publicShares =
-            resourceSharesRepository.findByResourceTypeAndResourceIdInAndGranteeUserIsNullAndPermissionIn(
-                resourceType = resourceType,
-                resourceIds = resourceIds,
-                permissions = viewPermissions
-            )
-
-        val resolved = resourceIds.associateWith { ShareFlags(hasView = false, hasEdit = false) }.toMutableMap()
-        (userShares + publicShares).forEach { share ->
-            val resourceId = share.resourceId
-            val previous = resolved[resourceId] ?: ShareFlags(hasView = false, hasEdit = false)
-            val hasEdit = previous.hasEdit || share.permission == SharePermission.EDIT
-            resolved[resourceId] = ShareFlags(
-                hasView = true,
-                hasEdit = hasEdit
-            )
-        }
-        return resolved
-    }
-
-    private fun decisionCacheKey(
-        resourceKind: CerbosResourceKind,
-        action: CerbosAction,
-        resourceId: UUID,
-        ownerId: UUID?,
-        resourceAttributes: Map<String, Any?>
-    ): DecisionCacheKey = DecisionCacheKey(
-        resourceKind = resourceKind,
-        action = action,
-        resourceId = resourceId,
-        ownerId = ownerId,
-        attrsHash = resourceAttributes.entries
-            .sortedBy { it.key }
-            .joinToString("|") { (key, value) -> "$key=$value" }
-            .hashCode()
-    )
-
-    private fun readDecisionFromRequestCache(key: DecisionCacheKey): Boolean? =
-        requestDecisionCache()[key]
-
-    private fun storeDecisionInRequestCache(key: DecisionCacheKey, value: Boolean) {
-        requestDecisionCache()[key] = value
-    }
-
-    private fun requestDecisionCache(): MutableMap<DecisionCacheKey, Boolean> {
-        val attributes = RequestContextHolder.getRequestAttributes()
-        if (attributes != null) {
-            val existing = attributes.getAttribute(REQUEST_CACHE_ATTR, RequestAttributes.SCOPE_REQUEST)
-            if (existing is MutableMap<*, *>) {
-                @Suppress("UNCHECKED_CAST")
-                return existing as MutableMap<DecisionCacheKey, Boolean>
-            }
-            val created = mutableMapOf<DecisionCacheKey, Boolean>()
-            attributes.setAttribute(REQUEST_CACHE_ATTR, created, RequestAttributes.SCOPE_REQUEST)
-            return created
-        }
-        // Outside request scope (e.g., scheduled tasks): no caching to avoid stale
-        // ThreadLocal state leaking between invocations on thread-pooled executors.
-        return mutableMapOf()
-    }
-
-    private fun topLevelAccessPermission(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): String? {
-        if (canViewAdminPanel()) {
-            return "ADMIN"
-        }
-        val userId = CurrentUser.getId() ?: return null
-
-        if (canEditTopLevel(ownerId, resourceType, resourceId)) {
-            return if (ownerId == userId) "OWNER" else "EDIT"
-        }
-        if (canViewTopLevel(ownerId, resourceType, resourceId)) {
-            return if (ownerId == userId) "OWNER" else "VIEW"
-        }
-        return null
-    }
-
-    private fun topLevelAccessPermissions(
-        entries: Collection<Triple<UUID, ShareResourceType, UUID>>
-    ): Map<UUID, String?> {
-        if (entries.isEmpty()) return emptyMap()
-
-        if (canViewAdminPanel()) {
-            return entries.associate { (_, _, resourceId) -> resourceId to "ADMIN" }
-        }
-
-        val currentUserId = CurrentUser.getId()
-        val editDecisions = evaluateTopLevelBatch(entries, CerbosAction.EDIT)
-        val viewDecisions = evaluateTopLevelBatch(entries, CerbosAction.VIEW)
-
-        return entries.associate { (ownerId, _, resourceId) ->
-            val permission = when {
-                editDecisions[resourceId] == true -> if (ownerId == currentUserId) "OWNER" else "EDIT"
-                viewDecisions[resourceId] == true -> if (ownerId == currentUserId) "OWNER" else "VIEW"
-                else -> null
-            }
-            resourceId to permission
+    private fun requireAllowed(allowed: Boolean) {
+        if (!allowed) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
         }
     }
-
-    private fun isCommonType(owner: ru.kavader.arepos.model.Users): Boolean {
-        return owner.email.equals("system@arepos.local", ignoreCase = true) || !owner.isActive
-    }
-
-    private fun deny(): Nothing = throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
 }

@@ -1,6 +1,7 @@
-package ru.kavader.arepos.dto.access
+package ru.kavader.arepos.mapper
 
 import org.springframework.stereotype.Component
+import ru.kavader.arepos.dto.access.AccessShareResponse
 import ru.kavader.arepos.model.ResourceShares
 
 @Component

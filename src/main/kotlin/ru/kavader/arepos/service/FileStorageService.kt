@@ -1,6 +1,7 @@
 package ru.kavader.arepos.service
 
 import io.minio.*
+import io.minio.errors.MinioException
 import io.minio.messages.VersioningConfiguration
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -20,6 +21,8 @@ import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.FileVersionsRepository
 import ru.kavader.arepos.repository.FilesRepository
 import java.io.ByteArrayInputStream
+import java.io.IOException
+import java.security.GeneralSecurityException
 import java.util.*
 
 @Service
@@ -58,8 +61,17 @@ class FileStorageService(
             }
             // Enable versioning on bucket
             enableVersioning()
-        } catch (e: Exception) {
-            log.error("Failed to ensure MinIO bucket exists: {}", e.message)
+        } catch (e: MinioException) {
+            log.error("Failed to ensure MinIO bucket exists", e)
+            throw e
+        } catch (e: IOException) {
+            log.error("I/O failure while ensuring MinIO bucket exists", e)
+            throw e
+        } catch (e: GeneralSecurityException) {
+            log.error("Security failure while ensuring MinIO bucket exists", e)
+            throw e
+        } catch (e: RuntimeException) {
+            log.error("Unexpected failure while ensuring MinIO bucket exists", e)
             throw e
         }
     }
@@ -77,8 +89,14 @@ class FileStorageService(
                     .build()
             )
             log.info("Enabled versioning for bucket: {}", minioProperties.bucket)
-        } catch (e: Exception) {
-            log.warn("Could not enable versioning (may already be enabled): {}", e.message)
+        } catch (e: MinioException) {
+            log.warn("Could not enable MinIO bucket versioning", e)
+        } catch (e: IOException) {
+            log.warn("I/O failure while enabling MinIO bucket versioning", e)
+        } catch (e: GeneralSecurityException) {
+            log.warn("Security failure while enabling MinIO bucket versioning", e)
+        } catch (e: RuntimeException) {
+            log.warn("Unexpected failure while enabling MinIO bucket versioning", e)
         }
     }
 

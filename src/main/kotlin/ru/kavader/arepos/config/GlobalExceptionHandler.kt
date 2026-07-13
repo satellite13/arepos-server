@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.BatchConflictItem
 import ru.kavader.arepos.dto.model.BatchSaveConflictException
+import ru.kavader.arepos.security.ACCESS_DENIED
 import java.util.*
 
 /**
@@ -97,7 +98,7 @@ class GlobalExceptionHandler {
     fun handleAccessDenied(ex: AccessDeniedException): ResponseEntity<ErrorBody> {
         val traceId = newTraceId()
         log.warn("Access denied [{}]: {}", traceId, ex.message)
-        return buildResponse(HttpStatus.FORBIDDEN, "ACCESS_DENIED", ex.message, traceId)
+        return buildResponse(HttpStatus.FORBIDDEN, "ACCESS_DENIED", ex.message ?: ACCESS_DENIED, traceId)
     }
 
     @ExceptionHandler(DataIntegrityViolationException::class)
@@ -132,6 +133,18 @@ class GlobalExceptionHandler {
         }
         val message = ex.reason ?: status.reasonPhrase
         return buildResponse(status, status.name, message, traceId)
+    }
+
+    @ExceptionHandler(Exception::class)
+    fun handleUnexpected(ex: Exception): ResponseEntity<ErrorBody> {
+        val traceId = newTraceId()
+        log.error("Unhandled exception [{}]", traceId, ex)
+        return buildResponse(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "INTERNAL_ERROR",
+            "Internal server error",
+            traceId
+        )
     }
 
     private fun buildResponse(status: HttpStatus, error: String, message: String?, traceId: String) =

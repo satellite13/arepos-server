@@ -3,10 +3,8 @@ package ru.kavader.arepos.controller
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
-import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.common.ListResponse
@@ -15,16 +13,15 @@ import ru.kavader.arepos.dto.model.*
 import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.dto.system.ModelSyncEventType
+import ru.kavader.arepos.mapper.ModelMapper
 import ru.kavader.arepos.model.Models
-import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodesRepository
+import ru.kavader.arepos.security.ADMIN_ONLY
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.*
 import ru.kavader.arepos.util.VersionUtils
-import java.time.Instant
 import java.util.*
 
 @RestController
@@ -32,21 +29,15 @@ import java.util.*
 @Tag(name = "Models", description = "Model management and versioning endpoints")
 class ModelsController(
     private val modelsRepository: ModelsRepository,
-    private val nodesRepository: NodesRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
-    private val modelAttrsService: ModelAttrsService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val modelCopyService: ModelCopyService,
-    private val systemRootNodeTypeService: SystemRootNodeTypeService,
+    private val modelLifecycleService: ModelLifecycleService,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val modelMapper: ModelMapper
 ) {
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
-
-    companion object {
-        private const val SYSTEM_ROOT_NODE_NAME = "Root"
-    }
 
     @GetMapping
     @Operation(summary = "List models")
@@ -68,7 +59,9 @@ class ModelsController(
         }
 
         val models = listPageByOwnerAndName(
-            effectiveOwner = resolveReadableOwner(ownerId),
+            effectiveOwner = ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
+                modelsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
+            },
             name = name,
             pageable = pageable,
             queries = OwnerNamePageQueries(
@@ -85,24 +78,23 @@ class ModelsController(
     @Operation(summary = "List soft-deleted models (admin)")
     fun listDeletedModels(pageable: Pageable): ListResponse<ModelResponse> {
         if (!accessService.canViewAdminPanel()) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
         }
         return mapModelsPage(modelsRepository.findByDeletedTrue(pageable))
     }
 
     @DeleteMapping("/{id}/permanent")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Transactional
     @Operation(summary = "Permanently delete model (admin)")
     fun permanentDeleteModel(@PathVariable id: UUID) {
         if (!accessService.canViewAdminPanel()) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
         }
         val model = modelsRepository.findByIdIncludingDeleted(id)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
             }
-        modelsRepository.delete(model)
+        modelLifecycleService.permanentDeleteModel(model)
     }
 
     @GetMapping("/grouped")
@@ -183,7 +175,6 @@ class ModelsController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Transactional
     @Operation(summary = "Create model with system root node")
     fun createModel(@RequestBody @Valid request: ModelRequest): ModelResponse {
         if (modelsRepository.existsByNameAndVersion(request.name, request.version)) {
@@ -194,36 +185,7 @@ class ModelsController(
         }
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
-        val now = Instant.now()
-        val saved = modelsRepository.save(
-            Models(
-                name = request.name,
-                createdAt = now,
-                updatedAt = now,
-                attrs = request.attrs,
-                version = request.version,
-                owner = owner,
-                deleted = false
-            )
-        )
-        val rootNodeType = systemRootNodeTypeService.getOrCreate(owner, now)
-        val rootNode = nodesRepository.save(
-            Nodes(
-                stableId = UUID.randomUUID(),
-                name = SYSTEM_ROOT_NODE_NAME,
-                createdAt = now,
-                updatedAt = now,
-                attrs = """{"system":{"hiddenTreeRoot":true},"treeOrder":0}""",
-                parentNode = null,
-                model = saved,
-                owner = owner,
-                nodeType = rootNodeType
-            )
-        )
-        val attrsWithRoot = modelAttrsService.mergeWithTreeRootNodeId(saved.attrs, requireNotNull(rootNode.id))
-        saved.attrs = attrsWithRoot
-        val updatedModel = modelsRepository.save(saved)
-        return modelMapper.toResponse(updatedModel)
+        return modelMapper.toResponse(modelLifecycleService.createModel(request, owner))
     }
 
     @PutMapping("/{id}")
@@ -270,7 +232,6 @@ class ModelsController(
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Transactional
     @Operation(summary = "Soft-delete model")
     fun deleteModel(@PathVariable id: UUID) {
         val model = modelsRepository.findById(id)
@@ -278,19 +239,15 @@ class ModelsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
             }
         accessService.requireCanEditModel(model)
-        val deletedCount = modelsRepository.softDeleteById(id)
-        if (deletedCount == 0) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Model $id not found")
-        }
+        modelLifecycleService.softDeleteModel(id)
     }
 
     @PostMapping("/{sourceId}/copy")
     @ResponseStatus(HttpStatus.CREATED)
-    @Transactional
     @Operation(summary = "Create new model version by copying source model")
     fun copyModel(
         @PathVariable sourceId: UUID,
-        @RequestBody request: ModelRequest
+        @RequestBody @Valid request: ModelRequest
     ): ModelResponse {
         val source = modelsRepository.findById(sourceId)
             .orElseThrow {
@@ -315,18 +272,12 @@ class ModelsController(
         return modelMapper.toResponse(copied)
     }
 
-    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? =
-        ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
-            modelsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
-        }
-
     private fun mapModelsPage(page: org.springframework.data.domain.Page<Models>): ListResponse<ModelResponse> {
-        val permissions = accessService.modelAccessPermissions(page.content)
-        val mapped = page.content.map { model ->
-            val modelId = requireNotNull(model.id)
-            modelMapper.toResponse(model, permissions[modelId])
-        }
-        return PageImpl(mapped, page.pageable, page.totalElements).toListResponse()
+        return page.mapWithPermissions(
+            loadPermissions = accessService::modelAccessPermissions,
+            idOf = Models::id,
+            transform = modelMapper::toResponse
+        ).toListResponse()
     }
 }
 

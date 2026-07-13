@@ -1,15 +1,19 @@
 package ru.kavader.arepos.dto.system
 
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotNull
 import java.util.*
 
 data class RelationRulesSyncRequest(
+    @field:Valid
+    @field:NotNull
     val rules: List<RelationRuleSyncItem>
 )
 
 data class RelationRuleSyncItem(
-    val fromComponentId: UUID,
-    val toComponentId: UUID,
-    val allowedRelationIds: List<UUID>
+    @field:NotNull val fromComponentId: UUID,
+    @field:NotNull val toComponentId: UUID,
+    @field:NotNull val allowedRelationIds: List<UUID>
 )
 
 data class RelationRulesSyncResponse(

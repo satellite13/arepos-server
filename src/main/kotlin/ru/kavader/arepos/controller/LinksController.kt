@@ -2,6 +2,7 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -10,10 +11,10 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.LinkRequest
 import ru.kavader.arepos.dto.model.LinkResponse
 import ru.kavader.arepos.dto.model.LinkUpdateRequest
-import ru.kavader.arepos.dto.model.ModelMapper
 import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.dto.system.ModelSyncEventType
+import ru.kavader.arepos.mapper.ModelMapper
 import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.OwnerResolutionService
@@ -144,7 +145,7 @@ class LinksController(
     @PostMapping
     @Operation(summary = "Create link")
     @ResponseStatus(HttpStatus.CREATED)
-    fun createLink(@RequestBody request: LinkRequest): LinkResponse {
+    fun createLink(@RequestBody @Valid request: LinkRequest): LinkResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         val model = modelsRepository.findById(request.modelId)
             .orElseThrow {
@@ -199,7 +200,7 @@ class LinksController(
     @Operation(summary = "Update link")
     fun updateLink(
         @PathVariable id: UUID,
-        @RequestBody request: LinkUpdateRequest
+        @RequestBody @Valid request: LinkUpdateRequest
     ): LinkResponse {
         val link = linksRepository.findById(id)
             .orElseThrow {

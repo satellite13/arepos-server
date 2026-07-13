@@ -10,10 +10,11 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.common.ListResponse
 import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.dto.system.AuditLogResponse
-import ru.kavader.arepos.dto.system.AuditMapper
+import ru.kavader.arepos.mapper.AuditMapper
 import ru.kavader.arepos.model.AuditLog
 import ru.kavader.arepos.repository.AuditLogRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.ACCESS_DENIED
 import ru.kavader.arepos.security.ResourceAccessService
 import java.util.*
 
@@ -39,7 +40,7 @@ class AuditLogController(
         if (!accessService.canViewAdminPanel()) {
             val currentUserId = accessService.currentUserId()
             if (changedById != null && changedById != currentUserId) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
             }
             val currentUser = usersRepository.findById(currentUserId).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Current user $currentUserId not found")
@@ -120,7 +121,7 @@ class AuditLogController(
         if (accessService.canViewAdminPanel()) return
         val currentUserId = accessService.currentUserId()
         if (auditLog.changedBy?.id != currentUserId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
         }
     }
 

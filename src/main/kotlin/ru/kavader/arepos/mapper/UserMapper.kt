@@ -1,7 +1,9 @@
-package ru.kavader.arepos.dto.user
+package ru.kavader.arepos.mapper
 
 import org.springframework.stereotype.Component
 import ru.kavader.arepos.dto.auth.UserInfoResponse
+import ru.kavader.arepos.dto.user.UserPublicResponse
+import ru.kavader.arepos.dto.user.UserResponse
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.service.UserProfileAttrsService
 

@@ -1,5 +1,7 @@
 package ru.kavader.arepos.dto.model
 
+import com.fasterxml.jackson.annotation.JsonIgnore
+import jakarta.validation.constraints.AssertTrue
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import java.time.Instant
@@ -69,11 +71,11 @@ data class NodeResponse(
 )
 
 data class LinkRequest(
-    val sourceId: UUID,
-    val targetId: UUID,
-    val modelId: UUID,
+    @field:NotNull val sourceId: UUID,
+    @field:NotNull val targetId: UUID,
+    @field:NotNull val modelId: UUID,
     val ownerId: UUID? = null,
-    val linkTypeId: UUID,
+    @field:NotNull val linkTypeId: UUID,
     val attrs: String? = null,
     val stableId: UUID? = null
 )
@@ -106,7 +108,7 @@ data class DiagramRequest(
     val ownerId: UUID? = null,
     @field:NotNull var modelId: UUID,
     val nodeId: UUID? = null,
-    val notationId: UUID,
+    @field:NotNull val notationId: UUID,
     val attrs: String? = null
 )
 
@@ -138,7 +140,16 @@ data class DiagramShareLinkRequest(
     val modelId: UUID? = null,
     val diagramName: String? = null,
     val latest: Boolean? = null
-)
+) {
+    @get:JsonIgnore
+    @get:AssertTrue(message = "Provide either diagramId or (modelId, diagramName, latest: true)")
+    val isTargetSelectionValid: Boolean
+        get() {
+            val directDiagram = diagramId != null
+            val latestNamedDiagram = modelId != null && !diagramName.isNullOrBlank() && latest == true
+            return directDiagram.xor(latestNamedDiagram)
+        }
+}
 
 data class DiagramShareLinkResponse(
     val url: String,

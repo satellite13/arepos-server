@@ -1,6 +1,7 @@
 package ru.kavader.arepos.dto.notation
 
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotNull
 import java.time.Instant
 import java.util.*
 
@@ -42,11 +43,11 @@ data class NotationMetaResponse(
 )
 
 data class ComponentRequest(
-    val name: String,
-    val version: String,
-    val notationId: UUID,
+    @field:NotBlank val name: String,
+    @field:NotBlank val version: String,
+    @field:NotNull val notationId: UUID,
     val ownerId: UUID? = null,
-    val nodeTypeId: UUID,
+    @field:NotNull val nodeTypeId: UUID,
     val attrs: String? = null
 )
 
@@ -72,11 +73,11 @@ data class ComponentResponse(
 )
 
 data class RelationRequest(
-    val name: String,
-    val version: String,
-    val notationId: UUID,
+    @field:NotBlank val name: String,
+    @field:NotBlank val version: String,
+    @field:NotNull val notationId: UUID,
     val ownerId: UUID? = null,
-    val linkTypeId: UUID,
+    @field:NotNull val linkTypeId: UUID,
     val attrs: String? = null
 )
 
@@ -102,7 +103,7 @@ data class RelationResponse(
 )
 
 data class NodeTypeRequest(
-    val name: String,
+    @field:NotBlank val name: String,
     val ownerId: UUID? = null,
     val attrs: String? = null
 )
@@ -126,7 +127,7 @@ data class NodeTypeResponse(
 )
 
 data class LinkTypeRequest(
-    val name: String,
+    @field:NotBlank val name: String,
     val ownerId: UUID? = null,
     val attrs: String? = null
 )
@@ -150,9 +151,9 @@ data class LinkTypeResponse(
 )
 
 data class RelationRuleRequest(
-    val relationId: UUID,
-    val fromComponentId: UUID,
-    val toComponentId: UUID,
+    @field:NotNull val relationId: UUID,
+    @field:NotNull val fromComponentId: UUID,
+    @field:NotNull val toComponentId: UUID,
     val ownerId: UUID? = null,
     val attrs: String? = null
 )
@@ -177,7 +178,7 @@ data class RelationRuleResponse(
 )
 
 data class NodeShapeRequest(
-    val name: String,
+    @field:NotBlank val name: String,
     val outline: String? = null,
     val contentArea: String? = null,
     val attrs: String? = null

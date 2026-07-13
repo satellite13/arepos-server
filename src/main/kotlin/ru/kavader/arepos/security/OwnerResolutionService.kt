@@ -72,7 +72,7 @@ class OwnerResolutionService(
 
         if (ownerId != null && ownerId != currentUserId) {
             if (!hasSharedAccess(ownerId, currentUserId)) {
-                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
             }
             return null
         }
