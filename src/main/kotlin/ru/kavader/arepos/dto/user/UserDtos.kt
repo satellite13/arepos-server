@@ -1,10 +1,14 @@
 package ru.kavader.arepos.dto.user
 
+import jakarta.validation.constraints.Email
+import jakarta.validation.constraints.NotBlank
 import ru.kavader.arepos.model.Role
 import java.time.Instant
 import java.util.*
 
 data class UserRequest(
+    @field:NotBlank
+    @field:Email
     val email: String,
     val attrs: String? = null,
     val role: Role? = null

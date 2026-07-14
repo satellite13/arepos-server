@@ -2,15 +2,16 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.dto.notation.NotationMapper
 import ru.kavader.arepos.dto.notation.RelationRequest
 import ru.kavader.arepos.dto.notation.RelationResponse
 import ru.kavader.arepos.dto.notation.RelationUpdateRequest
+import ru.kavader.arepos.mapper.NotationMapper
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.Relations
@@ -68,7 +69,7 @@ class RelationsController(
     @PostMapping
     @Operation(summary = "Create relation")
     @ResponseStatus(HttpStatus.CREATED)
-    fun createRelation(@RequestBody request: RelationRequest): RelationResponse {
+    fun createRelation(@RequestBody @Valid request: RelationRequest): RelationResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         val notation = findEditableNotation(request.notationId)
         val linkType = authorizedLinkType(request.linkTypeId, notation)
@@ -93,7 +94,7 @@ class RelationsController(
     @Operation(summary = "Update relation")
     fun updateRelation(
         @PathVariable id: UUID,
-        @RequestBody request: RelationUpdateRequest
+        @RequestBody @Valid request: RelationUpdateRequest
     ): RelationResponse {
         val relation = findEditableRelation(id)
         val owner = ownerResolutionService.resolveOwnerForUpdate(request.ownerId, relation.owner)

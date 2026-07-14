@@ -1,5 +1,6 @@
 package ru.kavader.arepos.dto.document
 
+import jakarta.validation.constraints.NotNull
 import java.util.*
 
 data class DocumentItem(
@@ -12,7 +13,7 @@ data class DocumentItem(
 )
 
 data class RegisterDocumentRefRequest(
-    val fileId: UUID,
+    @field:NotNull val fileId: UUID,
     val modelId: UUID? = null,
     val notationId: UUID? = null,
     val componentId: UUID? = null,

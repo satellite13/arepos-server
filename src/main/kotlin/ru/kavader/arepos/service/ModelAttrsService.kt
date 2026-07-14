@@ -1,7 +1,9 @@
 package ru.kavader.arepos.service
 
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.util.*
 
@@ -9,6 +11,10 @@ import java.util.*
 class ModelAttrsService(
     private val objectMapper: ObjectMapper
 ) {
+    companion object {
+        private val log = LoggerFactory.getLogger(ModelAttrsService::class.java)
+    }
+
     fun mergeWithTreeRootNodeId(existingAttrs: String?, rootNodeId: UUID): String {
         val baseNode = parseAttrsObjectOrEmpty(existingAttrs)
         baseNode.put("treeRootNodeId", rootNodeId.toString())
@@ -23,7 +29,8 @@ class ModelAttrsService(
                 ?.takeIf { it.isObject }
                 ?.deepCopy()
                 ?: objectMapper.createObjectNode()
-        } catch (_: Exception) {
+        } catch (ex: JsonProcessingException) {
+            log.warn("Invalid model attrs JSON; replacing it with an empty object", ex)
             objectMapper.createObjectNode()
         }
 }

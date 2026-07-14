@@ -43,3 +43,15 @@ fun <T, R> ResourceAccessService.listPageWithAdminBypass(
     map: (T) -> R
 ): Page<R> =
     listPageWithAdminBypass(adminQuery, userQuery).map(map)
+
+fun <T, K : Any, R> Page<T>.mapWithPermissions(
+    loadPermissions: (List<T>) -> Map<K, String?>,
+    idOf: (T) -> K?,
+    transform: (entity: T, permission: String?) -> R
+): Page<R> {
+    val permissions = loadPermissions(content)
+    return map { entity ->
+        val entityId = requireNotNull(idOf(entity)) { "Persisted entity ID must not be null" }
+        transform(entity, permissions[entityId])
+    }
+}

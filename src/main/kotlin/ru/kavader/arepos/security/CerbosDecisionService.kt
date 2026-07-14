@@ -128,25 +128,33 @@ class CerbosDecisionService(
             executeWithCircuit.get()
         } catch (ex: Exception) {
             log.warn(
-                "Cerbos check failed, applying default-deny fallback: state={}, reason={}, requests={}",
+                "Cerbos check failed, surfacing unavailable: state={}, reason={}, requests={}",
                 circuitBreaker.state,
                 ex::class.simpleName ?: "UnknownException",
                 requests.size,
                 ex
             )
-            return defaultDeny(requests)
+            throw CerbosUnavailableException(
+                "Authorization service is unavailable",
+                ex
+            )
         }
 
         return try {
             parseBatchDecisions(responseBody, requests)
+        } catch (ex: CerbosUnavailableException) {
+            throw ex
         } catch (ex: Exception) {
             log.warn(
-                "Cerbos response parse failed, applying default-deny fallback: state={}, requests={}",
+                "Cerbos response parse failed, surfacing unavailable: state={}, requests={}",
                 circuitBreaker.state,
                 requests.size,
                 ex
             )
-            defaultDeny(requests)
+            throw CerbosUnavailableException(
+                "Authorization service is unavailable",
+                ex
+            )
         }
     }
 
@@ -208,7 +216,4 @@ class CerbosDecisionService(
             else -> throw IllegalStateException("Unknown Cerbos effect received: $effect")
         }
     }
-
-    private fun defaultDeny(requests: List<CerbosBatchAccessRequest>): Map<UUID, Boolean> =
-        requests.associate { it.resourceId to false }
 }

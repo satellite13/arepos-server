@@ -2,15 +2,16 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.dto.notation.NotationMapper
 import ru.kavader.arepos.dto.notation.RelationRuleRequest
 import ru.kavader.arepos.dto.notation.RelationRuleResponse
 import ru.kavader.arepos.dto.notation.RelationRuleUpdateRequest
+import ru.kavader.arepos.mapper.NotationMapper
 import ru.kavader.arepos.model.RelationRules
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.RelationRulesRepository
@@ -102,7 +103,7 @@ class RelationRulesController(
     @PostMapping
     @Operation(summary = "Create relation rule")
     @ResponseStatus(HttpStatus.CREATED)
-    fun createRelationRule(@RequestBody request: RelationRuleRequest): RelationRuleResponse {
+    fun createRelationRule(@RequestBody @Valid request: RelationRuleRequest): RelationRuleResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         val relation = relationsRepository.findById(request.relationId)
             .orElseThrow {
@@ -150,7 +151,7 @@ class RelationRulesController(
     @Operation(summary = "Update relation rule")
     fun updateRelationRule(
         @PathVariable id: UUID,
-        @RequestBody request: RelationRuleUpdateRequest
+        @RequestBody @Valid request: RelationRuleUpdateRequest
     ): RelationRuleResponse {
         val relationRule = relationRulesRepository.findById(id)
             .orElseThrow {

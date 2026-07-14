@@ -2,6 +2,7 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -10,7 +11,7 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.notation.ComponentRequest
 import ru.kavader.arepos.dto.notation.ComponentResponse
 import ru.kavader.arepos.dto.notation.ComponentUpdateRequest
-import ru.kavader.arepos.dto.notation.NotationMapper
+import ru.kavader.arepos.mapper.NotationMapper
 import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
@@ -73,7 +74,7 @@ class ComponentsController(
     @PostMapping
     @Operation(summary = "Create component")
     @ResponseStatus(HttpStatus.CREATED)
-    fun createComponent(@RequestBody request: ComponentRequest): ComponentResponse {
+    fun createComponent(@RequestBody @Valid request: ComponentRequest): ComponentResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         val notation = notationsRepository.findById(request.notationId)
             .orElseThrow {
@@ -106,7 +107,7 @@ class ComponentsController(
     @Operation(summary = "Update component")
     fun updateComponent(
         @PathVariable id: UUID,
-        @RequestBody request: ComponentUpdateRequest
+        @RequestBody @Valid request: ComponentUpdateRequest
     ): ComponentResponse {
         val component = componentsRepository.findById(id)
             .orElseThrow {

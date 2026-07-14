@@ -2,8 +2,8 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -11,9 +11,10 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.notation.LinkTypeRequest
 import ru.kavader.arepos.dto.notation.LinkTypeResponse
 import ru.kavader.arepos.dto.notation.LinkTypeUpdateRequest
-import ru.kavader.arepos.dto.notation.NotationMapper
+import ru.kavader.arepos.mapper.NotationMapper
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.repository.LinkTypesRepository
+import ru.kavader.arepos.security.ACCESS_DENIED
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.MdFileLinkValidator
@@ -52,7 +53,7 @@ class LinkTypesController(
         linkTypesRepository.findById(id)
             .map {
                 if (!accessService.canViewLinkType(it) && !accessService.canUseLinkType(it)) {
-                    throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
                 }
                 notationMapper.toResponse(it)
             }
@@ -63,7 +64,7 @@ class LinkTypesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create link type")
-    fun createLinkType(@RequestBody request: LinkTypeRequest): LinkTypeResponse {
+    fun createLinkType(@RequestBody @Valid request: LinkTypeRequest): LinkTypeResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
@@ -83,7 +84,7 @@ class LinkTypesController(
     @Operation(summary = "Update link type")
     fun updateLinkType(
         @PathVariable id: UUID,
-        @RequestBody request: LinkTypeUpdateRequest
+        @RequestBody @Valid request: LinkTypeUpdateRequest
     ): LinkTypeResponse {
         val linkType = linkTypesRepository.findById(id)
             .orElseThrow {
@@ -111,12 +112,10 @@ class LinkTypesController(
         linkTypesRepository.deleteById(id)
     }
 
-    private fun mapLinkTypesPage(page: Page<LinkTypes>): Page<LinkTypeResponse> {
-        val permissions = accessService.linkTypeAccessPermissions(page.content)
-        val mapped = page.content.map { linkType ->
-            val linkTypeId = requireNotNull(linkType.id)
-            notationMapper.toResponse(linkType, permissions[linkTypeId])
-        }
-        return PageImpl(mapped, page.pageable, page.totalElements)
-    }
+    private fun mapLinkTypesPage(page: Page<LinkTypes>): Page<LinkTypeResponse> =
+        page.mapWithPermissions(
+            loadPermissions = accessService::linkTypeAccessPermissions,
+            idOf = LinkTypes::id,
+            transform = notationMapper::toResponse
+        )
 }

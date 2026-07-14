@@ -2,8 +2,8 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -11,9 +11,10 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.notation.NodeTypeRequest
 import ru.kavader.arepos.dto.notation.NodeTypeResponse
 import ru.kavader.arepos.dto.notation.NodeTypeUpdateRequest
-import ru.kavader.arepos.dto.notation.NotationMapper
+import ru.kavader.arepos.mapper.NotationMapper
 import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.repository.NodeTypesRepository
+import ru.kavader.arepos.security.ACCESS_DENIED
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.MdFileLinkValidator
@@ -52,7 +53,7 @@ class NodeTypesController(
         nodeTypesRepository.findById(id)
             .map {
                 if (!accessService.canViewNodeType(it) && !accessService.canUseNodeType(it)) {
-                    throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
                 }
                 notationMapper.toResponse(it)
             }
@@ -63,7 +64,7 @@ class NodeTypesController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create node type")
-    fun createNodeType(@RequestBody request: NodeTypeRequest): NodeTypeResponse {
+    fun createNodeType(@RequestBody @Valid request: NodeTypeRequest): NodeTypeResponse {
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
         mdFileLinkValidator.validate(request.attrs)
         val now = Instant.now()
@@ -83,7 +84,7 @@ class NodeTypesController(
     @Operation(summary = "Update node type")
     fun updateNodeType(
         @PathVariable id: UUID,
-        @RequestBody request: NodeTypeUpdateRequest
+        @RequestBody @Valid request: NodeTypeUpdateRequest
     ): NodeTypeResponse {
         val nodeType = nodeTypesRepository.findById(id)
             .orElseThrow {
@@ -111,12 +112,10 @@ class NodeTypesController(
         nodeTypesRepository.deleteById(id)
     }
 
-    private fun mapNodeTypesPage(page: Page<NodeTypes>): Page<NodeTypeResponse> {
-        val permissions = accessService.nodeTypeAccessPermissions(page.content)
-        val mapped = page.content.map { nodeType ->
-            val nodeTypeId = requireNotNull(nodeType.id)
-            notationMapper.toResponse(nodeType, permissions[nodeTypeId])
-        }
-        return PageImpl(mapped, page.pageable, page.totalElements)
-    }
+    private fun mapNodeTypesPage(page: Page<NodeTypes>): Page<NodeTypeResponse> =
+        page.mapWithPermissions(
+            loadPermissions = accessService::nodeTypeAccessPermissions,
+            idOf = NodeTypes::id,
+            transform = notationMapper::toResponse
+        )
 }

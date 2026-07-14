@@ -57,10 +57,14 @@ src/main/kotlin/ru/kavader/arepos/
 │   ├── SecurityConfig.kt         # Spring Security setup
 │   ├── JwtAuthenticationFilter.kt
 │   ├── JwtTokenProvider.kt
+│   ├── AuthCookieService.kt / CsrfFilter.kt
+│   ├── CerbosDecisionService.kt
 │   ├── ResourceAccessService.kt  # Permission checking
 │   └── CurrentUser.kt            # Current user utilities
 ├── service/                      # Business services
 │   ├── FileStorageService.kt
+│   ├── ModelBatchSaveService.kt
+│   ├── DiagramEditLockService.kt
 │   └── MdFileLinkValidator.kt
 └── metrics/                      # Custom metrics
     └── CustomMetricsService.kt
@@ -70,7 +74,7 @@ src/main/resources/
 └── db/changelog/                 # Liquibase migrations
     ├── db.changelog-master.yaml
     ├── 001-init.sql              # Initial schema
-    └── 002-014-*.sql             # Incremental migrations
+    └── 002-039-*.sql             # Incremental migrations
 
 src/test/kotlin/ru/kavader/arepos/
 ├── support/PostgresContainerTest.kt  # TestContainers base
@@ -163,7 +167,7 @@ persistAuditLog(tableName = "users", operation = "INSERT")
 
 Migrations are in `src/main/resources/db/changelog/`:
 - `001-init.sql` - Initial schema with tables, indexes, triggers
-- `002-014-*.sql` - Incremental changes
+- `002-039-*.sql` - Incremental changes (locks, outbox, refresh tokens, login lockout, …)
 - `db.changelog-master.yaml` - Migration order
 
 **Guidelines for new migrations:**
@@ -188,11 +192,28 @@ AuditInterceptor.clearCurrentUserId()
 
 ## Security & Authentication
 
-### JWT Authentication
+### Cookie session (primary for browser / wArchi)
 
-- **Access Token**: Short-lived (30 min default), used for API access
-- **Refresh Token**: Long-lived (7 days default), used to obtain new access tokens
-- **Header**: `Authorization: Bearer <token>`
+Browser clients authenticate via httpOnly cookies set by `AuthCookieService` on login/register/refresh:
+
+| Cookie | Purpose |
+|--------|---------|
+| `warchi_access` | Short-lived JWT access token |
+| `warchi_refresh` | Long-lived refresh token |
+| `warchi_csrf` | Double-submit CSRF token (readable by JS) |
+
+- Mutating requests (`POST`/`PUT`/`PATCH`/`DELETE`) require header `X-CSRF-Token` matching `warchi_csrf` (`CsrfFilter`). Login/register/refresh are exempt.
+- `POST /api/v1/auth/logout` clears auth cookies.
+- Login/register/refresh responses still include `accessToken`/`refreshToken` in JSON **and** set cookies (dual mode for API clients / tests).
+
+### Bearer fallback
+
+`JwtAuthenticationFilter` resolves the access token in order:
+
+1. Cookie `warchi_access`
+2. Header `Authorization: Bearer <token>`
+
+Use Bearer for non-browser API clients and tests. Swagger documents Bearer; cookie+CSRF is the wArchi path.
 
 ### User Roles
 
@@ -201,23 +222,34 @@ enum class Role { USER, EDITOR, ADMIN }
 ```
 
 - **USER**: Standard user, can manage own resources
-- **EDITOR**: Can edit shared resources
-- **ADMIN**: Full system access
+- **EDITOR**: Legacy/shared-edit role (resource access is Cerbos + shares, not role bypass)
+- **ADMIN**: Admin-panel capabilities via Cerbos `admin_panel` / `user_admin` policies
 
 ### Access Control
 
 - Resources have `owner` field for ownership-based access
 - `ResourceShares` allows sharing resources with specific permissions
-- `ResourceAccessService` checks view/edit permissions
+- `ResourceAccessService` checks view/edit permissions via Cerbos (enforce-only)
 - Model-editor notation reads with `?modelId=` (`NotationsController`, `NodeTypesController`, `LinkTypesController`): allowed when the user can view the notation directly **or** can edit the model and the notation version is used by an active diagram in that model (`canUseNotationInModelDiagramEditor`)
+- Cerbos outage behavior: unavailable Cerbos → **503** `Authorization service is unavailable` (see `authz/cerbos/README.md`); policy deny remains **403**
+
+### Collaboration / batch APIs
+
+See `docs/api-collaboration.md` for:
+
+- `POST /api/v1/diagram-locks/{id}/acquire` → **200** + `reason=LOCKED_BY_OTHER` when held by another user
+- `POST /api/v1/models/{id}/batch-save` → **409** `BATCH_SAVE_CONFLICT` + `conflicts[]`
 
 ### Environment Variables for Security
 
 ```bash
-JWT_SECRET              # Required in production (min 256 bits)
-ADMIN_SECRET            # For admin registration
-JWT_ACCESS_EXPIRATION   # Default: PT30M
-JWT_REFRESH_EXPIRATION  # Default: P7D
+JWT_SECRET                    # Required in production (min 256 bits)
+ADMIN_SECRET                  # For admin registration
+JWT_ACCESS_EXPIRATION         # Default: PT30M
+JWT_REFRESH_EXPIRATION        # Default: P7D
+AREPOS_AUTH_COOKIE_SECURE     # Set true behind HTTPS (Secure cookie flag)
+AREPOS_AUTH_CSRF_ENABLED      # Default true; disable only for controlled non-browser setups
+AREPOS_AUTH_REGISTRATION_ENABLED  # Default true
 ```
 
 ## Configuration
@@ -392,11 +424,14 @@ OpenAPI documentation is generated at runtime by springdoc:
 - OpenAPI JSON: `/v3/api-docs`
 
 Main endpoints:
-- `POST /api/v1/auth/register` - User registration
+- `POST /api/v1/auth/register` - User registration (cookies + optional tokens in body)
 - `POST /api/v1/auth/login` - Login
-- `POST /api/v1/auth/refresh` - Refresh tokens
+- `POST /api/v1/auth/refresh` - Refresh (cookie and/or body refresh token)
+- `POST /api/v1/auth/logout` - Clear auth cookies
 - `GET /api/v1/auth/me` - Current user info
 - `GET /api/v1/models` - List models
+- `POST /api/v1/models/{id}/batch-save` - Atomic node/link/diagram save (see `docs/api-collaboration.md`)
+- `POST /api/v1/diagram-locks/{id}/acquire` - Diagram edit lock (see `docs/api-collaboration.md`)
 - `GET /api/v1/nodes` - List nodes
 - `GET /api/v1/notations` - List notations
 - And more...

@@ -9,13 +9,13 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.dto.model.ModelMapper
 import ru.kavader.arepos.dto.model.NodeRequest
 import ru.kavader.arepos.dto.model.NodeResponse
 import ru.kavader.arepos.dto.model.NodeUpdateRequest
 import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.dto.system.ModelSyncEventType
+import ru.kavader.arepos.mapper.ModelMapper
 import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
@@ -163,7 +163,7 @@ class NodesController(
     @Operation(summary = "Update node")
     fun updateNode(
         @PathVariable id: UUID,
-        @RequestBody request: NodeUpdateRequest
+        @RequestBody @Valid request: NodeUpdateRequest
     ): NodeResponse {
         val node = nodesRepository.findById(id)
             .orElseThrow {

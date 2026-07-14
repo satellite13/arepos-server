@@ -4,24 +4,26 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
-import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.EntityGroupResponse
 import ru.kavader.arepos.dto.model.GroupedEntityResponse
 import ru.kavader.arepos.dto.notation.*
+import ru.kavader.arepos.mapper.NotationMapper
 import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.security.ACCESS_DENIED
+import ru.kavader.arepos.security.ADMIN_ONLY
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.NotationCopyService
+import ru.kavader.arepos.service.NotationLifecycleService
 import ru.kavader.arepos.util.VersionUtils
 import java.time.Instant
 import java.util.*
@@ -37,6 +39,7 @@ class NotationsController(
     private val ownerResolutionService: OwnerResolutionService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val notationCopyService: NotationCopyService,
+    private val notationLifecycleService: NotationLifecycleService,
     private val notationMapper: NotationMapper
 ) {
     private val viewPermissions = listOf(SharePermission.VIEW, SharePermission.EDIT)
@@ -61,7 +64,9 @@ class NotationsController(
         }
 
         val notations = listPageByOwnerAndName(
-            effectiveOwner = resolveReadableOwner(ownerId),
+            effectiveOwner = ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
+                notationsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
+            },
             name = name,
             pageable = pageable,
             queries = OwnerNamePageQueries(
@@ -78,24 +83,23 @@ class NotationsController(
     @Operation(summary = "List soft-deleted notations (admin)")
     fun listDeletedNotations(pageable: Pageable): Page<NotationResponse> {
         if (!accessService.canViewAdminPanel()) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
         }
         return mapNotationsPage(notationsRepository.findByDeletedTrue(pageable))
     }
 
     @DeleteMapping("/{id}/permanent")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Transactional
     @Operation(summary = "Permanently delete notation (admin)")
     fun permanentDeleteNotation(@PathVariable id: UUID) {
         if (!accessService.canViewAdminPanel()) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin only")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
         }
         val notation = notationsRepository.findByIdIncludingDeleted(id)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
             }
-        notationsRepository.delete(notation)
+        notationLifecycleService.permanentDeleteNotation(notation)
     }
 
     @GetMapping("/grouped")
@@ -145,7 +149,7 @@ class NotationsController(
                     }
                     accessService.requireCanViewModel(model)
                     if (!accessService.canUseNotationInModelDiagramEditor(it, model)) {
-                        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                        throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
                     }
                 } else {
                     accessService.requireCanViewNotation(it)
@@ -165,14 +169,10 @@ class NotationsController(
         notationsRepository.findById(id)
             .map { notation ->
                 val canViewDirectly = accessService.canViewNotation(notation)
-                val hasVisibleDiagramWithNotation = diagramsRepository.findByFilters(
-                    ownerId = null,
-                    modelId = null,
-                    nodeId = null,
-                    notationId = id,
-                    name = "",
-                    pageable = Pageable.unpaged()
-                ).content.let { diagrams -> accessService.filterViewableDiagrams(diagrams).isNotEmpty() }
+                val hasVisibleDiagramWithNotation = diagramsRepository.existsViewableModelDiagramWithNotation(
+                    id,
+                    accessService.currentUserId()
+                )
                 val viaModelEditor = modelId?.let { mid ->
                     val model = modelsRepository.findById(mid).orElseThrow {
                         ResponseStatusException(HttpStatus.NOT_FOUND, "Model $mid not found")
@@ -182,7 +182,7 @@ class NotationsController(
                 } ?: false
 
                 if (!canViewDirectly && !hasVisibleDiagramWithNotation && !viaModelEditor) {
-                    throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
                 }
 
                 notationMapper.toMetaResponse(notation)
@@ -262,11 +262,10 @@ class NotationsController(
 
     @PostMapping("/{sourceId}/copy")
     @ResponseStatus(HttpStatus.CREATED)
-    @Transactional
     @Operation(summary = "Create notation by copying source notation")
     fun copyNotation(
         @PathVariable sourceId: UUID,
-        @RequestBody request: NotationRequest
+        @RequestBody @Valid request: NotationRequest
     ): NotationResponse {
         val source = notationsRepository.findById(sourceId)
             .orElseThrow {
@@ -296,7 +295,6 @@ class NotationsController(
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Transactional
     @Operation(summary = "Soft-delete notation")
     fun deleteNotation(@PathVariable id: UUID) {
         val notation = notationsRepository.findById(id)
@@ -304,26 +302,16 @@ class NotationsController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
             }
         accessService.requireCanEditNotation(notation)
-        val deletedCount = notationsRepository.softDeleteById(id)
-        if (deletedCount == 0) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
-        }
+        notationLifecycleService.softDeleteNotation(id)
     }
 
     private val compareNotationsByVersionDesc = VersionUtils.semverDescComparator<Notations> { it.version }
 
-    private fun resolveReadableOwner(ownerId: UUID?): ru.kavader.arepos.model.Users? =
-        ownerResolutionService.resolveReadableOwner(ownerId) { oid, uid ->
-            notationsRepository.existsAccessibleByOwnerForUser(oid, uid, viewPermissions)
-        }
-
-    private fun mapNotationsPage(page: Page<Notations>): Page<NotationResponse> {
-        val permissions = accessService.notationAccessPermissions(page.content)
-        val mapped = page.content.map { notation ->
-            val notationId = requireNotNull(notation.id)
-            notationMapper.toResponse(notation, permissions[notationId])
-        }
-        return PageImpl(mapped, page.pageable, page.totalElements)
-    }
+    private fun mapNotationsPage(page: Page<Notations>): Page<NotationResponse> =
+        page.mapWithPermissions(
+            loadPermissions = accessService::notationAccessPermissions,
+            idOf = Notations::id,
+            transform = notationMapper::toResponse
+        )
 
 }

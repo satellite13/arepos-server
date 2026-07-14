@@ -8,23 +8,19 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.crypto.password.PasswordEncoder
-import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.config.AreposAuthProperties
 import ru.kavader.arepos.dto.auth.*
-import ru.kavader.arepos.dto.user.UserMapper
+import ru.kavader.arepos.mapper.UserMapper
 import ru.kavader.arepos.metrics.CustomMetricsService
-import ru.kavader.arepos.model.RefreshTokens
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
-import ru.kavader.arepos.repository.RefreshTokensRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.AuthCookieService
 import ru.kavader.arepos.security.AuthCookies
-import ru.kavader.arepos.security.JwtTokenProvider
 import ru.kavader.arepos.security.PasswordPolicyValidator
-import ru.kavader.arepos.security.TokenType
+import ru.kavader.arepos.service.AuthTokenService
 import ru.kavader.arepos.service.UserProfileAttrsService
 import java.security.MessageDigest
 import java.time.Duration
@@ -36,13 +32,12 @@ import java.util.*
 @Tag(name = "Auth", description = "Authentication and profile endpoints")
 class AuthController(
     private val usersRepository: UsersRepository,
-    private val refreshTokensRepository: RefreshTokensRepository,
     private val passwordEncoder: PasswordEncoder,
-    private val jwtTokenProvider: JwtTokenProvider,
     private val userProfileAttrsService: UserProfileAttrsService,
     private val userMapper: UserMapper,
     private val metrics: CustomMetricsService,
     private val authCookieService: AuthCookieService,
+    private val authTokenService: AuthTokenService,
     private val authProperties: AreposAuthProperties,
     private val passwordPolicyValidator: PasswordPolicyValidator,
     @param:Value($$"${arepos.admin-secret:}") private val adminSecret: String
@@ -114,7 +109,6 @@ class AuthController(
 
     @PostMapping("/refresh")
     @Operation(summary = "Refresh JWT token pair")
-    @Transactional
     fun refresh(
         @RequestBody(required = false) request: RefreshRequest?,
         @CookieValue(name = AuthCookies.REFRESH, required = false) refreshCookie: String?,
@@ -124,55 +118,19 @@ class AuthController(
             ?: refreshCookie?.trim()?.takeIf { it.isNotEmpty() }
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is required")
 
-        if (!jwtTokenProvider.validateToken(refreshToken)) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token")
-        }
-
-        val tokenType = jwtTokenProvider.getTokenType(refreshToken)
-        if (tokenType != TokenType.REFRESH) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token type")
-        }
-
-        val tokenHash = hashToken(refreshToken)
-        val persistedToken = refreshTokensRepository.findByTokenHash(tokenHash)
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token")
-        val userId = jwtTokenProvider.getUserId(refreshToken)
-        if (persistedToken.user.id != userId) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token")
-        }
-        val now = Instant.now()
-        val marked = refreshTokensRepository.markUsed(tokenHash, userId, now)
-        if (marked == 0) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token already used or expired")
-        }
-
-        val user = usersRepository.findById(userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found") }
-
-        if (!user.isActive) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Account is deactivated")
-        }
-
-        return buildAuthResponse(user, response)
+        val result = authTokenService.refresh(refreshToken)
+        writeAuthCookies(result.response, result.csrfToken, response)
+        return result.response
     }
 
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Logout and revoke refresh token")
-    @Transactional
     fun logout(
         @CookieValue(name = AuthCookies.REFRESH, required = false) refreshCookie: String?,
         response: HttpServletResponse
     ) {
-        val refreshToken = refreshCookie?.trim()?.takeIf { it.isNotEmpty() }
-        if (refreshToken != null && jwtTokenProvider.validateToken(refreshToken)) {
-            val tokenType = jwtTokenProvider.getTokenType(refreshToken)
-            if (tokenType == TokenType.REFRESH) {
-                val tokenHash = hashToken(refreshToken)
-                val userId = jwtTokenProvider.getUserId(refreshToken)
-                refreshTokensRepository.markUsed(tokenHash, userId, Instant.now())
-            }
-        }
+        authTokenService.logout(refreshCookie?.trim()?.takeIf { it.isNotEmpty() })
         authCookieService.clearAuthCookies(response)
     }
 
@@ -270,33 +228,21 @@ class AuthController(
     }
 
     private fun buildAuthResponse(user: Users, response: HttpServletResponse): AuthResponse {
-        val userId = requireNotNull(user.id)
-        val accessToken = jwtTokenProvider.generateAccessToken(userId, user.role.name)
-        val refreshToken = jwtTokenProvider.generateRefreshToken(userId)
-        val csrfToken = authCookieService.generateCsrfToken()
-        persistRefreshToken(user, refreshToken)
-        authCookieService.writeAuthCookies(response, accessToken, refreshToken, csrfToken)
-        return AuthResponse(
-            accessToken = accessToken,
-            refreshToken = refreshToken,
-            user = userMapper.toUserInfoResponse(user)
-        )
+        val result = authTokenService.issue(user)
+        writeAuthCookies(result.response, result.csrfToken, response)
+        return result.response
     }
 
-    private fun persistRefreshToken(user: Users, refreshToken: String) {
-        val now = Instant.now()
-        refreshTokensRepository.save(
-            RefreshTokens(
-                user = user,
-                tokenHash = hashToken(refreshToken),
-                expiresAt = jwtTokenProvider.getExpirationInstant(refreshToken),
-                createdAt = now
-            )
+    private fun writeAuthCookies(
+        authResponse: AuthResponse,
+        csrfToken: String,
+        response: HttpServletResponse
+    ) {
+        authCookieService.writeAuthCookies(
+            response,
+            authResponse.accessToken,
+            authResponse.refreshToken,
+            csrfToken
         )
-    }
-
-    private fun hashToken(token: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        return digest.digest(token.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     }
 }

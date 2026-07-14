@@ -3,9 +3,9 @@ package ru.kavader.arepos.controller
 import com.fasterxml.jackson.databind.JsonNode
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
-import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.common.ListResponse
 import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.dto.model.DiagramLockStatusResponse
@@ -29,7 +29,8 @@ class DiagramEditLocksController(
         return try {
             diagramEditLockService.acquire(diagramId)
         } catch (ex: DiagramEditLockConflictException) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "Diagram lock is held by another user")
+            // Always 200: clients distinguish hold vs conflict via reason=LOCKED_BY_OTHER.
+            ex.body
         }
     }
 
@@ -65,7 +66,7 @@ class DiagramEditLocksController(
 
     @PostMapping("/{diagramId}/pointer")
     @Operation(summary = "Relay collaborator pointer")
-    fun relayPointer(@PathVariable diagramId: UUID, @RequestBody request: DiagramPointerRequest) {
+    fun relayPointer(@PathVariable diagramId: UUID, @RequestBody @Valid request: DiagramPointerRequest) {
         diagramCollaborationService.relayPointer(diagramId, request)
     }
 

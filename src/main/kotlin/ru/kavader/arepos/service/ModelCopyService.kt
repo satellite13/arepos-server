@@ -1,7 +1,9 @@
 package ru.kavader.arepos.service
 
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -26,6 +28,7 @@ class ModelCopyService(
     private val objectMapper: ObjectMapper
 ) {
     companion object {
+        private val log = LoggerFactory.getLogger(ModelCopyService::class.java)
         private const val SYSTEM_ROOT_NODE_NAME = "Root"
     }
 
@@ -176,7 +179,8 @@ class ModelCopyService(
                 val modelNodeId = node.get("modelNodeId")?.asText() ?: continue
                 val oldUuid = try {
                     UUID.fromString(modelNodeId)
-                } catch (_: Exception) {
+                } catch (ex: IllegalArgumentException) {
+                    log.warn("Ignoring invalid modelNodeId while copying model: {}", modelNodeId, ex)
                     continue
                 }
                 val newUuid = nodeIdMap[oldUuid] ?: continue
@@ -189,7 +193,8 @@ class ModelCopyService(
                     val modelLinkId = edge.get("modelLinkId")?.asText() ?: continue
                     val oldUuid = try {
                         UUID.fromString(modelLinkId)
-                    } catch (_: Exception) {
+                    } catch (ex: IllegalArgumentException) {
+                        log.warn("Ignoring invalid modelLinkId while copying model: {}", modelLinkId, ex)
                         continue
                     }
                     val newUuid = linkIdMap[oldUuid] ?: continue
@@ -197,7 +202,8 @@ class ModelCopyService(
                 }
             }
             objectMapper.writeValueAsString(tree)
-        } catch (_: Exception) {
+        } catch (ex: JsonProcessingException) {
+            log.warn("Could not remap diagram attrs while copying model; preserving original attrs", ex)
             attrs
         }
     }

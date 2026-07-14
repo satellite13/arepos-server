@@ -1,5 +1,6 @@
 package ru.kavader.arepos.dto.access
 
+import jakarta.validation.constraints.NotNull
 import java.util.*
 
 enum class PermissionResourceType {
@@ -21,8 +22,8 @@ enum class PermissionAction {
 }
 
 data class PermissionCheckRequest(
-    val resourceType: PermissionResourceType? = null,
-    val resourceId: UUID? = null,
+    @field:NotNull val resourceType: PermissionResourceType? = null,
+    @field:NotNull val resourceId: UUID? = null,
     val actions: List<PermissionAction> = listOf(PermissionAction.VIEW)
 )
 

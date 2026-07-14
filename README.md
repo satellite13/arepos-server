@@ -12,6 +12,7 @@ The project is built with Kotlin + Spring Boot, stores flexible entity attribute
 - Automatic database migrations via Liquibase
 - Audit logging for data changes
 - JWT-based authentication with refresh token rotation (single-use refresh tokens stored server-side)
+- Browser cookie session (`warchi_access` / `warchi_refresh`) + CSRF (`warchi_csrf` / `X-CSRF-Token`); Bearer header remains supported for API clients
 - Cerbos-backed authorization in enforce-only mode
 - Model live-sync over STOMP/WebSocket with optional transactional outbox publishing
 - Built-in health indicators for Cerbos, MinIO, and model-sync outbox
@@ -36,17 +37,20 @@ src/main/kotlin/ru/kavader/arepos/
   controller/   # REST controllers
   model/        # JPA entities
   repository/   # Spring Data repositories
-  security/     # JWT and auth-related components
+  security/     # JWT, cookies/CSRF, Cerbos, ResourceAccessService
+  service/      # Business services (batch save, diagram locks, files, …)
   config/       # configuration and interceptors
 
 src/main/resources/
   application.yaml
-  db/changelog/ # Liquibase migrations
+  db/changelog/ # Liquibase migrations (001–039+)
 
 charts/arepos-server/
   templates/    # Helm templates
   values.yaml   # chart values
 ```
+
+Authz policies live under `authz/cerbos/`. Collaboration API notes: `docs/api-collaboration.md`.
 
 ## Requirements
 
@@ -70,6 +74,9 @@ Important environment variables:
 - `JWT_SECRET` (required; at least 32 bytes)
 - `JWT_ISSUER` / `JWT_AUDIENCE` (token issuer/audience validation)
 - `ADMIN_SECRET` (recommended for admin bootstrap flow)
+- `AREPOS_AUTH_COOKIE_SECURE` (set `true` behind HTTPS so auth cookies get the Secure flag)
+- `AREPOS_AUTH_CSRF_ENABLED` (default `true`; double-submit CSRF for cookie-session mutating requests)
+- `AREPOS_AUTH_REGISTRATION_ENABLED` (default `true`)
 - `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` (in `prod` profile, `*` is forbidden and startup fails)
 - `MODEL_SYNC_OUTBOX_ENABLED` (enable transactional outbox for model sync)
 - `MODEL_SYNC_OUTBOX_PUBLISH_MS`, `MODEL_SYNC_OUTBOX_BATCH_SIZE` (outbox publisher tuning)
@@ -105,6 +112,8 @@ docker build -f Dockerfile -t arch/arepos-server:dev .  # build via Dockerfile
 
 - Swagger UI: `/swagger-ui.html` — interactive API documentation
 - OpenAPI spec (JSON): `/v3/api-docs`
+- Auth: cookie session (primary for wArchi) or `Authorization: Bearer`; CSRF required for cookie-session mutating calls — see `AGENTS.md` and OpenAPI description
+- Collaboration contracts: `docs/api-collaboration.md` (diagram locks, batch-save)
 - Error responses from exception handlers follow `{ error, message, traceId }`
 - Notation, node-type, and link-type reads from the model editor may pass `?modelId=`; access is granted with direct notation permission **or** model edit rights when that notation version is used by an active diagram in the model
 - Health endpoints:

@@ -1,7 +1,10 @@
-package ru.kavader.arepos.dto.model
+package ru.kavader.arepos.mapper
 
 import org.springframework.stereotype.Component
-import ru.kavader.arepos.dto.user.UserMapper
+import ru.kavader.arepos.dto.model.DiagramResponse
+import ru.kavader.arepos.dto.model.LinkResponse
+import ru.kavader.arepos.dto.model.ModelResponse
+import ru.kavader.arepos.dto.model.NodeResponse
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Links
 import ru.kavader.arepos.model.Models
@@ -17,7 +20,7 @@ class ModelMapper(
         id = requireNotNull(model.id),
         name = model.name,
         version = model.version,
-        ownerId = model.owner.id!!,
+        ownerId = requireNotNull(model.owner.id) { "Model owner ID must not be null" },
         ownerEmail = model.owner.email,
         ownerDisplayName = userMapper.ownerDisplayName(model.owner),
         accessPermission = accessPermission,
@@ -31,7 +34,7 @@ class ModelMapper(
         id = requireNotNull(model.id),
         name = model.name,
         version = model.version,
-        ownerId = model.owner.id!!,
+        ownerId = requireNotNull(model.owner.id) { "Model owner ID must not be null" },
         ownerEmail = model.owner.email,
         ownerDisplayName = userMapper.ownerDisplayName(model.owner),
         accessPermission = accessService.modelAccessPermission(model),
@@ -45,10 +48,10 @@ class ModelMapper(
         id = requireNotNull(diagram.id),
         name = diagram.name,
         version = diagram.version,
-        ownerId = diagram.owner.id!!,
-        modelId = diagram.model.id!!,
+        ownerId = requireNotNull(diagram.owner.id) { "Diagram owner ID must not be null" },
+        modelId = requireNotNull(diagram.model.id) { "Diagram model ID must not be null" },
         nodeId = diagram.node?.id,
-        notationId = diagram.notation.id!!,
+        notationId = requireNotNull(diagram.notation.id) { "Diagram notation ID must not be null" },
         attrs = diagram.attrs,
         createdAt = diagram.createdAt,
         updatedAt = diagram.updatedAt
@@ -58,9 +61,9 @@ class ModelMapper(
         id = requireNotNull(node.id),
         stableId = node.stableId,
         name = node.name,
-        modelId = node.model.id!!,
-        ownerId = node.owner.id!!,
-        nodeTypeId = node.nodeType.id!!,
+        modelId = requireNotNull(node.model.id) { "Node model ID must not be null" },
+        ownerId = requireNotNull(node.owner.id) { "Node owner ID must not be null" },
+        nodeTypeId = requireNotNull(node.nodeType.id) { "Node type ID must not be null" },
         parentNodeId = node.parentNode?.id,
         attrs = node.attrs,
         createdAt = node.createdAt,
@@ -70,11 +73,11 @@ class ModelMapper(
     fun toResponse(link: Links): LinkResponse = LinkResponse(
         id = requireNotNull(link.id),
         stableId = link.stableId,
-        sourceId = link.source.id!!,
-        targetId = link.target.id!!,
-        modelId = link.model.id!!,
-        ownerId = link.owner.id!!,
-        linkTypeId = link.linkType.id!!,
+        sourceId = requireNotNull(link.source.id) { "Link source ID must not be null" },
+        targetId = requireNotNull(link.target.id) { "Link target ID must not be null" },
+        modelId = requireNotNull(link.model.id) { "Link model ID must not be null" },
+        ownerId = requireNotNull(link.owner.id) { "Link owner ID must not be null" },
+        linkTypeId = requireNotNull(link.linkType.id) { "Link type ID must not be null" },
         attrs = link.attrs,
         createdAt = link.createdAt,
         updatedAt = link.updatedAt
