@@ -1,7 +1,9 @@
 package ru.kavader.arepos.service
 
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ResponseStatusException
@@ -18,6 +20,7 @@ private val PATH_UNSAFE_PATTERN = Regex("""\.\.|/|\\""")
 class UserProfileAttrsService(
     private val objectMapper: ObjectMapper
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
     private val mapType = object : TypeReference<MutableMap<String, Any?>>() {}
 
     fun readProfile(attrs: String?): UserProfileData {
@@ -89,7 +92,8 @@ class UserProfileAttrsService(
         if (attrs.isNullOrBlank()) return mutableMapOf()
         return try {
             objectMapper.readValue(attrs, mapType)
-        } catch (_: Exception) {
+        } catch (_: JsonProcessingException) {
+            log.debug("Invalid user profile attrs JSON; using empty attrs (attrsLength={})", attrs.length)
             mutableMapOf()
         }
     }

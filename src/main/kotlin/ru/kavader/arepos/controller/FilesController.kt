@@ -99,8 +99,9 @@ class FilesController(
             }
         val file = fileStorageService.getFileMetadata(id)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
-        accessService.requireCanViewFile(file)
-        documentRefsService.requireCanModifyMarkdownForLinkedEntities(id)
+        if (!documentRefsService.requireCanModifyMarkdownForLinkedEntities(id)) {
+            accessService.requireCanViewFile(file)
+        }
         val updated = fileStorageService.updateMarkdown(id, request.content, owner)
         val url = "/api/v1/files/${updated.id}"
         return FileUploadResponse(

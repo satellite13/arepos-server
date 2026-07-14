@@ -32,9 +32,13 @@ class DocumentRefsService(
     /**
      * Если markdown-файл привязан к сущностям через document_refs, правка контента
      * требует тех же прав, что и регистрация ссылки (иначе обход через PUT /files/.../markdown).
+     *
+     * @return true, если для файла есть хотя бы одна ссылка. Все ссылки проверяются
+     * до возврата, поэтому true означает, что пользователь может редактировать каждую
+     * связанную сущность.
      */
     @Transactional(readOnly = true)
-    fun requireCanModifyMarkdownForLinkedEntities(fileId: UUID) {
+    fun requireCanModifyMarkdownForLinkedEntities(fileId: UUID): Boolean {
         val refs = documentRefsRepository.findAllByFileId(fileId)
         for (ref in refs) {
             ref.model?.let { accessService.requireCanEditModel(it) }
@@ -47,6 +51,7 @@ class DocumentRefsService(
             ref.linkType?.let { accessService.requireCanEditLinkType(it) }
             ref.nodeShape?.let { accessService.requireCanEditNodeShape(it) }
         }
+        return refs.isNotEmpty()
     }
 
     @Transactional

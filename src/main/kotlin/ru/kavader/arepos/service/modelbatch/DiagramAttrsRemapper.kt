@@ -1,8 +1,10 @@
 package ru.kavader.arepos.service.modelbatch
 
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.util.*
 
@@ -10,13 +12,16 @@ import java.util.*
 class DiagramAttrsRemapper(
     private val objectMapper: ObjectMapper
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     fun remap(attrs: String?, nodeIdMap: Map<String, UUID>, linkIdMap: Map<String, UUID>): String? {
         if (attrs == null) return null
         if (nodeIdMap.isEmpty() && linkIdMap.isEmpty()) return attrs
 
         val root = try {
             objectMapper.readTree(attrs)
-        } catch (_: Exception) {
+        } catch (_: JsonProcessingException) {
+            log.debug("Invalid diagram attrs JSON; preserving original attrs (attrsLength={})", attrs.length)
             return attrs
         }
         if (!root.isObject) return attrs

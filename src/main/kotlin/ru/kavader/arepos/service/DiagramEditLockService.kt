@@ -18,6 +18,7 @@ import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.ADMIN_ONLY
+import ru.kavader.arepos.security.DIAGRAM_LOCK_HELD_BY_ANOTHER_USER
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Duration
 import java.time.Instant
@@ -127,7 +128,7 @@ class DiagramEditLockService(
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Lock expired for diagram $diagramId")
         }
         if (row.lockedBy.id != meId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Lock is held by another user")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, DIAGRAM_LOCK_HELD_BY_ANOTHER_USER)
         }
         row.lastHeartbeatAt = now
         row.expiresAt = newExpiry
@@ -149,7 +150,7 @@ class DiagramEditLockService(
             return
         }
         if (row.lockedBy.id != meId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Lock is held by another user")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, DIAGRAM_LOCK_HELD_BY_ANOTHER_USER)
         }
         metrics.editLockRelease.increment()
         locksRepository.delete(row)

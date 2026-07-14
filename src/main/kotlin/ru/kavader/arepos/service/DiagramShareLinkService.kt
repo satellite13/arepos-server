@@ -12,6 +12,7 @@ import ru.kavader.arepos.repository.DiagramPreviewLinksRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.DIAGRAM_SHARE_LINK_REVOKE_DENIED
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
 import java.util.UUID
@@ -146,7 +147,7 @@ class DiagramShareLinkService(
             else -> false
         }
         if (!canRevoke) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot revoke this link")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, DIAGRAM_SHARE_LINK_REVOKE_DENIED)
         }
         diagramPreviewLinksRepository.delete(link)
     }

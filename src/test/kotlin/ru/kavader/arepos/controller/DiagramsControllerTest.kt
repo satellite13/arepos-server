@@ -441,6 +441,68 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
                 .content(objectMapper.writeValueAsString(payload))
         )
             .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.message").value("Access denied"))
+    }
+
+    @Test
+    fun `returns share revoke domain message to unauthorized user`() {
+        val owner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "share-owner-${UUID.randomUUID()}@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val other = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "share-other-${UUID.randomUUID()}@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "share-model-${UUID.randomUUID()}",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val notation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "share-notation-${UUID.randomUUID()}",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val diagram = diagramsRepository.save(
+            ru.kavader.arepos.model.Diagrams(
+                name = "share-diagram-${UUID.randomUUID()}",
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                createdAt = Instant.now()
+            )
+        )
+
+        val token = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/v1/diagrams/share-link")
+                    .withAuth(owner.id!!)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(mapOf("diagramId" to diagram.id)))
+            )
+                .andExpect(status().isOk)
+                .andReturn()
+                .response
+                .contentAsString
+        ).path("token").asText()
+
+        mockMvc.perform(delete("/api/v1/diagrams/share-link/$token").withAuth(other.id!!, Role.USER))
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.message").value("Cannot revoke this share link"))
     }
 
     @Test

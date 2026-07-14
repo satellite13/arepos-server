@@ -1,9 +1,11 @@
 package ru.kavader.arepos.service
 
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
+import org.slf4j.LoggerFactory
 import java.util.*
 
 /**
@@ -12,6 +14,7 @@ import java.util.*
 object DiagramCanvasJsonCleanup {
 
     const val DIAGRAM_NOTE_EDGE_MODEL_LINK_PREFIX: String = "__diagram-note-edge__:"
+    private val log = LoggerFactory.getLogger(DiagramCanvasJsonCleanup::class.java)
 
     fun cleanupDiagramAttrs(
         attrs: String?,
@@ -27,7 +30,8 @@ object DiagramCanvasJsonCleanup {
 
         val root = try {
             objectMapper.readTree(attrs) as? ObjectNode ?: return attrs
-        } catch (_: Exception) {
+        } catch (_: JsonProcessingException) {
+            log.debug("Invalid diagram attrs JSON; preserving original attrs (attrsLength={})", attrs.length)
             return attrs
         }
 

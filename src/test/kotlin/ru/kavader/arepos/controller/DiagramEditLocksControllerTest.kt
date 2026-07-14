@@ -19,6 +19,9 @@ import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.ShareResourceType
 import ru.kavader.arepos.repository.*
+import ru.kavader.arepos.security.ADMIN_ONLY
+import ru.kavader.arepos.security.DIAGRAM_LOCK_HELD_BY_ANOTHER_USER
+import ru.kavader.arepos.security.DIAGRAM_LOCK_REQUIRED
 import java.time.Instant
 import java.util.*
 import kotlin.test.assertEquals
@@ -263,6 +266,35 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `force-release returns admin-only message to regular user`() {
+        val user = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "lock-regular-${UUID.randomUUID()}@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(post("/api/v1/diagram-locks/${UUID.randomUUID()}/force-release").withAuth(user.id!!, Role.USER))
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.message").value(ADMIN_ONLY))
+    }
+
+    @Test
+    fun `live update without active lock returns lock-required message`() {
+        val s = createDiagramFixture()
+
+        mockMvc.perform(
+            post("/api/v1/diagram-locks/${s.diagramId}/live")
+                .withAuth(s.ownerId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}")
+        )
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.message").value(DIAGRAM_LOCK_REQUIRED))
+    }
+
+    @Test
     fun `heartbeat by holder returns 200`() {
         val s = createDiagramFixture()
         mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))
@@ -323,6 +355,38 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/heartbeat").withAuth(other.id!!, Role.USER))
             .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.message").value(DIAGRAM_LOCK_HELD_BY_ANOTHER_USER))
+    }
+
+    @Test
+    fun `release by non-holder returns lock-held-by-another-user message`() {
+        val s = createDiagramFixture()
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))
+            .andExpect(status().isOk)
+
+        val other = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "lock-release-other-${UUID.randomUUID()}@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val now = Instant.now()
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = s.modelId,
+                granteeUser = other,
+                grantedByUser = usersRepository.findById(s.ownerId).get(),
+                permission = SharePermission.EDIT,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/release").withAuth(other.id!!, Role.USER))
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.message").value(DIAGRAM_LOCK_HELD_BY_ANOTHER_USER))
     }
 
     @Test

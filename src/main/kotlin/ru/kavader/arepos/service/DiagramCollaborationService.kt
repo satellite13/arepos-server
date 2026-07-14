@@ -14,6 +14,8 @@ import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.repository.DiagramEditLocksRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.DIAGRAM_LOCK_HELD_BY_ANOTHER_USER
+import ru.kavader.arepos.security.DIAGRAM_LOCK_REQUIRED
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Duration
 import java.time.Instant
@@ -194,9 +196,9 @@ class DiagramCollaborationService(
         val meId = accessService.currentUserId()
         val now = Instant.now()
         val row: DiagramEditLocks = locksRepository.findActiveWithDiagram(diagramId, now)
-            ?: throw ResponseStatusException(HttpStatus.FORBIDDEN, "No active lock for diagram")
+            ?: throw ResponseStatusException(HttpStatus.FORBIDDEN, DIAGRAM_LOCK_REQUIRED)
         if (row.lockedBy.id != meId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Lock is held by another user")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, DIAGRAM_LOCK_HELD_BY_ANOTHER_USER)
         }
         return diagram
     }

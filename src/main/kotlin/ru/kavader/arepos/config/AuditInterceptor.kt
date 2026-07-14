@@ -1,9 +1,12 @@
 package ru.kavader.arepos.config
 
+import org.hibernate.HibernateException
 import org.hibernate.engine.spi.SessionImplementor
 import org.hibernate.event.spi.*
+import org.slf4j.LoggerFactory
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
+import java.sql.SQLException
 import java.util.*
 
 /**
@@ -22,6 +25,7 @@ class AuditInterceptor : PreInsertEventListener, PreUpdateEventListener, PreDele
 
     companion object {
         private val threadLocalUserId = ThreadLocal<UUID?>()
+        private val logger = LoggerFactory.getLogger(AuditInterceptor::class.java)
 
         /**
          * Устанавливает идентификатор текущего пользователя для текущего потока.
@@ -45,8 +49,9 @@ class AuditInterceptor : PreInsertEventListener, PreUpdateEventListener, PreDele
         private fun getCurrentUserId(): UUID? {
             return try {
                 SecurityContextHolder.getContext().authentication?.principal as? UUID
-            } catch (_: Exception) {
-                threadLocalUserId.get()
+            } catch (_: ClassCastException) {
+                logger.warn("Unable to read audit principal from security context")
+                null
             } ?: threadLocalUserId.get()
         }
     }
@@ -55,12 +60,16 @@ class AuditInterceptor : PreInsertEventListener, PreUpdateEventListener, PreDele
         if (userId != null) {
             try {
                 session.doWork { connection ->
-                    val statement = connection.createStatement()
-                    statement.execute("SET LOCAL app.current_user_id = '$userId'")
-                    statement.close()
+                    try {
+                        connection.createStatement().use { statement ->
+                            statement.execute("SET LOCAL app.current_user_id = '$userId'")
+                        }
+                    } catch (_: SQLException) {
+                        logger.warn("Unable to set audit session variable")
+                    }
                 }
-            } catch (_: Exception) {
-                // Игнорируем ошибки установки переменной
+            } catch (_: HibernateException) {
+                logger.warn("Unable to set audit session variable")
             }
         }
     }

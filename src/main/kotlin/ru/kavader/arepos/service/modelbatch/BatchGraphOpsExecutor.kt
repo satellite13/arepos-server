@@ -151,7 +151,7 @@ class BatchGraphOpsExecutor(
                     else -> {
                         val parentUuid = try {
                             UUID.fromString(parentRef)
-                        } catch (_: Exception) {
+                        } catch (_: IllegalArgumentException) {
                             continue
                         }
                         findNodeOrThrow(parentUuid, "Parent node $parentRef not found")
@@ -329,7 +329,7 @@ class BatchGraphOpsExecutor(
         idMap[ref]?.let { return it }
         return try {
             UUID.fromString(ref)
-        } catch (_: Exception) {
+        } catch (_: IllegalArgumentException) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot resolve $label reference: $ref")
         }
     }
