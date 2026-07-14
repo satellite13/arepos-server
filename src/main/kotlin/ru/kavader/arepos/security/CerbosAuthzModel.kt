@@ -11,13 +11,22 @@ enum class CerbosResourceKind(val policyValue: String) {
     LINK_TYPE("link_type"),
     NODE_SHAPE("node_shape"),
     FILE("file"),
-    SHARE("share")
+    SHARE("share"),
+    FEEDBACK_ITEM("feedback_item"),
+    ROADMAP_MILESTONE("roadmap_milestone"),
+    TUTORIAL_VIDEO("tutorial_video"),
+    DOWNLOAD_ASSET("download_asset")
 }
 
 enum class CerbosAction(val policyValue: String) {
     VIEW("view"),
     EDIT("edit"),
-    MANAGE("manage")
+    MANAGE("manage"),
+    CREATE("create"),
+    VOTE("vote"),
+    COMMENT("comment"),
+    DELETE("delete"),
+    DOWNLOAD("download")
 }
 
 object CerbosMappers {

@@ -200,6 +200,119 @@ class ResourceAccessService(
 
     fun requireCanManageUsers() = requireAllowed(canManageUsers())
 
+    fun canCreateFeedback(): Boolean {
+        val userId = currentUserId()
+        return batchEvaluator.applyCerbosDecision(
+            resourceKind = CerbosResourceKind.FEEDBACK_ITEM,
+            action = CerbosAction.CREATE,
+            resourceId = userId,
+            ownerId = userId
+        )
+    }
+
+    fun requireCanCreateFeedback() = requireAllowed(canCreateFeedback())
+
+    fun canVoteFeedback(): Boolean {
+        val userId = currentUserId()
+        return batchEvaluator.applyCerbosDecision(
+            resourceKind = CerbosResourceKind.FEEDBACK_ITEM,
+            action = CerbosAction.VOTE,
+            resourceId = userId,
+            ownerId = userId
+        )
+    }
+
+    fun requireCanVoteFeedback() = requireAllowed(canVoteFeedback())
+
+    fun canCommentFeedback(): Boolean {
+        val userId = currentUserId()
+        return batchEvaluator.applyCerbosDecision(
+            resourceKind = CerbosResourceKind.FEEDBACK_ITEM,
+            action = CerbosAction.COMMENT,
+            resourceId = userId,
+            ownerId = userId
+        )
+    }
+
+    fun requireCanCommentFeedback() = requireAllowed(canCommentFeedback())
+
+    fun canEditOwnFeedback(authorId: UUID, status: String): Boolean {
+        val userId = CurrentUser.getId() ?: return false
+        return batchEvaluator.applyCerbosDecision(
+            resourceKind = CerbosResourceKind.FEEDBACK_ITEM,
+            action = CerbosAction.EDIT,
+            resourceId = authorId,
+            ownerId = authorId,
+            resourceAttributes = mapOf(
+                "isAuthor" to (userId == authorId),
+                "status" to status
+            )
+        )
+    }
+
+    fun requireCanEditOwnFeedback(authorId: UUID, status: String) =
+        requireAllowed(canEditOwnFeedback(authorId, status))
+
+    fun canManageFeedback(): Boolean {
+        val userId = currentUserId()
+        return batchEvaluator.applyCerbosDecision(
+            resourceKind = CerbosResourceKind.FEEDBACK_ITEM,
+            action = CerbosAction.MANAGE,
+            resourceId = userId,
+            ownerId = userId
+        )
+    }
+
+    fun requireCanManageFeedback() = requireAllowed(canManageFeedback())
+
+    fun canManageRoadmap(): Boolean {
+        val userId = currentUserId()
+        return batchEvaluator.applyCerbosDecision(
+            resourceKind = CerbosResourceKind.ROADMAP_MILESTONE,
+            action = CerbosAction.MANAGE,
+            resourceId = userId,
+            ownerId = userId
+        )
+    }
+
+    fun requireCanManageRoadmap() = requireAllowed(canManageRoadmap())
+
+    fun canManageTutorials(): Boolean {
+        val userId = currentUserId()
+        return batchEvaluator.applyCerbosDecision(
+            resourceKind = CerbosResourceKind.TUTORIAL_VIDEO,
+            action = CerbosAction.MANAGE,
+            resourceId = userId,
+            ownerId = userId
+        )
+    }
+
+    fun requireCanManageTutorials() = requireAllowed(canManageTutorials())
+
+    fun canManageDownloads(): Boolean {
+        val userId = currentUserId()
+        return batchEvaluator.applyCerbosDecision(
+            resourceKind = CerbosResourceKind.DOWNLOAD_ASSET,
+            action = CerbosAction.MANAGE,
+            resourceId = userId,
+            ownerId = userId
+        )
+    }
+
+    fun requireCanManageDownloads() = requireAllowed(canManageDownloads())
+
+    fun canDownloadAsset(): Boolean {
+        val userId = currentUserId()
+        return batchEvaluator.applyCerbosDecision(
+            resourceKind = CerbosResourceKind.DOWNLOAD_ASSET,
+            action = CerbosAction.DOWNLOAD,
+            resourceId = userId,
+            ownerId = userId
+        )
+    }
+
+    fun requireCanDownloadAsset() = requireAllowed(canDownloadAsset())
+
     fun modelAccessPermission(model: Models): String? =
         topLevelAccess.modelAccessPermission(model, ::canViewAdminPanel)
 

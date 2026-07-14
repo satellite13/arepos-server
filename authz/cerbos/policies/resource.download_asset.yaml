@@ -1,0 +1,28 @@
+# nonk8s
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/Policy.schema.json
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  version: default
+  resource: download_asset
+  rules:
+    - name: admin-all
+      actions: ["*"]
+      effect: EFFECT_ALLOW
+      roles:
+        - ADMIN
+
+    - name: anyone-view
+      actions: ["view"]
+      effect: EFFECT_ALLOW
+      roles:
+        - USER
+        - EDITOR
+        - ADMIN
+
+    - name: authenticated-download
+      actions: ["download"]
+      effect: EFFECT_ALLOW
+      roles:
+        - USER
+        - EDITOR
+        - ADMIN

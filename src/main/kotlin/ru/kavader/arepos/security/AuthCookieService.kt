@@ -62,6 +62,10 @@ class AuthCookieService(
         if (authProperties.cookieSecure) {
             builder.secure(true)
         }
+        val domain = authProperties.cookieDomain.trim()
+        if (domain.isNotEmpty()) {
+            builder.domain(domain)
+        }
         return builder.build()
     }
 

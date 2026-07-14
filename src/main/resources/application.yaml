@@ -57,6 +57,10 @@ arepos:
     registration-enabled: ${AREPOS_AUTH_REGISTRATION_ENABLED:true}
     cookie-secure: ${AREPOS_AUTH_COOKIE_SECURE:false}
     csrf-enabled: ${AREPOS_AUTH_CSRF_ENABLED:true}
+    # Parent domain for www/app SSO, e.g. .example.com (empty = host-only)
+    cookie-domain: ${AREPOS_AUTH_COOKIE_DOMAIN:}
+    # Comma-separated origins for credentialed CORS (warchi-site)
+    cors-allowed-origins: ${AREPOS_AUTH_CORS_ALLOWED_ORIGINS:}
   swagger:
     enabled: ${AREPOS_SWAGGER_ENABLED:true}
   # Публичная база URL для формирования внешних ссылок (например, share-link preview SVG).

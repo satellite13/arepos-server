@@ -45,6 +45,13 @@ class FileStorageService(
             "image/webp"
         )
         private const val MARKDOWN_TYPE = "text/markdown"
+        private const val SITE_ASSET_MAX_SIZE: Long = 20 * 1024 * 1024
+        private val SITE_ASSET_TYPES = setOf(
+            "application/json",
+            "application/zip",
+            "application/octet-stream",
+            "text/plain"
+        )
     }
 
     @EventListener(ContextRefreshedEvent::class)
@@ -134,6 +141,48 @@ class FileStorageService(
         // Save version info
         saveVersion(saved, result.versionId(), owner, file.size)
 
+        return saved
+    }
+
+    fun uploadSiteAsset(file: MultipartFile, owner: Users): Files {
+        if (file.size > SITE_ASSET_MAX_SIZE) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "File size exceeds 20 MB limit")
+        }
+        val contentType = file.contentType ?: "application/octet-stream"
+        val allowed = SITE_ASSET_TYPES.any { contentType.equals(it, ignoreCase = true) } ||
+            contentType.startsWith("application/json", ignoreCase = true) ||
+            contentType.startsWith("text/", ignoreCase = true)
+        if (!allowed) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "File type not allowed for site assets: $contentType"
+            )
+        }
+
+        val fileId = UUID.randomUUID()
+        val filename = sanitizeFilename(file.originalFilename ?: "asset.json")
+        val objectKey = "site-downloads/${owner.id!!}/$fileId/$filename"
+
+        val result = minioClient.putObject(
+            PutObjectArgs.builder()
+                .bucket(minioProperties.bucket)
+                .`object`(objectKey)
+                .stream(file.inputStream, file.size, -1)
+                .contentType(contentType)
+                .build()
+        )
+
+        val entity = Files(
+            id = fileId,
+            owner = owner,
+            filename = filename,
+            contentType = contentType,
+            size = file.size,
+            objectKey = objectKey,
+            createdAt = java.time.Instant.now()
+        )
+        val saved = filesRepository.save(entity)
+        saveVersion(saved, result.versionId(), owner, file.size)
         return saved
     }
 

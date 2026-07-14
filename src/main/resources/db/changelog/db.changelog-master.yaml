@@ -365,3 +365,23 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 040-site-feedback-roadmap
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/040-site-feedback-roadmap.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
+  - changeSet:
+      id: 041-site-tutorials-downloads
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/041-site-tutorials-downloads.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
