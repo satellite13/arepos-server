@@ -1,21 +1,28 @@
 package ru.kavader.arepos.service
 
 import org.springframework.http.HttpStatus
+import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.site.CreateRoadmapMilestoneRequest
 import ru.kavader.arepos.dto.site.RoadmapLinkedItemResponse
+import ru.kavader.arepos.dto.site.RoadmapConflictException
+import ru.kavader.arepos.dto.site.RoadmapConflictItem
 import ru.kavader.arepos.dto.site.RoadmapMilestoneResponse
+import ru.kavader.arepos.dto.site.ReorderRoadmapMilestonesRequest
 import ru.kavader.arepos.dto.site.SetRoadmapMilestoneItemsRequest
 import ru.kavader.arepos.dto.site.UpdateRoadmapMilestoneRequest
+import ru.kavader.arepos.mapper.AuditMapper
 import ru.kavader.arepos.model.RoadmapMilestone
 import ru.kavader.arepos.model.RoadmapMilestoneItem
+import ru.kavader.arepos.repository.AuditLogRepository
 import ru.kavader.arepos.repository.FeedbackItemRepository
 import ru.kavader.arepos.repository.RoadmapMilestoneItemRepository
 import ru.kavader.arepos.repository.RoadmapMilestoneRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 @Service
@@ -23,12 +30,20 @@ class RoadmapService(
     private val milestoneRepository: RoadmapMilestoneRepository,
     private val milestoneItemRepository: RoadmapMilestoneItemRepository,
     private val feedbackItemRepository: FeedbackItemRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val auditLogRepository: AuditLogRepository,
+    private val auditMapper: AuditMapper
 ) {
     fun list(): List<RoadmapMilestoneResponse> =
         milestoneRepository.findAllByOrderBySortOrderAsc().map(::toResponse)
 
-    fun get(id: UUID): RoadmapMilestoneResponse = toResponse(findMilestone(id))
+    fun get(id: UUID, include: String?): RoadmapMilestoneResponse {
+        val includeAudit = include?.split(",")?.any { it.trim() == "audit" } == true
+        if (includeAudit) {
+            accessService.requireCanManageRoadmap()
+        }
+        return toResponse(findMilestone(id), includeAudit)
+    }
 
     @Transactional
     fun create(request: CreateRoadmapMilestoneRequest): RoadmapMilestoneResponse {
@@ -55,7 +70,8 @@ class RoadmapService(
     @Transactional
     fun update(id: UUID, request: UpdateRoadmapMilestoneRequest): RoadmapMilestoneResponse {
         accessService.requireCanManageRoadmap()
-        val milestone = findMilestone(id)
+        val milestone = findMilestoneForUpdate(id)
+        requireCurrentTimestamp(milestone, request.baseUpdatedAt)
         request.title?.let {
             val title = it.trim()
             if (title.isEmpty() || title.length > 200) {
@@ -66,31 +82,82 @@ class RoadmapService(
         request.description?.let { milestone.description = it.trim() }
         request.status?.let { milestone.status = normalizeStatus(it) }
         request.sortOrder?.let { milestone.sortOrder = it }
-        if (request.targetPeriod != null) {
-            milestone.targetPeriod = request.targetPeriod.trim().takeIf { it.isNotEmpty() }
+        request.targetPeriod?.let { targetPeriod ->
+            milestone.targetPeriod = if (targetPeriod.isNull) {
+                null
+            } else if (targetPeriod.isTextual) {
+                targetPeriod.asText().trim().takeIf { it.isNotEmpty() }
+            } else {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid target period")
+            }
         }
         milestone.updatedAt = Instant.now()
         return toResponse(milestoneRepository.save(milestone))
     }
 
     @Transactional
+    fun reorder(request: ReorderRoadmapMilestonesRequest): List<RoadmapMilestoneResponse> {
+        accessService.requireCanManageRoadmap()
+        validateReorderRequest(request)
+
+        val requestedIds = request.items.map { it.id }
+        val milestones = milestoneRepository.findAllByIdInForUpdate(requestedIds)
+        val milestonesById = milestones.associateBy { requireNotNull(it.id) }
+        val missingIds = requestedIds.filterNot(milestonesById::containsKey)
+        if (missingIds.isNotEmpty()) {
+            throw ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Milestone not found: ${missingIds.joinToString()}"
+            )
+        }
+
+        val conflicts = request.items.mapNotNull { item ->
+            val milestone = requireNotNull(milestonesById[item.id])
+            if (isStale(milestone.updatedAt, item.baseUpdatedAt)) {
+                RoadmapConflictItem(item.id, milestone.updatedAt)
+            } else {
+                null
+            }
+        }
+        if (conflicts.isNotEmpty()) {
+            throw RoadmapConflictException("ROADMAP_ORDER_CONFLICT", conflicts)
+        }
+
+        val now = Instant.now()
+        request.items.forEach { item ->
+            val milestone = requireNotNull(milestonesById[item.id])
+            milestone.sortOrder = item.sortOrder
+            milestone.updatedAt = now
+        }
+        milestoneRepository.saveAll(milestones)
+        return milestoneRepository.findAllByOrderBySortOrderAsc().map(::toResponse)
+    }
+
+    @Transactional
     fun delete(id: UUID) {
         accessService.requireCanManageRoadmap()
-        val milestone = findMilestone(id)
+        val milestone = findMilestoneForUpdate(id)
         milestoneRepository.delete(milestone)
     }
 
     @Transactional
     fun setItems(id: UUID, request: SetRoadmapMilestoneItemsRequest): RoadmapMilestoneResponse {
         accessService.requireCanManageRoadmap()
-        val milestone = findMilestone(id)
+        val milestone = milestoneRepository.findByIdForUpdate(id)
+            ?: throw RoadmapConflictException(
+                "ROADMAP_MILESTONE_DELETED",
+                listOf(RoadmapConflictItem(id, null))
+            )
+        val uniqueIds = request.feedbackItemIds.distinct().sorted()
+        val items = feedbackItemRepository.findAllByIdInForUpdate(uniqueIds)
+        if (items.size != uniqueIds.size) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Feedback item not found")
+        }
+        if (items.any { it.mergedInto != null }) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Cannot link merged feedback")
+        }
         milestoneItemRepository.deleteByMilestoneId(milestone.id!!)
-        val uniqueIds = request.feedbackItemIds.distinct()
-        for (feedbackId in uniqueIds) {
-            val item = feedbackItemRepository.findById(feedbackId)
-                .orElseThrow {
-                    ResponseStatusException(HttpStatus.BAD_REQUEST, "Feedback item not found: $feedbackId")
-                }
+        for (item in items) {
             milestoneItemRepository.save(
                 RoadmapMilestoneItem(
                     milestone = milestone,
@@ -105,7 +172,48 @@ class RoadmapService(
         milestoneRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Milestone not found") }
 
-    private fun toResponse(milestone: RoadmapMilestone): RoadmapMilestoneResponse {
+    private fun findMilestoneForUpdate(id: UUID): RoadmapMilestone =
+        milestoneRepository.findByIdForUpdate(id)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Milestone not found")
+
+    private fun requireCurrentTimestamp(milestone: RoadmapMilestone, baseUpdatedAt: Instant?) {
+        if (baseUpdatedAt == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "baseUpdatedAt is required")
+        }
+        if (isStale(milestone.updatedAt, baseUpdatedAt)) {
+            throw RoadmapConflictException(
+                "ROADMAP_UPDATE_CONFLICT",
+                listOf(RoadmapConflictItem(requireNotNull(milestone.id), milestone.updatedAt))
+            )
+        }
+    }
+
+    private fun validateReorderRequest(request: ReorderRoadmapMilestonesRequest) {
+        val ids = request.items.map { it.id }
+        if (ids.size != ids.toSet().size) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate milestone IDs")
+        }
+        val sortOrders = request.items.map { it.sortOrder }
+        if (sortOrders.size != sortOrders.toSet().size) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate milestone sort orders")
+        }
+        if (request.items.any { it.baseUpdatedAt == null }) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "baseUpdatedAt is required for every milestone")
+        }
+    }
+
+    private fun isStale(serverUpdatedAt: Instant?, baseUpdatedAt: Instant?): Boolean =
+        serverUpdatedAt == null ||
+            baseUpdatedAt == null ||
+            normalizePostgresTimestamp(serverUpdatedAt) != normalizePostgresTimestamp(baseUpdatedAt)
+
+    private fun normalizePostgresTimestamp(timestamp: Instant): Instant =
+        timestamp.truncatedTo(ChronoUnit.MICROS)
+
+    private fun toResponse(
+        milestone: RoadmapMilestone,
+        includeAudit: Boolean = false
+    ): RoadmapMilestoneResponse {
         val links = milestoneItemRepository.findByMilestoneId(milestone.id!!)
         return RoadmapMilestoneResponse(
             id = milestone.id!!,
@@ -125,7 +233,18 @@ class RoadmapService(
                 )
             },
             createdAt = milestone.createdAt,
-            updatedAt = milestone.updatedAt
+            updatedAt = milestone.updatedAt,
+            audit = if (includeAudit) {
+                auditLogRepository.findByTableNameAndRowId(
+                    "roadmap_milestones",
+                    milestone.id!!,
+                    PageRequest.of(0, 100)
+                )
+                    .content
+                    .map(auditMapper::toResponse)
+            } else {
+                emptyList()
+            }
         )
     }
 

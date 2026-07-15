@@ -385,3 +385,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 042-site-feedback-moderation
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/042-site-feedback-moderation.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

@@ -45,5 +45,12 @@ class FeedbackItem(
     var createdAt: Instant? = null,
 
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: Instant? = null
+    var updatedAt: Instant? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "merged_into_id")
+    var mergedInto: FeedbackItem? = null,
+
+    @Column(name = "merged_at")
+    var mergedAt: Instant? = null
 )

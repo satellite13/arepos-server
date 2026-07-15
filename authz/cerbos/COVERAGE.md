@@ -21,6 +21,8 @@
 - `share`
 - `admin_panel`
 - `user_admin`
+- `feedback_item`
+- `roadmap_milestone`
 
 Отдельного ресурса `diagram` в Cerbos нет: права на диаграмму выводятся из прав на **модель**, к которой привязана диаграмма (см. маппинг ниже).
 
@@ -40,6 +42,13 @@ Policy-файлы: `authz/cerbos/policies/resource.*.yaml`.
 - `canManageShares` -> `share:manage`
 - `canViewAdminPanel` -> `admin_panel:view`
 - `canManageUsers` -> `user_admin:manage`
+- `canCreateFeedback` -> `feedback_item:create`
+- `canVoteFeedback` -> `feedback_item:vote`
+- `canCommentFeedback` -> `feedback_item:comment`
+- `canEditOwnFeedback` -> `feedback_item:edit` (`isAuthor` и `status == "new"`)
+- `canDeleteOwnFeedback` -> `feedback_item:delete` (`isAuthor` и `status == "new"`)
+- `canManageFeedback` -> `feedback_item:manage` (только `ADMIN`)
+- `canManageRoadmap` -> `roadmap_milestone:manage` (только `ADMIN`)
 
 Все `requireCan*` методы используют эти же решения для принудительной проверки.
 
@@ -53,6 +62,8 @@ Policy-файлы: `authz/cerbos/policies/resource.*.yaml`.
 - Каталоги: `NodeTypesController`, `LinkTypesController`, `NodeShapesController`
 - Доступ/шаринг/дашборд: `PermissionsController`, `AccessSharesController`, `DashboardController`, `AuditLogController`
 - Platform admin: `UsersController`
+- Site community: `FeedbackController` (`view`, `create`, `vote`, `comment`, `edit`, `delete`,
+  `manage`) и `RoadmapController` (`view`, `manage`)
 
 `DiagramEditLocksController` использует проверки через `DiagramEditLockService` и `DiagramCollaborationService`:
 - acquire/heartbeat/release, live/pointer (держатель блокировки) -> `model:edit` через `requireCanEditDiagram`
@@ -82,6 +93,12 @@ Policy-файлы: `authz/cerbos/policies/resource.*.yaml`.
 - Доступность endpoint-ов на уровне Spring Security (`authenticated()/permitAll()` в `SecurityConfig`).
 - Self-service операции профиля текущего пользователя (`/users/me/profile`) по `currentUserId`.
 - Публичные карточки пользователей (`/users/public/*`) для аутентифицированных пользователей с фильтрацией `ADMIN`.
+- Публичные `GET /api/v1/feedback/**` и `GET /api/v1/roadmap/**` разрешаются через
+  Spring Security `permitAll()` и не проходят проверку Cerbos. Policy-действие `view`
+  для `feedback_item` и `roadmap_milestone` применяется только при аутентифицированных
+  resource-проверках. Создание feedback, голосование и комментарии требуют аутентификацию.
+  Редактирование и удаление feedback разрешены только его автору в статусе `new`;
+  moderation и управление roadmap доступны только `ADMIN`.
 
 Это не fail-open bypass; это границы между:
 1) авторизацией доступа к доменным ресурсам (Cerbos), и  

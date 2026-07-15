@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.BatchConflictItem
 import ru.kavader.arepos.dto.model.BatchSaveConflictException
+import ru.kavader.arepos.dto.site.RoadmapConflictException
+import ru.kavader.arepos.dto.site.RoadmapConflictItem
 import ru.kavader.arepos.security.ACCESS_DENIED
 import java.util.*
 
@@ -44,6 +46,13 @@ class GlobalExceptionHandler {
         val message: String?,
         val traceId: String,
         val conflicts: List<BatchConflictItem>
+    )
+
+    data class RoadmapConflictErrorBody(
+        val error: String,
+        val message: String?,
+        val traceId: String,
+        val conflicts: List<RoadmapConflictItem>
     )
 
     data class FieldErrorDetail(
@@ -117,6 +126,22 @@ class GlobalExceptionHandler {
             .body(
                 BatchConflictErrorBody(
                     error = "BATCH_SAVE_CONFLICT",
+                    message = "Concurrent modification",
+                    traceId = traceId,
+                    conflicts = ex.conflicts
+                )
+            )
+    }
+
+    @ExceptionHandler(RoadmapConflictException::class)
+    fun handleRoadmapConflict(ex: RoadmapConflictException): ResponseEntity<RoadmapConflictErrorBody> {
+        val traceId = newTraceId()
+        log.warn("Roadmap conflict [{}]: {} milestone(s)", traceId, ex.conflicts.size)
+        return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(
+                RoadmapConflictErrorBody(
+                    error = ex.error,
                     message = "Concurrent modification",
                     traceId = traceId,
                     conflicts = ex.conflicts

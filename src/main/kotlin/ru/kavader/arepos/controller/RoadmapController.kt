@@ -8,10 +8,12 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import ru.kavader.arepos.dto.site.CreateRoadmapMilestoneRequest
 import ru.kavader.arepos.dto.site.RoadmapMilestoneResponse
+import ru.kavader.arepos.dto.site.ReorderRoadmapMilestonesRequest
 import ru.kavader.arepos.dto.site.SetRoadmapMilestoneItemsRequest
 import ru.kavader.arepos.dto.site.UpdateRoadmapMilestoneRequest
 import ru.kavader.arepos.service.RoadmapService
@@ -26,7 +28,10 @@ class RoadmapController(
     fun list(): List<RoadmapMilestoneResponse> = roadmapService.list()
 
     @GetMapping("/milestones/{id}")
-    fun get(@PathVariable id: UUID): RoadmapMilestoneResponse = roadmapService.get(id)
+    fun get(
+        @PathVariable id: UUID,
+        @RequestParam(required = false) include: String?
+    ): RoadmapMilestoneResponse = roadmapService.get(id, include)
 
     @PostMapping("/milestones")
     @ResponseStatus(HttpStatus.CREATED)
@@ -38,6 +43,10 @@ class RoadmapController(
         @PathVariable id: UUID,
         @RequestBody request: UpdateRoadmapMilestoneRequest
     ): RoadmapMilestoneResponse = roadmapService.update(id, request)
+
+    @PutMapping("/milestones/order")
+    fun reorder(@RequestBody request: ReorderRoadmapMilestonesRequest): List<RoadmapMilestoneResponse> =
+        roadmapService.reorder(request)
 
     @DeleteMapping("/milestones/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

@@ -7,5 +7,7 @@ import java.util.UUID
 
 interface FeedbackVoteRepository : JpaRepository<FeedbackVote, UUID> {
     fun findByItemIdAndUserId(itemId: UUID, userId: UUID): Optional<FeedbackVote>
+    fun findByItemId(itemId: UUID): List<FeedbackVote>
     fun existsByItemIdAndUserId(itemId: UUID, userId: UUID): Boolean
+    fun countByItemId(itemId: UUID): Int
 }

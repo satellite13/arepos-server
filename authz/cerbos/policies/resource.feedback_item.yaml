@@ -5,13 +5,13 @@ resourcePolicy:
   version: default
   resource: feedback_item
   rules:
-    - name: admin-all
-      actions: ["*"]
+    - name: admin-manage
+      actions: ["manage"]
       effect: EFFECT_ALLOW
       roles:
         - ADMIN
 
-    - name: anyone-view
+    - name: public-view
       actions: ["view"]
       effect: EFFECT_ALLOW
       roles:

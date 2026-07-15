@@ -6,5 +6,7 @@ import java.util.UUID
 
 interface RoadmapMilestoneItemRepository : JpaRepository<RoadmapMilestoneItem, UUID> {
     fun findByMilestoneId(milestoneId: UUID): List<RoadmapMilestoneItem>
+    fun findByFeedbackItemId(feedbackItemId: UUID): List<RoadmapMilestoneItem>
+    fun existsByMilestoneIdAndFeedbackItemId(milestoneId: UUID, feedbackItemId: UUID): Boolean
     fun deleteByMilestoneId(milestoneId: UUID)
 }

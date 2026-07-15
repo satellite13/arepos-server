@@ -12,14 +12,19 @@ import ru.kavader.arepos.dto.site.CreateFeedbackRequest
 import ru.kavader.arepos.dto.site.FeedbackAuthorResponse
 import ru.kavader.arepos.dto.site.FeedbackCommentResponse
 import ru.kavader.arepos.dto.site.FeedbackItemResponse
+import ru.kavader.arepos.dto.site.MergeFeedbackRequest
+import ru.kavader.arepos.dto.site.MergeFeedbackResponse
 import ru.kavader.arepos.dto.site.UpdateFeedbackRequest
+import ru.kavader.arepos.mapper.AuditMapper
 import ru.kavader.arepos.model.FeedbackComment
 import ru.kavader.arepos.model.FeedbackItem
 import ru.kavader.arepos.model.FeedbackVote
 import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.repository.AuditLogRepository
 import ru.kavader.arepos.repository.FeedbackCommentRepository
 import ru.kavader.arepos.repository.FeedbackItemRepository
 import ru.kavader.arepos.repository.FeedbackVoteRepository
+import ru.kavader.arepos.repository.RoadmapMilestoneItemRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
@@ -31,27 +36,45 @@ class FeedbackService(
     private val feedbackItemRepository: FeedbackItemRepository,
     private val feedbackVoteRepository: FeedbackVoteRepository,
     private val feedbackCommentRepository: FeedbackCommentRepository,
+    private val roadmapMilestoneItemRepository: RoadmapMilestoneItemRepository,
+    private val auditLogRepository: AuditLogRepository,
     private val usersRepository: UsersRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val auditMapper: AuditMapper
 ) {
-    fun list(type: String?, status: String?, sort: String?, page: Int, size: Int): Page<FeedbackItemResponse> {
+    fun list(type: String?, status: String?, q: String?, sort: String?, page: Int, size: Int): Page<FeedbackItemResponse> {
         validateOptionalType(type)
         validateOptionalStatus(status)
+        val query = q?.trim()?.takeIf { it.isNotEmpty() }?.let(::escapeLikeQuery)
         val sortSpec = when (sort) {
-            "recent", null -> Sort.by(Sort.Direction.DESC, "createdAt")
-            "votes" -> Sort.by(Sort.Direction.DESC, "voteCount").and(Sort.by(Sort.Direction.DESC, "createdAt"))
+            "recent", null -> Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"))
+            "votes" -> Sort.by(Sort.Direction.DESC, "voteCount")
+                .and(Sort.by(Sort.Direction.DESC, "createdAt"))
+                .and(Sort.by(Sort.Direction.DESC, "id"))
             else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid sort")
         }
         val pageable = PageRequest.of(page.coerceAtLeast(0), size.coerceIn(1, 100), sortSpec)
         val currentUserId = CurrentUser.getId()
-        return feedbackItemRepository.findByFilters(type, status, pageable).map { item ->
+        return feedbackItemRepository.findByFilters(type, status, query, pageable).map { item ->
             toResponse(item, includeComments = false, currentUserId = currentUserId)
         }
     }
 
-    fun get(id: UUID): FeedbackItemResponse {
+    private fun escapeLikeQuery(query: String): String =
+        query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+    fun get(id: UUID, include: String?): FeedbackItemResponse {
         val item = findItem(id)
-        return toResponse(item, includeComments = true, currentUserId = CurrentUser.getId())
+        val includeAudit = include?.split(",")?.any { it.trim() == "audit" } == true
+        if (includeAudit) {
+            accessService.requireCanManageFeedback()
+        }
+        return toResponse(
+            item,
+            includeComments = true,
+            currentUserId = CurrentUser.getId(),
+            includeAudit = includeAudit
+        )
     }
 
     @Transactional
@@ -80,7 +103,8 @@ class FeedbackService(
 
     @Transactional
     fun update(id: UUID, request: UpdateFeedbackRequest): FeedbackItemResponse {
-        val item = findItem(id)
+        val item = findItemForUpdate(id)
+        requireNotMerged(item)
         val authorId = item.author.id!!
         val isAdmin = accessService.canManageFeedback()
         if (!isAdmin) {
@@ -102,6 +126,12 @@ class FeedbackService(
             }
             item.status = normalizeStatus(status)
         }
+        request.type?.let { type ->
+            if (!isAdmin) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only admin can change type")
+            }
+            item.type = normalizeType(type)
+        }
         item.updatedAt = Instant.now()
         return toResponse(feedbackItemRepository.save(item), includeComments = true, currentUserId = CurrentUser.getId())
     }
@@ -109,7 +139,8 @@ class FeedbackService(
     @Transactional
     fun vote(id: UUID): FeedbackItemResponse {
         accessService.requireCanVoteFeedback()
-        val item = findItem(id)
+        val item = findItemForUpdate(id)
+        requireNotMerged(item)
         val user = currentUser()
         if (!feedbackVoteRepository.existsByItemIdAndUserId(item.id!!, user.id!!)) {
             feedbackVoteRepository.save(
@@ -119,7 +150,7 @@ class FeedbackService(
                     createdAt = Instant.now()
                 )
             )
-            item.voteCount += 1
+            item.voteCount = feedbackVoteRepository.countByItemId(item.id!!)
             item.updatedAt = Instant.now()
             feedbackItemRepository.save(item)
         }
@@ -129,11 +160,12 @@ class FeedbackService(
     @Transactional
     fun unvote(id: UUID): FeedbackItemResponse {
         accessService.requireCanVoteFeedback()
-        val item = findItem(id)
+        val item = findItemForUpdate(id)
+        requireNotMerged(item)
         val userId = accessService.currentUserId()
         feedbackVoteRepository.findByItemIdAndUserId(item.id!!, userId).ifPresent { vote ->
             feedbackVoteRepository.delete(vote)
-            item.voteCount = (item.voteCount - 1).coerceAtLeast(0)
+            item.voteCount = feedbackVoteRepository.countByItemId(item.id!!)
             item.updatedAt = Instant.now()
             feedbackItemRepository.save(item)
         }
@@ -143,7 +175,8 @@ class FeedbackService(
     @Transactional
     fun addComment(id: UUID, request: CreateFeedbackCommentRequest): FeedbackCommentResponse {
         accessService.requireCanCommentFeedback()
-        val item = findItem(id)
+        val item = findItemForUpdate(id)
+        requireNotMerged(item)
         val author = currentUser()
         val body = request.body.trim()
         if (body.isEmpty() || body.length > MAX_BODY) {
@@ -160,9 +193,91 @@ class FeedbackService(
         return toCommentResponse(saved)
     }
 
+    @Transactional
+    fun delete(id: UUID) {
+        val item = findItemForUpdate(id)
+        if (!accessService.canManageFeedback()) {
+            accessService.requireCanDeleteOwnFeedback(item.author.id!!, item.status)
+        }
+        if (feedbackItemRepository.existsByMergedIntoId(item.id!!)) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Cannot delete feedback with merged sources")
+        }
+        feedbackItemRepository.delete(item)
+    }
+
+    @Transactional
+    fun merge(sourceId: UUID, request: MergeFeedbackRequest): MergeFeedbackResponse {
+        accessService.requireCanManageFeedback()
+        if (sourceId == request.targetId) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot merge feedback into itself")
+        }
+        val lockedItems = feedbackItemRepository.findAllByIdInForUpdate(
+            listOf(sourceId, request.targetId).sorted()
+        )
+        val itemsById = lockedItems.associateBy { it.id!! }
+        val source = itemsById[sourceId]
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found")
+        if (source.mergedInto != null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Feedback is already merged")
+        }
+        val target = itemsById[request.targetId]
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found")
+        if (target.mergedInto != null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot merge into feedback that is already merged")
+        }
+        val now = Instant.now()
+
+        feedbackVoteRepository.findByItemId(source.id!!).forEach { vote ->
+            if (feedbackVoteRepository.existsByItemIdAndUserId(target.id!!, vote.user.id!!)) {
+                feedbackVoteRepository.delete(vote)
+            } else {
+                vote.item = target
+                feedbackVoteRepository.save(vote)
+            }
+        }
+        feedbackCommentRepository.findByItemIdOrderByCreatedAtAsc(source.id!!).forEach { comment ->
+            comment.item = target
+            feedbackCommentRepository.save(comment)
+        }
+        roadmapMilestoneItemRepository.findByFeedbackItemId(source.id!!).forEach { link ->
+            if (roadmapMilestoneItemRepository.existsByMilestoneIdAndFeedbackItemId(link.milestone.id!!, target.id!!)) {
+                roadmapMilestoneItemRepository.delete(link)
+            } else {
+                link.feedbackItem = target
+                roadmapMilestoneItemRepository.save(link)
+            }
+        }
+
+        target.voteCount = feedbackVoteRepository.countByItemId(target.id!!)
+        target.updatedAt = now
+        source.voteCount = feedbackVoteRepository.countByItemId(source.id!!)
+        source.mergedInto = target
+        source.mergedAt = now
+        source.status = "declined"
+        source.updatedAt = now
+        feedbackItemRepository.save(target)
+        feedbackItemRepository.save(source)
+        return MergeFeedbackResponse(
+            sourceId = source.id!!,
+            targetId = target.id!!,
+            mergedAt = now,
+            target = toResponse(target, includeComments = true, currentUserId = CurrentUser.getId())
+        )
+    }
+
     private fun findItem(id: UUID): FeedbackItem =
         feedbackItemRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found") }
+
+    private fun findItemForUpdate(id: UUID): FeedbackItem =
+        feedbackItemRepository.findByIdForUpdate(id)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found")
+
+    private fun requireNotMerged(item: FeedbackItem) {
+        if (item.mergedInto != null) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Feedback has been merged")
+        }
+    }
 
     private fun currentUser(): Users =
         usersRepository.findById(accessService.currentUserId())
@@ -171,7 +286,8 @@ class FeedbackService(
     private fun toResponse(
         item: FeedbackItem,
         includeComments: Boolean,
-        currentUserId: UUID?
+        currentUserId: UUID?,
+        includeAudit: Boolean = false
     ): FeedbackItemResponse {
         val votedByMe = currentUserId != null &&
             feedbackVoteRepository.existsByItemIdAndUserId(item.id!!, currentUserId)
@@ -191,7 +307,16 @@ class FeedbackService(
             votedByMe = votedByMe,
             comments = comments,
             createdAt = item.createdAt,
-            updatedAt = item.updatedAt
+            updatedAt = item.updatedAt,
+            mergedIntoId = item.mergedInto?.id,
+            mergedAt = item.mergedAt,
+            audit = if (includeAudit) {
+                auditLogRepository.findByTableNameAndRowId("feedback_items", item.id!!, PageRequest.of(0, 100))
+                    .content
+                    .map(auditMapper::toResponse)
+            } else {
+                emptyList()
+            }
         )
     }
 

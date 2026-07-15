@@ -253,6 +253,23 @@ class ResourceAccessService(
     fun requireCanEditOwnFeedback(authorId: UUID, status: String) =
         requireAllowed(canEditOwnFeedback(authorId, status))
 
+    fun canDeleteOwnFeedback(authorId: UUID, status: String): Boolean {
+        val userId = CurrentUser.getId() ?: return false
+        return batchEvaluator.applyCerbosDecision(
+            resourceKind = CerbosResourceKind.FEEDBACK_ITEM,
+            action = CerbosAction.DELETE,
+            resourceId = authorId,
+            ownerId = authorId,
+            resourceAttributes = mapOf(
+                "isAuthor" to (userId == authorId),
+                "status" to status
+            )
+        )
+    }
+
+    fun requireCanDeleteOwnFeedback(authorId: UUID, status: String) =
+        requireAllowed(canDeleteOwnFeedback(authorId, status))
+
     fun canManageFeedback(): Boolean {
         val userId = currentUserId()
         return batchEvaluator.applyCerbosDecision(

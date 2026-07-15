@@ -1,5 +1,7 @@
 package ru.kavader.arepos.dto.site
 
+import com.fasterxml.jackson.databind.JsonNode
+import ru.kavader.arepos.dto.system.AuditLogResponse
 import java.time.Instant
 import java.util.UUID
 
@@ -19,7 +21,10 @@ data class FeedbackItemResponse(
     val votedByMe: Boolean = false,
     val comments: List<FeedbackCommentResponse> = emptyList(),
     val createdAt: Instant?,
-    val updatedAt: Instant?
+    val updatedAt: Instant?,
+    val mergedIntoId: UUID? = null,
+    val mergedAt: Instant? = null,
+    val audit: List<AuditLogResponse> = emptyList()
 )
 
 data class FeedbackCommentResponse(
@@ -38,7 +43,20 @@ data class CreateFeedbackRequest(
 data class UpdateFeedbackRequest(
     val title: String? = null,
     val body: String? = null,
-    val status: String? = null
+    val status: String? = null,
+    val type: String? = null,
+    val baseUpdatedAt: Instant? = null
+)
+
+data class MergeFeedbackRequest(
+    val targetId: UUID
+)
+
+data class MergeFeedbackResponse(
+    val sourceId: UUID,
+    val targetId: UUID,
+    val mergedAt: Instant,
+    val target: FeedbackItemResponse
 )
 
 data class CreateFeedbackCommentRequest(
@@ -62,7 +80,8 @@ data class RoadmapMilestoneResponse(
     val targetPeriod: String?,
     val items: List<RoadmapLinkedItemResponse> = emptyList(),
     val createdAt: Instant?,
-    val updatedAt: Instant?
+    val updatedAt: Instant?,
+    val audit: List<AuditLogResponse> = emptyList()
 )
 
 data class CreateRoadmapMilestoneRequest(
@@ -78,12 +97,37 @@ data class UpdateRoadmapMilestoneRequest(
     val description: String? = null,
     val status: String? = null,
     val sortOrder: Int? = null,
-    val targetPeriod: String? = null
+    val targetPeriod: JsonNode? = null,
+    val baseUpdatedAt: Instant? = null
 )
 
 data class SetRoadmapMilestoneItemsRequest(
     val feedbackItemIds: List<UUID>
 )
+
+data class ReorderRoadmapMilestonesRequest(
+    val items: List<ReorderRoadmapMilestoneItemRequest>
+)
+
+data class ReorderRoadmapMilestoneItemRequest(
+    val id: UUID,
+    val sortOrder: Int,
+    val baseUpdatedAt: Instant?
+)
+
+data class RoadmapConflictItem(
+    val id: UUID,
+    val serverUpdatedAt: Instant?
+)
+
+class RoadmapConflictException(
+    val error: String,
+    val conflicts: List<RoadmapConflictItem>
+) : RuntimeException("Roadmap conflict: ${conflicts.size} milestone(s)") {
+    init {
+        require(conflicts.isNotEmpty()) { "RoadmapConflictItem list must not be empty" }
+    }
+}
 
 data class TutorialVideoResponse(
     val id: UUID,
