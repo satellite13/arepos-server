@@ -55,6 +55,9 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
 
     fun existsByModelIdAndNotationIdAndDeletedFalse(modelId: UUID, notationId: UUID): Boolean
 
+    @Query("SELECT d FROM Diagrams d JOIN FETCH d.model WHERE d.notation.id = :notationId")
+    fun findAllByNotationIdWithModel(notationId: UUID): List<Diagrams>
+
     @Query("SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END FROM Diagrams d WHERE d.id = :id AND d.deleted = false")
     override fun existsById(id: UUID): Boolean
 

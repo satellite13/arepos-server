@@ -7,6 +7,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -16,6 +17,7 @@ import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.*
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -371,5 +373,100 @@ class NotationsControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.name").value("shared-notation-copy"))
             .andExpect(jsonPath("$.version").value("1.1.0"))
             .andExpect(jsonPath("$.ownerId").value(viewer.id.toString()))
+    }
+
+    @Test
+    fun `admin permanent delete removes notation used only by soft-deleted models`() {
+        val admin = usersRepository.save(
+            Users(
+                email = "perm-del-admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val notation = notationsRepository.save(
+            Notations(
+                name = "soft-ref-notation",
+                version = "1.0.0",
+                owner = admin,
+                createdAt = Instant.now(),
+                deleted = true
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "soft-ref-model",
+                version = "1.0.0",
+                owner = admin,
+                createdAt = Instant.now(),
+                deleted = true
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "soft-ref-diagram",
+                version = "1.0.0",
+                owner = admin,
+                createdAt = Instant.now(),
+                model = model,
+                notation = notation
+            )
+        )
+
+        mockMvc.perform(
+            delete("/api/v1/notations/${notation.id}/permanent")
+                .withAuth(admin.id!!, Role.ADMIN)
+        )
+            .andExpect(status().isNoContent)
+
+        assertTrue(notationsRepository.findByIdIncludingDeleted(notation.id!!).isEmpty)
+        assertEquals(0, diagramsRepository.count())
+    }
+
+    @Test
+    fun `admin permanent delete rejects notation still used by active models`() {
+        val admin = usersRepository.save(
+            Users(
+                email = "perm-del-active@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val notation = notationsRepository.save(
+            Notations(
+                name = "active-ref-notation",
+                version = "1.0.0",
+                owner = admin,
+                createdAt = Instant.now(),
+                deleted = true
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "active-ref-model",
+                version = "1.0.0",
+                owner = admin,
+                createdAt = Instant.now(),
+                deleted = false
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "active-ref-diagram",
+                version = "1.0.0",
+                owner = admin,
+                createdAt = Instant.now(),
+                model = model,
+                notation = notation
+            )
+        )
+
+        mockMvc.perform(
+            delete("/api/v1/notations/${notation.id}/permanent")
+                .withAuth(admin.id!!, Role.ADMIN)
+        )
+            .andExpect(status().isConflict)
+
+        assertTrue(notationsRepository.findByIdIncludingDeleted(notation.id!!).isPresent)
     }
 }
