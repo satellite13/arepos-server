@@ -56,7 +56,7 @@ class DownloadsService(
                 description = description.trim(),
                 kind = normalizedKind,
                 file = stored,
-                fileName = stored.filename,
+                fileName = readableFileName(stored.filename, title),
                 contentType = stored.contentType,
                 sizeBytes = stored.size,
                 versionLabel = versionLabel?.trim()?.takeIf { it.isNotEmpty() },
@@ -155,7 +155,47 @@ class DownloadsService(
         }
     }
 
+    /**
+     * Prefer a title-based ASCII name when multipart filename was already mangled
+     * (e.g. leading underscore after non-ASCII characters were replaced).
+     */
+    internal fun readableFileName(storedFileName: String, title: String): String {
+        val trimmed = storedFileName.trim()
+        if (trimmed.isNotEmpty() && !trimmed.startsWith("_") && !trimmed.startsWith("-")) {
+            return trimmed
+        }
+        val ext = trimmed.substringAfterLast('.', missingDelimiterValue = "")
+            .takeIf { it.isNotEmpty() && it.all { ch -> ch.isLetterOrDigit() } }
+            ?.let { ".$it" }
+            ?: ""
+        val fromTitle = title.trim()
+            .map { ch -> CYRILLIC_TO_LATIN[ch] ?: ch.toString() }
+            .joinToString("")
+            .lowercase()
+            .replace(Regex("[^a-z0-9_-]+"), "-")
+            .replace(Regex("-+"), "-")
+            .trim('-')
+            .ifEmpty { "download" }
+        return fromTitle + ext
+    }
+
     companion object {
         private val ALLOWED_KINDS = setOf("notation_export", "other")
+        private val CYRILLIC_TO_LATIN = mapOf(
+            'а' to "a", 'б' to "b", 'в' to "v", 'г' to "g", 'д' to "d",
+            'е' to "e", 'ё' to "e", 'ж' to "zh", 'з' to "z", 'и' to "i",
+            'й' to "y", 'к' to "k", 'л' to "l", 'м' to "m", 'н' to "n",
+            'о' to "o", 'п' to "p", 'р' to "r", 'с' to "s", 'т' to "t",
+            'у' to "u", 'ф' to "f", 'х' to "h", 'ц' to "ts", 'ч' to "ch",
+            'ш' to "sh", 'щ' to "sch", 'ъ' to "", 'ы' to "y", 'ь' to "",
+            'э' to "e", 'ю' to "yu", 'я' to "ya",
+            'А' to "a", 'Б' to "b", 'В' to "v", 'Г' to "g", 'Д' to "d",
+            'Е' to "e", 'Ё' to "e", 'Ж' to "zh", 'З' to "z", 'И' to "i",
+            'Й' to "y", 'К' to "k", 'Л' to "l", 'М' to "m", 'Н' to "n",
+            'О' to "o", 'П' to "p", 'Р' to "r", 'С' to "s", 'Т' to "t",
+            'У' to "u", 'Ф' to "f", 'Х' to "h", 'Ц' to "ts", 'Ч' to "ch",
+            'Ш' to "sh", 'Щ' to "sch", 'Ъ' to "", 'Ы' to "y", 'Ь' to "",
+            'Э' to "e", 'Ю' to "yu", 'Я' to "ya"
+        )
     }
 }
