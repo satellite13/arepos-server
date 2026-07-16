@@ -57,6 +57,12 @@ env:
   # Model live sync: transactional outbox для STOMP model_changed (см. docs/ops/model-sync-outbox-runbook.md)
   - name: MODEL_SYNC_OUTBOX_ENABLED
     value: "true"
+  # Shared SSO between warchi and warchi-site on *.arch.svc.cluster.local (Orbstack/k8s).
+  - name: AREPOS_AUTH_COOKIE_DOMAIN
+    value: ".arch.svc.cluster.local"
+  # Ehcache sizeof on JDK 24+ requires reflective access to java.base.
+  - name: JAVA_TOOL_OPTIONS
+    value: "--add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED"
   # При необходимости:
   # - name: MODEL_SYNC_OUTBOX_PUBLISH_MS
   #   value: "500"

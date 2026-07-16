@@ -15,6 +15,7 @@ WORKDIR /app
 RUN addgroup -g 1001 -S app && adduser -u 1001 -S app -G app
 COPY --from=builder /app/build/libs/*.jar app.jar
 USER app
+ENV JAVA_TOOL_OPTIONS="--add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED"
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
