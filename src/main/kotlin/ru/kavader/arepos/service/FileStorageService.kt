@@ -46,6 +46,23 @@ class FileStorageService(
         )
         private const val MARKDOWN_TYPE = "text/markdown"
         private const val SITE_ASSET_MAX_SIZE: Long = 20 * 1024 * 1024
+        /** Keep download/object keys ASCII-safe while preserving readable Russian names. */
+        private val CYRILLIC_TO_LATIN = mapOf(
+            'а' to "a", 'б' to "b", 'в' to "v", 'г' to "g", 'д' to "d",
+            'е' to "e", 'ё' to "e", 'ж' to "zh", 'з' to "z", 'и' to "i",
+            'й' to "y", 'к' to "k", 'л' to "l", 'м' to "m", 'н' to "n",
+            'о' to "o", 'п' to "p", 'р' to "r", 'с' to "s", 'т' to "t",
+            'у' to "u", 'ф' to "f", 'х' to "h", 'ц' to "ts", 'ч' to "ch",
+            'ш' to "sh", 'щ' to "sch", 'ъ' to "", 'ы' to "y", 'ь' to "",
+            'э' to "e", 'ю' to "yu", 'я' to "ya",
+            'А' to "A", 'Б' to "B", 'В' to "V", 'Г' to "G", 'Д' to "D",
+            'Е' to "E", 'Ё' to "E", 'Ж' to "Zh", 'З' to "Z", 'И' to "I",
+            'Й' to "Y", 'К' to "K", 'Л' to "L", 'М' to "M", 'Н' to "N",
+            'О' to "O", 'П' to "P", 'Р' to "R", 'С' to "S", 'Т' to "T",
+            'У' to "U", 'Ф' to "F", 'Х' to "H", 'Ц' to "Ts", 'Ч' to "Ch",
+            'Ш' to "Sh", 'Щ' to "Sch", 'Ъ' to "", 'Ы' to "Y", 'Ь' to "",
+            'Э' to "E", 'Ю' to "Yu", 'Я' to "Ya"
+        )
         private val SITE_ASSET_TYPES = setOf(
             "application/json",
             "application/zip",
@@ -323,8 +340,23 @@ class FileStorageService(
                 || contentType.startsWith("text/")
     }
 
-    private fun sanitizeFilename(name: String): String =
-        name.replace(Regex("[^a-zA-Z0-9._-]"), "_").take(200)
+    private fun sanitizeFilename(name: String): String {
+        val transliterated = transliterateCyrillicToLatin(name.trim().ifEmpty { "file" })
+        return transliterated
+            .replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            .replace(Regex("_+"), "_")
+            .trim('_')
+            .ifEmpty { "file" }
+            .take(200)
+    }
+
+    private fun transliterateCyrillicToLatin(value: String): String {
+        val out = StringBuilder(value.length)
+        for (ch in value) {
+            out.append(CYRILLIC_TO_LATIN[ch] ?: ch)
+        }
+        return out.toString()
+    }
 
     data class FileVersionInfo(
         val versionNumber: Int,

@@ -61,6 +61,23 @@ class FileStorageServiceTest {
     }
 
     @Test
+    fun `upload markdown transliterates cyrillic filenames to ascii`() {
+        val service = service()
+        val owner = Users(id = UUID.randomUUID(), email = "storage-owner@test.com")
+        val response = org.mockito.Mockito.mock(ObjectWriteResponse::class.java)
+        `when`(response.versionId()).thenReturn("minio-v1")
+        `when`(minioClient.putObject(any(PutObjectArgs::class.java))).thenReturn(response)
+        `when`(filesRepository.save(any(Files::class.java)))
+            .thenAnswer { it.getArgument(0) }
+        `when`(fileVersionsRepository.save(any(FileVersions::class.java)))
+            .thenAnswer { it.getArgument(0) }
+
+        val saved = service.uploadMarkdown("# c4", "С4 композиция", owner)
+
+        assertEquals("S4_kompozitsiya.md", saved.filename)
+    }
+
+    @Test
     fun `bucket initialization logs and rethrows storage exception`(output: CapturedOutput) {
         val service = service()
         `when`(minioClient.bucketExists(any(BucketExistsArgs::class.java)))
