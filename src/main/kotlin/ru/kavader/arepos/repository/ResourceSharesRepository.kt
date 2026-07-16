@@ -61,4 +61,5 @@ interface ResourceSharesRepository : JpaRepository<ResourceShares, UUID> {
         permission: SharePermission
     ): Boolean
 
+    fun deleteByResourceTypeAndResourceId(resourceType: ShareResourceType, resourceId: UUID): Long
 }

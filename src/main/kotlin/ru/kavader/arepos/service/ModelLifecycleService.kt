@@ -7,9 +7,11 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.ModelRequest
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Nodes
+import ru.kavader.arepos.model.ShareResourceType
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
+import ru.kavader.arepos.repository.ResourceSharesRepository
 import java.time.Instant
 import java.util.UUID
 
@@ -18,7 +20,8 @@ class ModelLifecycleService(
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
     private val modelAttrsService: ModelAttrsService,
-    private val systemRootNodeTypeService: SystemRootNodeTypeService
+    private val systemRootNodeTypeService: SystemRootNodeTypeService,
+    private val resourceSharesRepository: ResourceSharesRepository
 ) {
     companion object {
         private const val SYSTEM_ROOT_NODE_NAME = "Root"
@@ -58,6 +61,9 @@ class ModelLifecycleService(
 
     @Transactional
     fun permanentDeleteModel(model: Models) {
+        val modelId = model.id
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Model id is required")
+        resourceSharesRepository.deleteByResourceTypeAndResourceId(ShareResourceType.MODEL, modelId)
         modelsRepository.delete(model)
     }
 
