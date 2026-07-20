@@ -1,6 +1,7 @@
 arepos:
   auth:
-    registration-enabled: false
+    # Prod default off; override with AREPOS_AUTH_REGISTRATION_ENABLED=true when open signup is desired.
+    registration-enabled: ${AREPOS_AUTH_REGISTRATION_ENABLED:false}
     cookie-secure: true
   swagger:
     enabled: false

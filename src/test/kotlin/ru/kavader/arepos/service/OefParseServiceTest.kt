@@ -1,0 +1,78 @@
+package ru.kavader.arepos.service
+
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+
+class OefParseServiceTest {
+
+    private val service = OefParseService()
+
+    @Test
+    fun `parses container and association-to-flow fixture`() {
+        val xml = readFixture("oef/container-assoc-to-flow.xml")
+        val parsed = service.parseAndValidate(xml)
+
+        assertEquals("id-model-1", parsed.model.id)
+        assertEquals("Container and Association-to-Flow", parsed.model.name)
+        assertEquals(3, parsed.elements.size)
+        assertEquals(2, parsed.relationships.size)
+        assertEquals(1, parsed.views.size)
+
+        val view = parsed.views.single()
+        assertEquals(4, view.nodes.size)
+        assertEquals(2, view.connections.size)
+
+        val container = view.nodes.single { it.id == "node-box" }
+        assertEquals("Container", container.type)
+        assertEquals("Group", container.labelText)
+        assertEquals(400.0, container.width)
+        assertEquals(260.0, container.height)
+
+        val issues = parsed.issues
+        assertTrue(issues.any { it.code == "relationshipEndpointIsRelationship" && it.level == "warning" })
+        assertTrue(issues.none { it.level == "error" })
+    }
+
+    @Test
+    fun `rejects missing model root`() {
+        val ex = assertThrows(IllegalArgumentException::class.java) {
+            service.parse("<root />".toByteArray())
+        }
+        assertTrue(ex.message!!.contains("missing <model>"))
+    }
+
+    @Test
+    fun `rejects malformed xml`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            service.parse("<model><elements></model>".toByteArray())
+        }
+    }
+
+    @Test
+    fun `flags missing relationship endpoints as errors`() {
+        val xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="m1">
+              <name>Bad</name>
+              <elements>
+                <element identifier="el-a" xsi:type="BusinessActor"><name>A</name></element>
+              </elements>
+              <relationships>
+                <relationship identifier="rel-1" source="el-a" target="missing" xsi:type="Association" />
+              </relationships>
+              <views><diagrams/></views>
+            </model>
+            """.trimIndent().toByteArray()
+
+        val issues = service.parseAndValidate(xml).issues
+        assertTrue(issues.any { it.code == "relationshipMissingTarget" && it.level == "error" })
+    }
+
+    private fun readFixture(path: String): ByteArray =
+        checkNotNull(javaClass.classLoader.getResourceAsStream(path)) {
+            "Missing test fixture: $path"
+        }.use { it.readBytes() }
+}

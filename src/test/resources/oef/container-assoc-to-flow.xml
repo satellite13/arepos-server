@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-model-1">
+  <name>Container and Association-to-Flow</name>
+  <elements>
+    <element identifier="el-a" xsi:type="BusinessProcess"><name>Process A</name></element>
+    <element identifier="el-b" xsi:type="BusinessProcess"><name>Process B</name></element>
+    <element identifier="el-data" xsi:type="DataObject"><name>Payload</name></element>
+  </elements>
+  <relationships>
+    <relationship identifier="rel-flow" source="el-a" target="el-b" xsi:type="Flow" />
+    <relationship identifier="rel-assoc" source="el-data" target="rel-flow" xsi:type="Association" />
+  </relationships>
+  <views>
+    <diagrams>
+      <view identifier="view-1" xsi:type="Diagram">
+        <name>Main</name>
+        <node identifier="node-box" xsi:type="Container" x="0" y="0" w="400" h="260">
+          <label>Group</label>
+        </node>
+        <node identifier="node-a" elementRef="el-a" xsi:type="Element" x="40" y="40" w="120" h="60" />
+        <node identifier="node-b" elementRef="el-b" xsi:type="Element" x="240" y="40" w="120" h="60" />
+        <node identifier="node-data" elementRef="el-data" xsi:type="Element" x="140" y="160" w="120" h="60" />
+        <connection identifier="conn-flow" relationshipRef="rel-flow" xsi:type="Relationship" source="node-a" target="node-b" />
+        <connection identifier="conn-assoc" relationshipRef="rel-assoc" xsi:type="Relationship" source="node-data" target="conn-flow" />
+      </view>
+    </diagrams>
+  </views>
+</model>
