@@ -277,8 +277,8 @@ class DiagramsController(
     @Operation(summary = "Get public diagram preview by share token")
     fun getDiagramSvgPublic(@PathVariable token: UUID): ResponseEntity<ByteArray> {
         val headers = HttpHeaders().apply {
-            contentType = MediaType.APPLICATION_OCTET_STREAM
-            set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"diagram-preview.svg\"")
+            contentType = MediaType.parseMediaType("image/svg+xml")
+            set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"diagram-preview.svg\"")
             cacheControl = "public, max-age=300"
         }
         return ResponseEntity.ok().headers(headers).body(diagramShareLinkService.resolvePublicSvg(token))
