@@ -64,6 +64,10 @@ class OefParseService {
         val elements = mutableListOf<OefElementDto>()
         val relationships = mutableListOf<OefRelationshipDto>()
         val views = mutableListOf<OefViewDto>()
+        val organizationRoots = mutableListOf<MutableOrgNode>()
+        val orgStack = ArrayDeque<MutableOrgFolder>()
+        // Tracks whether the current <item> was a leaf (identifierRef) so END does not pop a folder.
+        val orgItemIsLeaf = ArrayDeque<Boolean>()
 
         // Path of open element local names (for section detection).
         val path = ArrayDeque<String>()
@@ -184,6 +188,28 @@ class OefParseService {
                                 textBuf.setLength(0)
                             }
                         }
+
+                        inOrganizations(path) && local == "item" -> {
+                            val refId = attr(reader, "identifierRef")
+                            if (refId.isNotEmpty()) {
+                                val leaf = MutableOrgLeaf(refId = refId)
+                                if (orgStack.isEmpty()) organizationRoots += leaf
+                                else orgStack.last().children += leaf
+                                orgItemIsLeaf.addLast(true)
+                            } else {
+                                val folder = MutableOrgFolder()
+                                orgStack.addLast(folder)
+                                orgItemIsLeaf.addLast(false)
+                            }
+                        }
+
+                        inOrganizations(path) && local == "label" &&
+                            orgStack.isNotEmpty() &&
+                            !orgItemIsLeaf.isEmpty() &&
+                            orgItemIsLeaf.last() == false -> {
+                            textTarget = TextTarget.ORG_LABEL
+                            textBuf.setLength(0)
+                        }
                     }
                 }
 
@@ -228,6 +254,12 @@ class OefParseService {
                                 textTarget = null
                             }
                         }
+                        TextTarget.ORG_LABEL -> {
+                            if (local == "label") {
+                                orgStack.lastOrNull()?.label = textBuf.toString().trim()
+                                textTarget = null
+                            }
+                        }
                         null -> Unit
                     }
 
@@ -252,6 +284,14 @@ class OefParseService {
                             currentView?.let { views += it.toDto() }
                             currentView = null
                         }
+                        local == "item" && inOrganizations(path) && orgItemIsLeaf.isNotEmpty() -> {
+                            val wasLeaf = orgItemIsLeaf.removeLast()
+                            if (!wasLeaf && orgStack.isNotEmpty()) {
+                                val folder = orgStack.removeLast()
+                                if (orgStack.isEmpty()) organizationRoots += folder
+                                else orgStack.last().children += folder
+                            }
+                        }
                     }
 
                     if (path.isNotEmpty() && path.last() == local) {
@@ -265,11 +305,18 @@ class OefParseService {
             throw IllegalArgumentException("Invalid OEF XML: missing <model>")
         }
 
+        val elementIds = elements.map { it.id }.toSet()
+        val relationshipIds = relationships.map { it.id }.toSet()
+        val viewIds = views.map { it.id }.toSet()
+        val organizations =
+            organizationRoots.mapNotNull { it.toDto(elementIds, relationshipIds, viewIds) }
+
         return OefNormalizeResponse(
             model = OefModelDto(id = modelId, name = modelName),
             elements = elements,
             relationships = relationships,
             views = views,
+            organizations = organizations,
             issues = emptyList(),
         )
     }
@@ -488,6 +535,13 @@ class OefParseService {
         return it.next() == "view"
     }
 
+    private fun inOrganizations(path: ArrayDeque<String>): Boolean {
+        if (path.size < 2) return false
+        val it = path.iterator()
+        if (it.next() != "model") return false
+        return it.next() == "organizations"
+    }
+
     private fun isDirectChildOfCurrentNode(path: ArrayDeque<String>, childLocal: String): Boolean {
         if (path.size < 2) return false
         if (path.last() != childLocal) return false
@@ -539,6 +593,48 @@ class OefParseService {
         VIEW_NAME,
         NODE_LABEL,
         NODE_NAME,
+        ORG_LABEL,
+    }
+
+    private sealed interface MutableOrgNode {
+        fun toDto(
+            elementIds: Set<String>,
+            relationshipIds: Set<String>,
+            viewIds: Set<String>,
+        ): OefOrganizationNodeDto?
+    }
+
+    private class MutableOrgFolder(
+        var label: String = "",
+        val children: MutableList<MutableOrgNode> = mutableListOf(),
+    ) : MutableOrgNode {
+        override fun toDto(
+            elementIds: Set<String>,
+            relationshipIds: Set<String>,
+            viewIds: Set<String>,
+        ): OefOrganizationNodeDto {
+            val resolved = children.mapNotNull { it.toDto(elementIds, relationshipIds, viewIds) }
+            return OefOrganizationNodeDto(label = label, children = resolved)
+        }
+    }
+
+    private class MutableOrgLeaf(
+        val refId: String,
+    ) : MutableOrgNode {
+        override fun toDto(
+            elementIds: Set<String>,
+            relationshipIds: Set<String>,
+            viewIds: Set<String>,
+        ): OefOrganizationNodeDto? {
+            val kind =
+                when {
+                    refId in elementIds -> "element"
+                    refId in relationshipIds -> "relationship"
+                    refId in viewIds -> "view"
+                    else -> return null
+                }
+            return OefOrganizationNodeDto(refId = refId, refKind = kind)
+        }
     }
 
     private class MutableElement(

@@ -5,7 +5,19 @@ data class OefNormalizeResponse(
     val elements: List<OefElementDto>,
     val relationships: List<OefRelationshipDto>,
     val views: List<OefViewDto>,
+    val organizations: List<OefOrganizationNodeDto> = emptyList(),
     val issues: List<OefImportIssueDto>,
+)
+
+/**
+ * Organization tree node. Folder: [label] + [children]. Leaf: [refId] + [refKind].
+ * [refKind] is one of: element, relationship, view.
+ */
+data class OefOrganizationNodeDto(
+    val label: String? = null,
+    val children: List<OefOrganizationNodeDto>? = null,
+    val refId: String? = null,
+    val refKind: String? = null,
 )
 
 data class OefModelDto(

@@ -65,12 +65,21 @@ class GlobalExceptionHandler {
         val traceId = newTraceId()
         val fieldErrors = ex.bindingResult.fieldErrors.map { FieldErrorDetail(it.field, it.defaultMessage) }
         log.warn("Validation failed [{}]: {}", traceId, fieldErrors)
+        val summary = fieldErrors
+            .take(3)
+            .joinToString("; ") { err ->
+                listOfNotNull(err.field, err.message).joinToString(": ")
+            }
+            .ifBlank { ex.body?.detail ?: "Request validation failed" }
+        val message =
+            if (fieldErrors.size > 3) "$summary (+${fieldErrors.size - 3} more)"
+            else summary
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(
                 ValidationErrorBody(
                     "VALIDATION_ERROR",
-                    ex.body?.detail ?: "Request validation failed",
+                    message,
                     traceId,
                     fieldErrors
                 )

@@ -33,6 +33,22 @@ class OefParseServiceTest {
         val issues = parsed.issues
         assertTrue(issues.any { it.code == "relationshipEndpointIsRelationship" && it.level == "warning" })
         assertTrue(issues.none { it.level == "error" })
+
+        assertEquals(3, parsed.organizations.size)
+        val business = parsed.organizations[0]
+        assertEquals("Business", business.label)
+        assertEquals(3, business.children?.size)
+        assertEquals("element", business.children?.first()?.refKind)
+        assertEquals("el-a", business.children?.first()?.refId)
+
+        val relations = parsed.organizations[1]
+        assertEquals("Relations", relations.label)
+        assertEquals("relationship", relations.children?.first()?.refKind)
+
+        val viewsOrg = parsed.organizations[2]
+        assertEquals("Views", viewsOrg.label)
+        assertEquals("view", viewsOrg.children?.single()?.refKind)
+        assertEquals("view-1", viewsOrg.children?.single()?.refId)
     }
 
     @Test

@@ -10,6 +10,23 @@
     <relationship identifier="rel-flow" source="el-a" target="el-b" xsi:type="Flow" />
     <relationship identifier="rel-assoc" source="el-data" target="rel-flow" xsi:type="Association" />
   </relationships>
+  <organizations>
+    <item>
+      <label>Business</label>
+      <item identifierRef="el-a" />
+      <item identifierRef="el-b" />
+      <item identifierRef="el-data" />
+    </item>
+    <item>
+      <label>Relations</label>
+      <item identifierRef="rel-flow" />
+      <item identifierRef="rel-assoc" />
+    </item>
+    <item>
+      <label>Views</label>
+      <item identifierRef="view-1" />
+    </item>
+  </organizations>
   <views>
     <diagrams>
       <view identifier="view-1" xsi:type="Diagram">
