@@ -51,6 +51,36 @@ class OefParseServiceTest {
     }
 
     @Test
+    fun `parses nested view nodes in document order`() {
+        val xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="m1">
+              <name>Nested</name>
+              <elements>
+                <element identifier="el-a" xsi:type="BusinessActor"><name>A</name></element>
+              </elements>
+              <relationships />
+              <views>
+                <diagrams>
+                  <view identifier="view-1" xsi:type="Diagram">
+                    <name>V</name>
+                    <node identifier="node-box" xsi:type="Container" x="0" y="0" w="200" h="100">
+                      <label>Box</label>
+                      <node identifier="node-a" elementRef="el-a" xsi:type="Element" x="10" y="10" w="80" h="40" />
+                    </node>
+                  </view>
+                </diagrams>
+              </views>
+            </model>
+            """.trimIndent().toByteArray()
+
+        val parsed = service.parseAndValidate(xml)
+        assertEquals(listOf("node-box", "node-a"), parsed.views.single().nodes.map { it.id })
+        assertEquals("Box", parsed.views.single().nodes.first().labelText)
+    }
+
+    @Test
     fun `flags missing relationship endpoints as errors`() {
         val xml =
             """

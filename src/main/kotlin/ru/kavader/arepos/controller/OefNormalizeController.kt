@@ -53,19 +53,23 @@ class OefNormalizeController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "OEF file must be XML")
         }
 
-        val bytes = try {
-            file.bytes
+        return try {
+            file.inputStream.use { stream ->
+                oefParseService.parseAndValidate(stream)
+            }
+        } catch (ex: IllegalArgumentException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message ?: "Invalid OEF XML")
+        } catch (ex: OutOfMemoryError) {
+            // Prefer not to kill the JVM silently; large residual heaps can still leave the process unstable.
+            throw ResponseStatusException(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "OEF file is too large to process in memory",
+            )
         } catch (ex: Exception) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "Failed to read OEF file: ${ex.message ?: "read error"}",
             )
-        }
-
-        return try {
-            oefParseService.parseAndValidate(bytes)
-        } catch (ex: IllegalArgumentException) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message ?: "Invalid OEF XML")
         }
     }
 }

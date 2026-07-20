@@ -1,11 +1,18 @@
 package ru.kavader.arepos.service
 
 import org.springframework.stereotype.Service
-import org.w3c.dom.Element
-import org.w3c.dom.Node
 import ru.kavader.arepos.dto.oef.*
-import javax.xml.parsers.DocumentBuilderFactory
+import java.io.ByteArrayInputStream
+import java.io.InputStream
+import javax.xml.stream.XMLInputFactory
+import javax.xml.stream.XMLStreamConstants
+import javax.xml.stream.XMLStreamException
+import javax.xml.stream.XMLStreamReader
 
+/**
+ * Streaming OEF (Open Exchange) parser. Uses StAX instead of DOM so large ArchiMate
+ * exports do not inflate a full document tree into the heap (DOM OOM with ~1 Gi limit).
+ */
 @Service
 class OefParseService {
 
@@ -15,41 +22,254 @@ class OefParseService {
         return parsed.copy(issues = issues)
     }
 
-    fun parse(xmlBytes: ByteArray): OefNormalizeResponse {
-        val factory = DocumentBuilderFactory.newInstance().apply {
-            isNamespaceAware = true
-            isExpandEntityReferences = false
-            fun safeFeature(name: String, value: Boolean) {
-                try {
-                    setFeature(name, value)
-                } catch (_: Exception) {
-                    // Feature may be unsupported on some JDK/XML stacks.
-                }
-            }
-            safeFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-            safeFeature("http://xml.org/sax/features/external-general-entities", false)
-            safeFeature("http://xml.org/sax/features/external-parameter-entities", false)
-        }
-        val doc = try {
-            factory.newDocumentBuilder().parse(xmlBytes.inputStream())
+    fun parseAndValidate(input: InputStream): OefNormalizeResponse {
+        val parsed = parse(input)
+        val issues = validate(parsed)
+        return parsed.copy(issues = issues)
+    }
+
+    fun parse(xmlBytes: ByteArray): OefNormalizeResponse =
+        parse(ByteArrayInputStream(xmlBytes))
+
+    fun parse(input: InputStream): OefNormalizeResponse {
+        val reader = try {
+            newSafeReader(input)
         } catch (ex: Exception) {
             throw IllegalArgumentException("Invalid OEF XML: ${ex.message ?: "parse error"}")
         }
 
-        val modelElement = doc.documentElement
-            ?: throw IllegalArgumentException("Invalid OEF XML: missing <model>")
-        if (modelElement.localName != "model") {
+        try {
+            return parseWithReader(reader)
+        } catch (ex: XMLStreamException) {
+            throw IllegalArgumentException("Invalid OEF XML: ${ex.message ?: "parse error"}")
+        } catch (ex: IllegalArgumentException) {
+            throw ex
+        } catch (ex: Exception) {
+            throw IllegalArgumentException("Invalid OEF XML: ${ex.message ?: "parse error"}")
+        } finally {
+            try {
+                reader.close()
+            } catch (_: Exception) {
+                // ignore close failures
+            }
+        }
+    }
+
+    private fun parseWithReader(reader: XMLStreamReader): OefNormalizeResponse {
+        var sawRoot = false
+        var modelId = ""
+        var modelName = ""
+        var modelNameCaptured = false
+
+        val elements = mutableListOf<OefElementDto>()
+        val relationships = mutableListOf<OefRelationshipDto>()
+        val views = mutableListOf<OefViewDto>()
+
+        // Path of open element local names (for section detection).
+        val path = ArrayDeque<String>()
+
+        var currentElement: MutableElement? = null
+        var currentRelationship: MutableRelationship? = null
+        var currentView: MutableView? = null
+        val openNodes = ArrayDeque<MutableViewNode>()
+        var currentConnection: MutableConnection? = null
+
+        // Text capture for direct-child name/label of the current entity.
+        var textTarget: TextTarget? = null
+        val textBuf = StringBuilder()
+
+        while (reader.hasNext()) {
+            when (reader.next()) {
+                XMLStreamConstants.START_ELEMENT -> {
+                    val local = reader.localName
+                    path.addLast(local)
+
+                    if (!sawRoot) {
+                        sawRoot = true
+                        if (local != "model") {
+                            throw IllegalArgumentException("Invalid OEF XML: missing <model>")
+                        }
+                        modelId = attr(reader, "identifier")
+                    }
+
+                    when {
+                        pathEquals(path, "model", "name") && !modelNameCaptured -> {
+                            textTarget = TextTarget.MODEL_NAME
+                            textBuf.setLength(0)
+                        }
+
+                        pathEquals(path, "model", "elements", "element") -> {
+                            val id = attr(reader, "identifier")
+                            if (id.isNotEmpty()) {
+                                currentElement = MutableElement(id = id, type = typeOf(reader))
+                            }
+                        }
+
+                        pathEquals(path, "model", "elements", "element", "name") &&
+                            currentElement != null -> {
+                            textTarget = TextTarget.ELEMENT_NAME
+                            textBuf.setLength(0)
+                        }
+
+                        pathEquals(path, "model", "relationships", "relationship") -> {
+                            val id = attr(reader, "identifier")
+                            if (id.isNotEmpty()) {
+                                currentRelationship =
+                                    MutableRelationship(
+                                        id = id,
+                                        type = typeOf(reader),
+                                        sourceElementId = attr(reader, "source"),
+                                        targetElementId = attr(reader, "target"),
+                                    )
+                            }
+                        }
+
+                        pathEquals(path, "model", "views", "diagrams", "view") -> {
+                            val id = attr(reader, "identifier")
+                            if (id.isNotEmpty()) {
+                                currentView =
+                                    MutableView(
+                                        id = id,
+                                        type = typeOf(reader),
+                                    )
+                            }
+                        }
+
+                        pathEquals(path, "model", "views", "diagrams", "view", "name") &&
+                            currentView != null &&
+                            currentView!!.name.isEmpty() -> {
+                            textTarget = TextTarget.VIEW_NAME
+                            textBuf.setLength(0)
+                        }
+
+                        inView(path) && local == "node" && currentView != null -> {
+                            val id = attr(reader, "identifier")
+                            if (id.isNotEmpty()) {
+                                val node =
+                                    MutableViewNode(
+                                        id = id,
+                                        elementId = attr(reader, "elementRef"),
+                                        type = typeOf(reader),
+                                        x = parseNumber(attr(reader, "x")) ?: 0.0,
+                                        y = parseNumber(attr(reader, "y")) ?: 0.0,
+                                        width = parseNumber(attr(reader, "w")),
+                                        height = parseNumber(attr(reader, "h")),
+                                    )
+                                // Document order: parent before nested children (matches DOM walk).
+                                openNodes.addLast(node)
+                                currentView!!.mutableNodes += node
+                            }
+                        }
+
+                        inView(path) && local == "connection" && currentView != null -> {
+                            val id = attr(reader, "identifier")
+                            if (id.isNotEmpty()) {
+                                currentConnection =
+                                    MutableConnection(
+                                        id = id,
+                                        relationshipId = attr(reader, "relationshipRef"),
+                                        sourceNodeId = attr(reader, "source"),
+                                        targetNodeId = attr(reader, "target"),
+                                        type = typeOf(reader),
+                                    )
+                            }
+                        }
+
+                        openNodes.isNotEmpty() && (local == "label" || local == "name") &&
+                            isDirectChildOfCurrentNode(path, local) -> {
+                            val node = openNodes.last()
+                            if (isDiagramOnlyViewNode(node.type)) {
+                                textTarget =
+                                    if (local == "label") TextTarget.NODE_LABEL else TextTarget.NODE_NAME
+                                textBuf.setLength(0)
+                            }
+                        }
+                    }
+                }
+
+                XMLStreamConstants.CHARACTERS, XMLStreamConstants.CDATA -> {
+                    if (textTarget != null) {
+                        textBuf.append(reader.text)
+                    }
+                }
+
+                XMLStreamConstants.END_ELEMENT -> {
+                    val local = reader.localName
+
+                    when (textTarget) {
+                        TextTarget.MODEL_NAME -> {
+                            if (local == "name") {
+                                modelName = textBuf.toString().trim()
+                                modelNameCaptured = true
+                                textTarget = null
+                            }
+                        }
+                        TextTarget.ELEMENT_NAME -> {
+                            if (local == "name") {
+                                currentElement?.name = textBuf.toString().trim()
+                                textTarget = null
+                            }
+                        }
+                        TextTarget.VIEW_NAME -> {
+                            if (local == "name") {
+                                currentView?.name = textBuf.toString().trim()
+                                textTarget = null
+                            }
+                        }
+                        TextTarget.NODE_LABEL -> {
+                            if (local == "label") {
+                                openNodes.lastOrNull()?.labelText = textBuf.toString().trim()
+                                textTarget = null
+                            }
+                        }
+                        TextTarget.NODE_NAME -> {
+                            if (local == "name") {
+                                openNodes.lastOrNull()?.nameText = textBuf.toString().trim()
+                                textTarget = null
+                            }
+                        }
+                        null -> Unit
+                    }
+
+                    when {
+                        local == "element" && pathEquals(path, "model", "elements", "element") -> {
+                            currentElement?.let { elements += it.toDto() }
+                            currentElement = null
+                        }
+                        local == "relationship" &&
+                            pathEquals(path, "model", "relationships", "relationship") -> {
+                            currentRelationship?.let { relationships += it.toDto() }
+                            currentRelationship = null
+                        }
+                        local == "node" && inView(path) && openNodes.isNotEmpty() -> {
+                            openNodes.removeLast()
+                        }
+                        local == "connection" && inView(path) && currentConnection != null -> {
+                            currentView?.mutableConnections?.add(currentConnection!!)
+                            currentConnection = null
+                        }
+                        local == "view" && pathEquals(path, "model", "views", "diagrams", "view") -> {
+                            currentView?.let { views += it.toDto() }
+                            currentView = null
+                        }
+                    }
+
+                    if (path.isNotEmpty() && path.last() == local) {
+                        path.removeLast()
+                    }
+                }
+            }
+        }
+
+        if (!sawRoot) {
             throw IllegalArgumentException("Invalid OEF XML: missing <model>")
         }
 
         return OefNormalizeResponse(
-            model = OefModelDto(
-                id = modelElement.getAttribute("identifier").trim(),
-                name = textOfFirstDirectChild(modelElement, "name"),
-            ),
-            elements = parseElements(modelElement),
-            relationships = parseRelationships(modelElement),
-            views = parseViews(modelElement),
+            model = OefModelDto(id = modelId, name = modelName),
+            elements = elements,
+            relationships = relationships,
+            views = views,
             issues = emptyList(),
         )
     }
@@ -211,132 +431,73 @@ class OefParseService {
         return issues
     }
 
-    private fun parseElements(model: Element): List<OefElementDto> {
-        val root = directChild(model, "elements") ?: return emptyList()
-        return directChildren(root, "element").mapNotNull { el ->
-            val id = el.getAttribute("identifier").trim()
-            if (id.isEmpty()) null
-            else OefElementDto(id = id, type = typeOf(el), name = textOfFirstDirectChild(el, "name"))
+    private fun newSafeReader(input: InputStream): XMLStreamReader {
+        val factory = XMLInputFactory.newFactory()
+        fun safeProperty(name: String, value: Any) {
+            try {
+                factory.setProperty(name, value)
+            } catch (_: Exception) {
+                // Property may be unsupported on some XML stacks.
+            }
         }
+        safeProperty(XMLInputFactory.SUPPORT_DTD, false)
+        safeProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false)
+        return factory.createXMLStreamReader(input)
     }
 
-    private fun parseRelationships(model: Element): List<OefRelationshipDto> {
-        val root = directChild(model, "relationships") ?: return emptyList()
-        return directChildren(root, "relationship").mapNotNull { el ->
-            val id = el.getAttribute("identifier").trim()
-            if (id.isEmpty()) null
-            else
-                OefRelationshipDto(
-                    id = id,
-                    type = typeOf(el),
-                    sourceElementId = el.getAttribute("source").trim(),
-                    targetElementId = el.getAttribute("target").trim(),
-                )
+    private fun attr(reader: XMLStreamReader, localName: String): String {
+        val direct = reader.getAttributeValue(null, localName)
+        if (direct != null) return direct.trim()
+        for (i in 0 until reader.attributeCount) {
+            if (reader.getAttributeLocalName(i) == localName) {
+                return reader.getAttributeValue(i).trim()
+            }
         }
+        return ""
     }
 
-    private fun parseViews(model: Element): List<OefViewDto> {
-        val viewsRoot = directChild(model, "views") ?: return emptyList()
-        val diagramsRoot = directChild(viewsRoot, "diagrams") ?: return emptyList()
-        return directChildren(diagramsRoot, "view").mapNotNull { view ->
-            val id = view.getAttribute("identifier").trim()
-            if (id.isEmpty()) null
-            else
-                OefViewDto(
-                    id = id,
-                    type = typeOf(view),
-                    name = textOfFirstDirectChild(view, "name"),
-                    nodes = parseViewNodes(view),
-                    connections = parseViewConnections(view),
-                )
+    private fun typeOf(reader: XMLStreamReader): String {
+        val nsType = reader.getAttributeValue(XSI_NS, "type")?.trim().orEmpty()
+        if (nsType.isNotEmpty()) return nsType
+        for (i in 0 until reader.attributeCount) {
+            val local = reader.getAttributeLocalName(i)
+            if (local != "type") continue
+            val prefix = reader.getAttributePrefix(i).orEmpty()
+            if (prefix == "xsi") return reader.getAttributeValue(i).trim()
         }
+        return attr(reader, "type")
     }
 
-    private fun parseViewNodes(view: Element): List<OefViewNodeDto> =
-        descendantsByLocalName(view, "node").mapNotNull { el ->
-            val id = el.getAttribute("identifier").trim()
-            if (id.isEmpty()) return@mapNotNull null
-            val nodeType = typeOf(el)
-            val width = parseNumber(el.getAttribute("w"))
-            val height = parseNumber(el.getAttribute("h"))
-            val labelText =
-                if (isDiagramOnlyViewNode(nodeType)) {
-                    textOfFirstDirectChild(el, "label").ifBlank { textOfFirstDirectChild(el, "name") }
-                } else {
-                    null
-                }
-            OefViewNodeDto(
-                id = id,
-                elementId = el.getAttribute("elementRef").trim(),
-                type = nodeType,
-                x = parseNumber(el.getAttribute("x")) ?: 0.0,
-                y = parseNumber(el.getAttribute("y")) ?: 0.0,
-                width = width,
-                height = height,
-                labelText = labelText?.takeIf { it.isNotBlank() },
-            )
+    private fun pathEquals(path: ArrayDeque<String>, vararg expected: String): Boolean {
+        if (path.size != expected.size) return false
+        var i = 0
+        for (segment in path) {
+            if (segment != expected[i]) return false
+            i++
         }
+        return true
+    }
 
-    private fun parseViewConnections(view: Element): List<OefViewConnectionDto> =
-        descendantsByLocalName(view, "connection").mapNotNull { el ->
-            val id = el.getAttribute("identifier").trim()
-            if (id.isEmpty()) null
-            else
-                OefViewConnectionDto(
-                    id = id,
-                    relationshipId = el.getAttribute("relationshipRef").trim(),
-                    sourceNodeId = el.getAttribute("source").trim(),
-                    targetNodeId = el.getAttribute("target").trim(),
-                    type = typeOf(el),
-                )
-        }
+    private fun inView(path: ArrayDeque<String>): Boolean {
+        // model / views / diagrams / view / …
+        if (path.size < 4) return false
+        val it = path.iterator()
+        if (it.next() != "model") return false
+        if (it.next() != "views") return false
+        if (it.next() != "diagrams") return false
+        return it.next() == "view"
+    }
+
+    private fun isDirectChildOfCurrentNode(path: ArrayDeque<String>, childLocal: String): Boolean {
+        if (path.size < 2) return false
+        if (path.last() != childLocal) return false
+        // … / node / label|name
+        val parent = path.elementAt(path.size - 2)
+        return parent == "node"
+    }
 
     private fun isDiagramOnlyViewNode(type: String): Boolean =
         type == "Label" || type == "Note" || type == "Container"
-
-    private fun typeOf(element: Element): String {
-        val nsType = element.getAttributeNS(XSI_NS, "type").trim()
-        if (nsType.isNotEmpty()) return nsType
-        val prefixed = element.getAttribute("xsi:type").trim()
-        if (prefixed.isNotEmpty()) return prefixed
-        return element.getAttribute("type").trim()
-    }
-
-    private fun textOfFirstDirectChild(parent: Element, localName: String): String =
-        directChild(parent, localName)?.textContent?.trim().orEmpty()
-
-    private fun directChild(parent: Element, localName: String): Element? =
-        directChildren(parent, localName).firstOrNull()
-
-    private fun directChildren(parent: Element, localName: String): List<Element> {
-        val out = mutableListOf<Element>()
-        var child = parent.firstChild
-        while (child != null) {
-            if (child.nodeType == Node.ELEMENT_NODE) {
-                val el = child as Element
-                if (el.localName == localName) out += el
-            }
-            child = child.nextSibling
-        }
-        return out
-    }
-
-    private fun descendantsByLocalName(parent: Element, localName: String): List<Element> {
-        val out = mutableListOf<Element>()
-        fun visit(node: Element) {
-            var child = node.firstChild
-            while (child != null) {
-                if (child.nodeType == Node.ELEMENT_NODE) {
-                    val el = child as Element
-                    if (el.localName == localName) out += el
-                    visit(el)
-                }
-                child = child.nextSibling
-            }
-        }
-        visit(parent)
-        return out
-    }
 
     private fun parseNumber(value: String?): Double? {
         if (value.isNullOrBlank()) return null
@@ -371,6 +532,103 @@ class OefParseService {
             entityId = entityId,
             viewId = viewId,
         )
+
+    private enum class TextTarget {
+        MODEL_NAME,
+        ELEMENT_NAME,
+        VIEW_NAME,
+        NODE_LABEL,
+        NODE_NAME,
+    }
+
+    private class MutableElement(
+        val id: String,
+        val type: String,
+        var name: String = "",
+    ) {
+        fun toDto(): OefElementDto = OefElementDto(id = id, type = type, name = name)
+    }
+
+    private class MutableRelationship(
+        val id: String,
+        val type: String,
+        val sourceElementId: String,
+        val targetElementId: String,
+    ) {
+        fun toDto(): OefRelationshipDto =
+            OefRelationshipDto(
+                id = id,
+                type = type,
+                sourceElementId = sourceElementId,
+                targetElementId = targetElementId,
+            )
+    }
+
+    private class MutableView(
+        val id: String,
+        val type: String,
+        var name: String = "",
+        val mutableNodes: MutableList<MutableViewNode> = mutableListOf(),
+        val mutableConnections: MutableList<MutableConnection> = mutableListOf(),
+    ) {
+        fun toDto(): OefViewDto =
+            OefViewDto(
+                id = id,
+                type = type,
+                name = name,
+                nodes = mutableNodes.map { it.toDto() },
+                connections = mutableConnections.map { it.toDto() },
+            )
+    }
+
+    private class MutableViewNode(
+        val id: String,
+        val elementId: String,
+        val type: String,
+        val x: Double,
+        val y: Double,
+        val width: Double?,
+        val height: Double?,
+        var labelText: String? = null,
+        var nameText: String? = null,
+    ) {
+        fun toDto(): OefViewNodeDto {
+            val label =
+                if (type == "Label" || type == "Note" || type == "Container") {
+                    labelText?.takeIf { it.isNotBlank() }
+                        ?: nameText?.takeIf { it.isNotBlank() }
+                } else {
+                    null
+                }
+            return OefViewNodeDto(
+                id = id,
+                elementId = elementId,
+                type = type,
+                x = x,
+                y = y,
+                width = width,
+                height = height,
+                labelText = label,
+            )
+        }
+    }
+
+    private class MutableConnection(
+        val id: String,
+        val relationshipId: String,
+        val sourceNodeId: String,
+        val targetNodeId: String,
+        val type: String,
+    ) {
+        fun toDto(): OefViewConnectionDto =
+            OefViewConnectionDto(
+                id = id,
+                relationshipId = relationshipId,
+                sourceNodeId = sourceNodeId,
+                targetNodeId = targetNodeId,
+                type = type,
+            )
+    }
 
     companion object {
         private const val XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
