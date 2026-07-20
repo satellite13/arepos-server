@@ -44,7 +44,7 @@ class ModelMapper(
         sourceId = model.source?.id
     )
 
-    fun toResponse(diagram: Diagrams): DiagramResponse = DiagramResponse(
+    fun toResponse(diagram: Diagrams, includeAttrs: Boolean = true): DiagramResponse = DiagramResponse(
         id = requireNotNull(diagram.id),
         name = diagram.name,
         version = diagram.version,
@@ -52,7 +52,7 @@ class ModelMapper(
         modelId = requireNotNull(diagram.model.id) { "Diagram model ID must not be null" },
         nodeId = diagram.node?.id,
         notationId = requireNotNull(diagram.notation.id) { "Diagram notation ID must not be null" },
-        attrs = diagram.attrs,
+        attrs = if (includeAttrs) diagram.attrs else null,
         createdAt = diagram.createdAt,
         updatedAt = diagram.updatedAt
     )
