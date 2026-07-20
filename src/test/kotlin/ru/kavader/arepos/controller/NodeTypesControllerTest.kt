@@ -78,6 +78,85 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `allows creating same node type name for different owners`() {
+        val ownerA = usersRepository.save(
+            Users(
+                email = "owner-a-same-name@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val ownerB = usersRepository.save(
+            Users(
+                email = "owner-b-same-name@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        nodeTypesRepository.save(
+            NodeTypes(
+                name = "Application Function",
+                owner = ownerA,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            post("/api/v1/node-types")
+                .withAuth(ownerB.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        NodeTypeRequest(
+                            name = "Application Function",
+                            ownerId = ownerB.id!!,
+                            attrs = null
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.name").value("Application Function"))
+            .andExpect(jsonPath("$.ownerId").value(ownerB.id.toString()))
+
+        assertEquals(2, nodeTypesRepository.count())
+    }
+
+    @Test
+    fun `returns 409 when same owner creates duplicate node type name`() {
+        val owner = usersRepository.save(
+            Users(
+                email = "owner-dup-name@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        nodeTypesRepository.save(
+            NodeTypes(
+                name = "Application Function",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            post("/api/v1/node-types")
+                .withAuth(owner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        NodeTypeRequest(
+                            name = "application function",
+                            ownerId = owner.id!!,
+                            attrs = null
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isConflict)
+    }
+
+    @Test
     fun `lists node types`() {
         val timestamp = System.currentTimeMillis()
         val owner = usersRepository.save(

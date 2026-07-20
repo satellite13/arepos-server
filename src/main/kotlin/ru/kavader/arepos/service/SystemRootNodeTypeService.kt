@@ -20,7 +20,7 @@ class SystemRootNodeTypeService(
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun getOrCreate(owner: Users, now: Instant): NodeTypes {
-        nodeTypesRepository.findByNameIgnoreCase(SYSTEM_ROOT_NODE_TYPE_NAME)?.let { return it }
+        nodeTypesRepository.findByOwnerAndNameIgnoreCase(owner, SYSTEM_ROOT_NODE_TYPE_NAME)?.let { return it }
 
         return try {
             nodeTypesRepository.save(
@@ -33,7 +33,7 @@ class SystemRootNodeTypeService(
                 )
             )
         } catch (ex: DataIntegrityViolationException) {
-            nodeTypesRepository.findByNameIgnoreCase(SYSTEM_ROOT_NODE_TYPE_NAME)
+            nodeTypesRepository.findByOwnerAndNameIgnoreCase(owner, SYSTEM_ROOT_NODE_TYPE_NAME)
                 ?: throw ex
         }
     }

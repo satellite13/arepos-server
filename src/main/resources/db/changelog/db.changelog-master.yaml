@@ -395,3 +395,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 043-node-link-types-unique-per-owner
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/043-node-link-types-unique-per-owner.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

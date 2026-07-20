@@ -17,6 +17,8 @@ interface NodeTypesRepository : JpaRepository<NodeTypes, UUID> {
     fun findByOwnerAndNameContainingIgnoreCase(owner: Users, name: String, pageable: Pageable): Page<NodeTypes>
     fun findByNameIgnoreCase(name: String): NodeTypes?
 
+    fun findByOwnerAndNameIgnoreCase(owner: Users, name: String): NodeTypes?
+
     @Query(
         """
         SELECT nt

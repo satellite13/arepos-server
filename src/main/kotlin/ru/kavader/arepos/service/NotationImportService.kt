@@ -14,9 +14,10 @@ import java.util.UUID
 /**
  * Imports a new notation owned by the authenticated caller.
  *
- * Node and link types are reused by name when they already exist. Import does not target or
- * modify an existing notation, so it intentionally does not call `requireCanEditNotation`;
- * authentication of the caller is the only authorization prerequisite.
+ * Node and link types are reused by name within the importer's ownership when they already
+ * exist. Import does not target or modify an existing notation, so it intentionally does not
+ * call `requireCanEditNotation`; authentication of the caller is the only authorization
+ * prerequisite.
  */
 @Service
 class NotationImportService(
@@ -56,13 +57,14 @@ class NotationImportService(
 
         val nodeTypeIdMap = mutableMapOf<String, UUID>()
         for (importedNodeType in request.nodeTypes) {
-            val existing = nodeTypesRepository.findByNameIgnoreCase(importedNodeType.name.trim())
+            val typeName = importedNodeType.name.trim()
+            val existing = nodeTypesRepository.findByOwnerAndNameIgnoreCase(owner, typeName)
             if (existing != null) {
                 nodeTypeIdMap[importedNodeType.id] = existing.id!!
             } else {
                 val saved = nodeTypesRepository.save(
                     NodeTypes(
-                        name = importedNodeType.name.trim(),
+                        name = typeName,
                         attrs = importedNodeType.attrs,
                         owner = owner,
                         createdAt = now,
@@ -75,13 +77,14 @@ class NotationImportService(
 
         val linkTypeIdMap = mutableMapOf<String, UUID>()
         for (importedLinkType in request.linkTypes) {
-            val existing = linkTypesRepository.findByNameIgnoreCase(importedLinkType.name.trim())
+            val typeName = importedLinkType.name.trim()
+            val existing = linkTypesRepository.findByOwnerAndNameIgnoreCase(owner, typeName)
             if (existing != null) {
                 linkTypeIdMap[importedLinkType.id] = existing.id!!
             } else {
                 val saved = linkTypesRepository.save(
                     LinkTypes(
-                        name = importedLinkType.name.trim(),
+                        name = typeName,
                         attrs = importedLinkType.attrs,
                         owner = owner,
                         createdAt = now,

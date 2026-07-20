@@ -24,6 +24,7 @@ import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -77,7 +78,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `import reuses existing node and link types by name`() {
+    fun `import reuses existing node and link types by name for same owner`() {
         val caller = persistUser("notation-reuse@test.com")
         val existingNodeType = nodeTypesRepository.save(
             NodeTypes(
@@ -121,6 +122,60 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
 
         assertEquals(1, nodeTypesRepository.count())
         assertEquals(1, linkTypesRepository.count())
+    }
+
+    @Test
+    fun `import creates own types when another owner already has the same names`() {
+        val otherOwner = persistUser("notation-other-owner@test.com")
+        val otherNodeType = nodeTypesRepository.save(
+            NodeTypes(
+                name = "Application Function",
+                owner = otherOwner,
+                createdAt = Instant.now()
+            )
+        )
+        val otherLinkType = linkTypesRepository.save(
+            LinkTypes(
+                name = "Serving",
+                owner = otherOwner,
+                createdAt = Instant.now()
+            )
+        )
+        val caller = persistUser("notation-import-own@test.com")
+        val request = NotationImportRequest(
+            notation = NotationImportMeta(name = "Own catalog notation", version = "1.0.0"),
+            nodeTypes = listOf(
+                ImportedNodeType(id = "node-type-source", name = "Application Function")
+            ),
+            linkTypes = listOf(
+                ImportedLinkType(id = "link-type-source", name = "Serving")
+            )
+        )
+
+        val response = mockMvc.perform(
+            post("/api/v1/notations/import")
+                .withAuth(caller.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.nodeTypeIdMap['node-type-source']").isNotEmpty)
+            .andExpect(jsonPath("$.linkTypeIdMap['link-type-source']").isNotEmpty)
+            .andReturn()
+            .response
+            .let { objectMapper.readTree(it.contentAsString) }
+
+        val createdNodeTypeId = java.util.UUID.fromString(response.path("nodeTypeIdMap").path("node-type-source").asText())
+        val createdLinkTypeId = java.util.UUID.fromString(response.path("linkTypeIdMap").path("link-type-source").asText())
+        assertNotEquals(otherNodeType.id, createdNodeTypeId)
+        assertNotEquals(otherLinkType.id, createdLinkTypeId)
+
+        val createdNodeType = nodeTypesRepository.findById(createdNodeTypeId).orElseThrow()
+        val createdLinkType = linkTypesRepository.findById(createdLinkTypeId).orElseThrow()
+        assertEquals(caller.id, createdNodeType.owner.id)
+        assertEquals(caller.id, createdLinkType.owner.id)
+        assertEquals(2, nodeTypesRepository.count())
+        assertEquals(2, linkTypesRepository.count())
     }
 
     private fun persistUser(email: String): Users =

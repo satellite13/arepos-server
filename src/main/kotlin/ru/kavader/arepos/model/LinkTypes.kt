@@ -19,6 +19,7 @@ import java.util.*
     indexes = [
         Index(name = "link_types_owner_idx", columnList = "owner")
     ]
+    // Case-insensitive uniqueness is enforced in DB: unique (owner, lower(name))
 )
 @JsonIgnoreProperties(ignoreUnknown = true)
 class LinkTypes(
@@ -33,7 +34,7 @@ class LinkTypes(
     @Column(name = "updated_at")
     var updatedAt: Instant? = null,
 
-    @Column(name = "name", nullable = false, unique = true)
+    @Column(name = "name", nullable = false)
     override var name: String,
 
     @JdbcTypeCode(SqlTypes.JSON)
