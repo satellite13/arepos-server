@@ -165,40 +165,24 @@ class NotationsController(
     fun getNotationMeta(
         @PathVariable id: UUID,
         @RequestParam(required = false) modelId: UUID?
-    ): NotationMetaResponse =
-        notationsRepository.findById(id)
-            .map { notation ->
-                val canViewDirectly = accessService.canViewNotation(notation)
-                val hasVisibleDiagramWithNotation = diagramsRepository.existsViewableModelDiagramWithNotation(
-                    id,
-                    accessService.currentUserId()
-                )
-                val viaModelEditor = modelId?.let { mid ->
-                    val model = modelsRepository.findById(mid).orElseThrow {
-                        ResponseStatusException(HttpStatus.NOT_FOUND, "Model $mid not found")
-                    }
-                    accessService.requireCanViewModel(model)
-                    accessService.canUseNotationInModelDiagramEditor(notation, model)
-                } ?: false
-
-                if (!canViewDirectly && !hasVisibleDiagramWithNotation && !viaModelEditor) {
-                    throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
-                }
-
-                notationMapper.toMetaResponse(notation)
-            }
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
-            }
+    ): NotationMetaResponse {
+        val notation = notationsRepository.findByIdIncludingDeleted(id).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
+        }
+        requireCanAccessNotationMeta(notation, modelId)
+        return notationMapper.toMetaResponse(notation)
+    }
 
     @GetMapping("/{id}/newer-versions")
     @Operation(summary = "Get newer notation versions derived from source")
-    fun getNewerVersions(@PathVariable id: UUID): List<NotationResponse> {
-        accessService.requireCanViewNotation(
-            notationsRepository.findById(id).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
-            }
-        )
+    fun getNewerVersions(
+        @PathVariable id: UUID,
+        @RequestParam(required = false) modelId: UUID?
+    ): List<NotationResponse> {
+        val source = notationsRepository.findByIdIncludingDeleted(id).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $id not found")
+        }
+        requireCanAccessNotationMeta(source, modelId)
         return accessService.filterViewableNotations(notationsRepository.findBySourceId(id))
             .let { notations ->
                 val permissions = accessService.notationAccessPermissions(notations)
@@ -207,6 +191,35 @@ class NotationsController(
                     notationMapper.toResponse(notation, permissions[notationId])
                 }
             }
+    }
+
+    /**
+     * Meta / newer-versions may resolve soft-deleted notations still bound to a viewable diagram
+     * or usable via model diagram editor (`modelId`).
+     */
+    private fun requireCanAccessNotationMeta(notation: Notations, modelId: UUID?) {
+        val notationId = requireNotNull(notation.id)
+        val canViewDirectly = accessService.canViewNotation(notation)
+        val hasVisibleDiagramWithNotation = diagramsRepository.existsViewableModelDiagramWithNotation(
+            notationId,
+            accessService.currentUserId()
+        )
+        val viaModelEditor = modelId?.let { mid ->
+            val model = modelsRepository.findById(mid).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Model $mid not found")
+            }
+            accessService.requireCanViewModel(model)
+            // Soft-deleted notations are excluded from findById-based helpers; allow via active diagram.
+            accessService.canUseNotationInModelDiagramEditor(notation, model) ||
+                (
+                    accessService.canEditModel(model) &&
+                        diagramsRepository.existsByModelIdAndNotationIdAndDeletedFalse(mid, notationId)
+                    )
+        } ?: false
+
+        if (!canViewDirectly && !hasVisibleDiagramWithNotation && !viaModelEditor) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
+        }
     }
 
     @PostMapping

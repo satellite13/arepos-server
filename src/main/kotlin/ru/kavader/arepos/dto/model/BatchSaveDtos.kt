@@ -131,7 +131,8 @@ data class BatchDiagramCreate(
     val notationId: UUID,
     @field:Size(max = 255)
     val nodeId: String? = null,
-    @field:Size(max = 100000)
+    // Large OEF views pack many node/edge instances into one JSON attrs blob.
+    @field:Size(max = 5_000_000)
     val attrs: String? = null
 )
 
@@ -146,7 +147,7 @@ data class BatchDiagramUpdate(
     val notationId: UUID,
     @field:Size(max = 255)
     val nodeId: String? = null,
-    @field:Size(max = 100000)
+    @field:Size(max = 5_000_000)
     val attrs: String? = null,
     val baseUpdatedAt: Instant? = null
 )

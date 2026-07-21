@@ -51,7 +51,8 @@ class DiagramsController(
         @RequestParam(required = false) modelId: UUID?,
         @RequestParam(required = false) nodeId: UUID?,
         @RequestParam(required = false) notationId: UUID?,
-        @RequestParam(required = false) name: String?
+        @RequestParam(required = false) name: String?,
+        @RequestParam(required = false, defaultValue = "true") includeAttrs: Boolean
     ): Page<DiagramResponse> {
         val normalizedName = name.trimmedOrNull()
         return accessService.listPageWithAdminBypass(
@@ -77,7 +78,7 @@ class DiagramsController(
                     pageable = pageable
                 )
             },
-            map = modelMapper::toResponse
+            map = { modelMapper.toResponse(it, includeAttrs) }
         )
     }
 

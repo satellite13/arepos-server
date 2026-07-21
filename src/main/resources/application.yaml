@@ -3,9 +3,10 @@ spring:
     name: arepos-server
   servlet:
     multipart:
-      # Align with FileStorageService SITE_ASSET_MAX_SIZE (20 MB) + multipart overhead.
-      max-file-size: 20MB
-      max-request-size: 25MB
+      # OEF normalize accepts up to 100 MB XML; nginx keeps general /api at 25m and
+      # raises only /models/*/oef/normalize. Other uploads still validate their own caps.
+      max-file-size: 100MB
+      max-request-size: 105MB
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/arepos}
     username: ${DB_USERNAME:arepos}

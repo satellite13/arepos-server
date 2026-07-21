@@ -53,7 +53,8 @@ class NotationMapper(
         version = notation.version,
         ownerId = requireNotNull(notation.owner.id) { "Notation owner ID must not be null" },
         ownerEmail = notation.owner.email,
-        ownerDisplayName = userMapper.ownerDisplayName(notation.owner)
+        ownerDisplayName = userMapper.ownerDisplayName(notation.owner),
+        deleted = notation.deleted
     )
 
     fun toResponse(nodeType: NodeTypes, accessPermission: String?): NodeTypeResponse = NodeTypeResponse(

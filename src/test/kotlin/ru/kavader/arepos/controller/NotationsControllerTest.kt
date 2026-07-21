@@ -469,4 +469,150 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         assertTrue(notationsRepository.findByIdIncludingDeleted(notation.id!!).isPresent)
     }
+
+    @Test
+    fun `meta returns soft-deleted notation when used by model diagram`() {
+        val now = Instant.now()
+        val owner = usersRepository.save(
+            Users(
+                email = "meta-deleted-owner@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val notation = notationsRepository.save(
+            Notations(
+                name = "meta-deleted-notation",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = now,
+                updatedAt = now,
+                deleted = true
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "meta-deleted-model",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "meta-deleted-diagram",
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/notations/${notation.id}/meta?modelId=${model.id}")
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.id").value(notation.id.toString()))
+            .andExpect(jsonPath("$.name").value("meta-deleted-notation"))
+            .andExpect(jsonPath("$.deleted").value(true))
+    }
+
+    @Test
+    fun `meta forbids soft-deleted notation without diagram or model access`() {
+        val now = Instant.now()
+        val owner = usersRepository.save(
+            Users(
+                email = "meta-deleted-secret-owner@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val stranger = usersRepository.save(
+            Users(
+                email = "meta-deleted-stranger@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val notation = notationsRepository.save(
+            Notations(
+                name = "meta-deleted-secret",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = now,
+                deleted = true
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/notations/${notation.id}/meta")
+                .withAuth(stranger.id!!, Role.USER)
+        )
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `newer-versions from soft-deleted source returns live copies`() {
+        val now = Instant.now()
+        val owner = usersRepository.save(
+            Users(
+                email = "newer-deleted-owner@test.com",
+                role = Role.USER,
+                createdAt = now
+            )
+        )
+        val source = notationsRepository.save(
+            Notations(
+                name = "newer-deleted-notation",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = now,
+                updatedAt = now,
+                deleted = true
+            )
+        )
+        val newer = notationsRepository.save(
+            Notations(
+                name = "newer-deleted-notation",
+                version = "1.1.0",
+                owner = owner,
+                createdAt = now,
+                updatedAt = now,
+                source = source,
+                deleted = false
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "newer-deleted-model",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "newer-deleted-diagram",
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = source,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/notations/${source.id}/newer-versions?modelId=${model.id}")
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[0].id").value(newer.id.toString()))
+            .andExpect(jsonPath("$[0].version").value("1.1.0"))
+    }
 }

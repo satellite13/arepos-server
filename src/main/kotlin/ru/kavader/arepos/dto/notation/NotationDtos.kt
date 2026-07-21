@@ -39,7 +39,8 @@ data class NotationMetaResponse(
     val version: String,
     val ownerId: UUID,
     val ownerEmail: String,
-    val ownerDisplayName: String
+    val ownerDisplayName: String,
+    val deleted: Boolean = false
 )
 
 data class ComponentRequest(

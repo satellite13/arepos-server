@@ -431,6 +431,7 @@ Main endpoints:
 - `GET /api/v1/auth/me` - Current user info
 - `GET /api/v1/models` - List models
 - `POST /api/v1/models/{id}/batch-save` - Atomic node/link/diagram save (see `docs/api-collaboration.md`)
+- `POST /api/v1/models/{id}/oef/normalize` - Multipart OEF XML → compact JSON for client import wizard (edit permission; up to ~100 MB)
 - `POST /api/v1/diagram-locks/{id}/acquire` - Diagram edit lock (see `docs/api-collaboration.md`)
 - `GET /api/v1/nodes` - List nodes
 - `GET /api/v1/notations` - List notations
