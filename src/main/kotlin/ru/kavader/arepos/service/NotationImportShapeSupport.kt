@@ -78,7 +78,8 @@ internal fun remapCustomShapeIdInAttrs(
         if (!root.isObject) return attrs
         val diagramStyle = root.get("diagramStyle") ?: return attrs
         if (!diagramStyle.isObject) return attrs
-        val oldId = diagramStyle.get("customShapeId")?.asText() ?: return attrs
+        val oldId = diagramStyle.get("customShapeId")?.asText()?.trim().orEmpty()
+        if (oldId.isEmpty()) return attrs
         val newId = shapeIdMap[oldId] ?: return attrs
         (diagramStyle as ObjectNode).put("customShapeId", newId.toString())
         objectMapper.writeValueAsString(root)
