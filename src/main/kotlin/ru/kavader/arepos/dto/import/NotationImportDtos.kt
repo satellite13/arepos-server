@@ -22,7 +22,10 @@ data class NotationImportRequest(
     val relations: List<ImportedRelation> = emptyList(),
     @field:Size(max = 5000)
     @field:Valid
-    val relationRules: List<ImportedRelationRule> = emptyList()
+    val relationRules: List<ImportedRelationRule> = emptyList(),
+    @field:Size(max = 1000)
+    @field:Valid
+    val shapes: List<ImportedNodeShape> = emptyList()
 )
 
 data class NotationImportMeta(
@@ -101,10 +104,26 @@ data class ImportedRelationRule(
     val allowedRelationIds: List<@NotBlank @Size(max = 255) String> = emptyList()
 )
 
+data class ImportedNodeShape(
+    @field:NotBlank
+    @field:Size(max = 255)
+    val id: String,
+    @field:NotBlank
+    @field:Size(max = 255)
+    val name: String,
+    @field:Size(max = 500000)
+    val outline: String? = null,
+    @field:Size(max = 100000)
+    val contentArea: String? = null,
+    @field:Size(max = 100000)
+    val attrs: String? = null
+)
+
 data class NotationImportResponse(
     val notationId: UUID,
     val nodeTypeIdMap: Map<String, UUID>,
     val linkTypeIdMap: Map<String, UUID>,
     val componentIdMap: Map<String, UUID>,
-    val relationIdMap: Map<String, UUID>
+    val relationIdMap: Map<String, UUID>,
+    val shapeIdMap: Map<String, UUID> = emptyMap()
 )

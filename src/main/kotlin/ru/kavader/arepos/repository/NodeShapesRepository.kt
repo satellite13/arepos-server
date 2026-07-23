@@ -10,5 +10,9 @@ import java.util.*
 
 @Repository
 interface NodeShapesRepository : JpaRepository<NodeShapes, UUID> {
+    fun findByOwnerAndNameIgnoreCase(owner: Users, name: String): NodeShapes?
+
+    fun findByOwner(owner: Users): List<NodeShapes>
+
     fun findByOwner(owner: Users, pageable: Pageable): Page<NodeShapes>
 }
