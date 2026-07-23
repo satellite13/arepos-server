@@ -134,6 +134,41 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `set items can replace composition keeping overlapping feedback`() {
+        val admin = persistUser("roadmap-replace-admin@test.com", Role.ADMIN)
+        val author = persistUser("roadmap-replace-author@test.com")
+        val keepId = createFeedback(author, "Keep linked")
+        val removeId = createFeedback(author, "Remove linked")
+        val addId = createFeedback(author, "Add linked")
+        val milestoneId = createMilestone(admin, "Replace composition")
+
+        setItems(milestoneId, listOf(keepId, removeId), admin)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(2))
+
+        setItems(milestoneId, listOf(keepId, addId), admin)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(2))
+            .andExpect(jsonPath("$.items[?(@.id == '$keepId')]").exists())
+            .andExpect(jsonPath("$.items[?(@.id == '$addId')]").exists())
+            .andExpect(jsonPath("$.items[?(@.id == '$removeId')]").doesNotExist())
+    }
+
+    @Test
+    fun `set items can reapply the same feedback ids`() {
+        val admin = persistUser("roadmap-reapply-admin@test.com", Role.ADMIN)
+        val author = persistUser("roadmap-reapply-author@test.com")
+        val feedbackId = createFeedback(author, "Same link")
+        val milestoneId = createMilestone(admin, "Reapply composition")
+
+        setItems(milestoneId, listOf(feedbackId), admin).andExpect(status().isOk)
+        setItems(milestoneId, listOf(feedbackId), admin)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].id").value(feedbackId.toString()))
+    }
+
+    @Test
     fun `merge and set items never leave stale source roadmap link`() {
         val admin = persistUser("roadmap-concurrent-admin@test.com", Role.ADMIN)
         val author = persistUser("roadmap-concurrent-author@test.com")

@@ -149,22 +149,36 @@ class RoadmapService(
                 listOf(RoadmapConflictItem(id, null))
             )
         val uniqueIds = request.feedbackItemIds.distinct().sorted()
-        val items = feedbackItemRepository.findAllByIdInForUpdate(uniqueIds)
+        val items = if (uniqueIds.isEmpty()) {
+            emptyList()
+        } else {
+            feedbackItemRepository.findAllByIdInForUpdate(uniqueIds)
+        }
         if (items.size != uniqueIds.size) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Feedback item not found")
         }
         if (items.any { it.mergedInto != null }) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "Cannot link merged feedback")
         }
-        milestoneItemRepository.deleteByMilestoneId(milestone.id!!)
-        for (item in items) {
-            milestoneItemRepository.save(
-                RoadmapMilestoneItem(
-                    milestone = milestone,
-                    feedbackItem = item
+
+        // Diff instead of delete-all + insert: Hibernate flush order can INSERT before DELETE
+        // and trip roadmap_milestone_items_uq for overlapping feedback ids.
+        val existing = milestoneItemRepository.findByMilestoneId(milestone.id!!)
+        val existingByFeedbackId = existing.associateBy { requireNotNull(it.feedbackItem.id) }
+        val desiredIds = uniqueIds.toSet()
+        existing
+            .filter { requireNotNull(it.feedbackItem.id) !in desiredIds }
+            .forEach(milestoneItemRepository::delete)
+        items
+            .filter { requireNotNull(it.id) !in existingByFeedbackId }
+            .forEach { item ->
+                milestoneItemRepository.save(
+                    RoadmapMilestoneItem(
+                        milestone = milestone,
+                        feedbackItem = item
+                    )
                 )
-            )
-        }
+            }
         return toResponse(milestone)
     }
 
