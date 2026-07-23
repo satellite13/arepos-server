@@ -44,6 +44,9 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
     @Autowired
     protected lateinit var diagramsRepository: DiagramsRepository
 
+    @Autowired
+    protected lateinit var resourceSharesRepository: ResourceSharesRepository
+
     protected fun persistUser(
         email: String = "user-${randomSuffix()}@example.com",
         attrs: String? = """{"role":"tester"}"""
@@ -239,6 +242,23 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
             newValues = """{"status":"created"}""",
             changedBy = persistUser(),
             changedAt = Instant.now()
+        )
+    )
+
+    protected fun persistShare(
+        resourceType: ShareResourceType,
+        resourceId: UUID,
+        grantedBy: Users,
+        grantee: Users? = null,
+        permission: SharePermission = SharePermission.VIEW
+    ): ResourceShares = resourceSharesRepository.save(
+        ResourceShares(
+            resourceType = resourceType,
+            resourceId = resourceId,
+            granteeUser = grantee,
+            grantedByUser = grantedBy,
+            permission = permission,
+            createdAt = Instant.now()
         )
     )
 

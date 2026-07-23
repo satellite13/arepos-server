@@ -1,7 +1,6 @@
 package ru.kavader.arepos.repository
 
 import org.junit.jupiter.api.Test
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import ru.kavader.arepos.model.ResourceShares
@@ -15,9 +14,6 @@ import kotlin.test.assertTrue
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class DiagramsRepositoryTest : RepositoryTestBase() {
-
-    @Autowired
-    lateinit var resourceSharesRepository: ResourceSharesRepository
 
     @Test
     fun `findAll returns only not deleted diagrams`() {

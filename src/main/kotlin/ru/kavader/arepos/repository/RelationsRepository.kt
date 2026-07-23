@@ -9,6 +9,8 @@ import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.Relations
 import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.repository.sql.NotationBoundListSql
+import ru.kavader.arepos.repository.sql.NotationVisibilitySql
 import java.util.*
 
 @Repository
@@ -18,23 +20,8 @@ interface RelationsRepository : JpaRepository<Relations, UUID> {
     fun findByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<Relations>
 
     @Query(
-        value = """
-            SELECT *
-            FROM relations r
-            WHERE (:notationId IS NULL OR r.notation = :notationId)
-              AND (:ownerId IS NULL OR r.owner = :ownerId)
-              AND (:name IS NULL OR r.name ILIKE CONCAT('%', :name, '%'))
-              AND (:tagsJson IS NULL OR COALESCE(r.attrs -> 'tags', '[]'::jsonb) @> CAST(:tagsJson AS jsonb))
-            ORDER BY r.name, r.id
-        """,
-        countQuery = """
-            SELECT COUNT(*)
-            FROM relations r
-            WHERE (:notationId IS NULL OR r.notation = :notationId)
-              AND (:ownerId IS NULL OR r.owner = :ownerId)
-              AND (:name IS NULL OR r.name ILIKE CONCAT('%', :name, '%'))
-              AND (:tagsJson IS NULL OR COALESCE(r.attrs -> 'tags', '[]'::jsonb) @> CAST(:tagsJson AS jsonb))
-        """,
+        value = NotationBoundListSql.RELATIONS_FIND_BY_FILTERS,
+        countQuery = NotationBoundListSql.RELATIONS_COUNT_BY_FILTERS,
         nativeQuery = true
     )
     fun findByFilters(
@@ -46,143 +33,8 @@ interface RelationsRepository : JpaRepository<Relations, UUID> {
     ): Page<Relations>
 
     @Query(
-        value = """
-            SELECT r.*
-            FROM relations r
-            WHERE (:notationId IS NULL OR r.notation = :notationId)
-              AND (:ownerId IS NULL OR r.owner = :ownerId)
-              AND (:name IS NULL OR r.name ILIKE CONCAT('%', :name, '%'))
-              AND (:tagsJson IS NULL OR COALESCE(r.attrs -> 'tags', '[]'::jsonb) @> CAST(:tagsJson AS jsonb))
-              AND (
-                EXISTS (
-                    SELECT 1
-                    FROM notations n
-                    WHERE n.id = r.notation
-                      AND n.deleted = false
-                      AND (
-                        n.owner = :currentUserId
-                        OR EXISTS (
-                            SELECT 1
-                            FROM v_resource_grants rg
-                            WHERE rg.resource_type = 'NOTATION'
-                              AND rg.resource_id = n.id
-                              AND rg.permission IN ('VIEW', 'EDIT')
-                              AND (rg.grantee_user_id = :currentUserId OR rg.grantee_user_id IS NULL)
-                        )
-                      )
-                )
-                OR EXISTS (
-                    SELECT 1
-                    FROM diagrams d
-                    JOIN models m ON m.id = d.model
-                    WHERE d.deleted = false
-                      AND m.deleted = false
-                      AND d.notation_id = r.notation
-                      AND (
-                        m.owner = :currentUserId
-                        OR EXISTS (
-                            SELECT 1
-                            FROM v_resource_grants rg
-                            WHERE rg.resource_type = 'MODEL'
-                              AND rg.resource_id = m.id
-                              AND rg.permission IN ('VIEW', 'EDIT')
-                              AND (rg.grantee_user_id = :currentUserId OR rg.grantee_user_id IS NULL)
-                        )
-                      )
-                )
-                OR (
-                  :diagramEditorModelId IS NOT NULL
-                  AND :notationId IS NOT NULL
-                  AND r.notation = :notationId
-                  AND EXISTS (
-                    SELECT 1
-                    FROM models m
-                    WHERE m.id = :diagramEditorModelId
-                      AND m.deleted = false
-                      AND (
-                        m.owner = :currentUserId
-                        OR EXISTS (
-                          SELECT 1
-                          FROM v_resource_grants rg
-                          WHERE rg.resource_type = 'MODEL'
-                            AND rg.resource_id = m.id
-                            AND rg.permission = 'EDIT'
-                            AND (rg.grantee_user_id = :currentUserId OR rg.grantee_user_id IS NULL)
-                        )
-                      )
-                  )
-                )
-              )
-            ORDER BY r.name, r.id
-        """,
-        countQuery = """
-            SELECT COUNT(*)
-            FROM relations r
-            WHERE (:notationId IS NULL OR r.notation = :notationId)
-              AND (:ownerId IS NULL OR r.owner = :ownerId)
-              AND (:name IS NULL OR r.name ILIKE CONCAT('%', :name, '%'))
-              AND (:tagsJson IS NULL OR COALESCE(r.attrs -> 'tags', '[]'::jsonb) @> CAST(:tagsJson AS jsonb))
-              AND (
-                EXISTS (
-                    SELECT 1
-                    FROM notations n
-                    WHERE n.id = r.notation
-                      AND n.deleted = false
-                      AND (
-                        n.owner = :currentUserId
-                        OR EXISTS (
-                            SELECT 1
-                            FROM v_resource_grants rg
-                            WHERE rg.resource_type = 'NOTATION'
-                              AND rg.resource_id = n.id
-                              AND rg.permission IN ('VIEW', 'EDIT')
-                              AND (rg.grantee_user_id = :currentUserId OR rg.grantee_user_id IS NULL)
-                        )
-                      )
-                )
-                OR EXISTS (
-                    SELECT 1
-                    FROM diagrams d
-                    JOIN models m ON m.id = d.model
-                    WHERE d.deleted = false
-                      AND m.deleted = false
-                      AND d.notation_id = r.notation
-                      AND (
-                        m.owner = :currentUserId
-                        OR EXISTS (
-                            SELECT 1
-                            FROM v_resource_grants rg
-                            WHERE rg.resource_type = 'MODEL'
-                              AND rg.resource_id = m.id
-                              AND rg.permission IN ('VIEW', 'EDIT')
-                              AND (rg.grantee_user_id = :currentUserId OR rg.grantee_user_id IS NULL)
-                        )
-                      )
-                )
-                OR (
-                  :diagramEditorModelId IS NOT NULL
-                  AND :notationId IS NOT NULL
-                  AND r.notation = :notationId
-                  AND EXISTS (
-                    SELECT 1
-                    FROM models m
-                    WHERE m.id = :diagramEditorModelId
-                      AND m.deleted = false
-                      AND (
-                        m.owner = :currentUserId
-                        OR EXISTS (
-                          SELECT 1
-                          FROM v_resource_grants rg
-                          WHERE rg.resource_type = 'MODEL'
-                            AND rg.resource_id = m.id
-                            AND rg.permission = 'EDIT'
-                            AND (rg.grantee_user_id = :currentUserId OR rg.grantee_user_id IS NULL)
-                        )
-                      )
-                  )
-                )
-              )
-        """,
+        value = NotationVisibilitySql.RELATIONS_FIND_ACCESSIBLE,
+        countQuery = NotationVisibilitySql.RELATIONS_COUNT_ACCESSIBLE,
         nativeQuery = true
     )
     fun findAccessibleByFiltersForUser(
@@ -255,5 +107,3 @@ interface RelationsRepository : JpaRepository<Relations, UUID> {
         @Param("userId") userId: UUID
     ): Boolean
 }
-
-
