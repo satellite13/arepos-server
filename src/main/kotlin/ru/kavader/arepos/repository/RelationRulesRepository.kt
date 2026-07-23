@@ -8,6 +8,8 @@ import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.RelationRules
 import ru.kavader.arepos.model.Relations
+import ru.kavader.arepos.repository.sql.RelationRulesFilterSql
+import ru.kavader.arepos.repository.sql.RelationRulesVisibilitySql
 import java.util.*
 
 @Repository
@@ -27,39 +29,8 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
     ): Boolean
 
     @Query(
-        value = """
-            SELECT rr.*
-            FROM relation_rules rr
-            JOIN relations r ON rr.relation = r.id
-            JOIN components c_from ON rr.from_component = c_from.id
-            JOIN components c_to ON rr.to_component = c_to.id
-            WHERE (:relationId IS NULL OR rr.relation = :relationId)
-              AND (:ownerId IS NULL OR rr.owner = :ownerId)
-              AND (
-                :notationId IS NULL OR (
-                  r.notation = :notationId AND
-                  c_from.notation = :notationId AND
-                  c_to.notation = :notationId
-                )
-              )
-            ORDER BY rr.id
-        """,
-        countQuery = """
-            SELECT COUNT(*)
-            FROM relation_rules rr
-            JOIN relations r ON rr.relation = r.id
-            JOIN components c_from ON rr.from_component = c_from.id
-            JOIN components c_to ON rr.to_component = c_to.id
-            WHERE (:relationId IS NULL OR rr.relation = :relationId)
-              AND (:ownerId IS NULL OR rr.owner = :ownerId)
-              AND (
-                :notationId IS NULL OR (
-                  r.notation = :notationId AND
-                  c_from.notation = :notationId AND
-                  c_to.notation = :notationId
-                )
-              )
-        """,
+        value = RelationRulesFilterSql.FIND_ENTITY,
+        countQuery = RelationRulesFilterSql.COUNT,
         nativeQuery = true
     )
     fun findByFilters(
@@ -70,47 +41,8 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
     ): Page<RelationRules>
 
     @Query(
-        value = """
-            SELECT
-                rr.id AS id,
-                rr.relation AS relationId,
-                rr.from_component AS fromComponentId,
-                rr.to_component AS toComponentId,
-                rr.owner AS ownerId,
-                rr.attrs AS attrs,
-                rr.created_at AS createdAt,
-                rr.updated_at AS updatedAt
-            FROM relation_rules rr
-            JOIN relations r ON rr.relation = r.id
-            JOIN components c_from ON rr.from_component = c_from.id
-            JOIN components c_to ON rr.to_component = c_to.id
-            WHERE (:relationId IS NULL OR rr.relation = :relationId)
-              AND (:ownerId IS NULL OR rr.owner = :ownerId)
-              AND (
-                :notationId IS NULL OR (
-                  r.notation = :notationId AND
-                  c_from.notation = :notationId AND
-                  c_to.notation = :notationId
-                )
-              )
-            ORDER BY rr.id
-        """,
-        countQuery = """
-            SELECT COUNT(*)
-            FROM relation_rules rr
-            JOIN relations r ON rr.relation = r.id
-            JOIN components c_from ON rr.from_component = c_from.id
-            JOIN components c_to ON rr.to_component = c_to.id
-            WHERE (:relationId IS NULL OR rr.relation = :relationId)
-              AND (:ownerId IS NULL OR rr.owner = :ownerId)
-              AND (
-                :notationId IS NULL OR (
-                  r.notation = :notationId AND
-                  c_from.notation = :notationId AND
-                  c_to.notation = :notationId
-                )
-              )
-        """,
+        value = RelationRulesFilterSql.FIND_PROJECTED,
+        countQuery = RelationRulesFilterSql.COUNT,
         nativeQuery = true
     )
     fun findProjectedByFilters(
@@ -121,46 +53,8 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
     ): Page<RelationRuleListProjection>
 
     @Query(
-        value = """
-            SELECT
-                rr.id AS id,
-                rr.relation AS relationId,
-                rr.from_component AS fromComponentId,
-                rr.to_component AS toComponentId,
-                rr.owner AS ownerId,
-                rr.created_at AS createdAt,
-                rr.updated_at AS updatedAt
-            FROM relation_rules rr
-            JOIN relations r ON rr.relation = r.id
-            JOIN components c_from ON rr.from_component = c_from.id
-            JOIN components c_to ON rr.to_component = c_to.id
-            WHERE (:relationId IS NULL OR rr.relation = :relationId)
-              AND (:ownerId IS NULL OR rr.owner = :ownerId)
-              AND (
-                :notationId IS NULL OR (
-                  r.notation = :notationId AND
-                  c_from.notation = :notationId AND
-                  c_to.notation = :notationId
-                )
-              )
-            ORDER BY rr.id
-        """,
-        countQuery = """
-            SELECT COUNT(*)
-            FROM relation_rules rr
-            JOIN relations r ON rr.relation = r.id
-            JOIN components c_from ON rr.from_component = c_from.id
-            JOIN components c_to ON rr.to_component = c_to.id
-            WHERE (:relationId IS NULL OR rr.relation = :relationId)
-              AND (:ownerId IS NULL OR rr.owner = :ownerId)
-              AND (
-                :notationId IS NULL OR (
-                  r.notation = :notationId AND
-                  c_from.notation = :notationId AND
-                  c_to.notation = :notationId
-                )
-              )
-        """,
+        value = RelationRulesFilterSql.FIND_PROJECTED_LIGHT,
+        countQuery = RelationRulesFilterSql.COUNT,
         nativeQuery = true
     )
     fun findProjectedLightByFilters(
@@ -171,153 +65,8 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
     ): Page<RelationRuleListLightProjection>
 
     @Query(
-        value = """
-            SELECT
-                rr.id AS id,
-                rr.relation AS relationId,
-                rr.from_component AS fromComponentId,
-                rr.to_component AS toComponentId,
-                rr.owner AS ownerId,
-                rr.attrs AS attrs,
-                rr.created_at AS createdAt,
-                rr.updated_at AS updatedAt
-            FROM relation_rules rr
-            JOIN relations r ON rr.relation = r.id
-            JOIN components c_from ON rr.from_component = c_from.id
-            JOIN components c_to ON rr.to_component = c_to.id
-            WHERE (:relationId IS NULL OR rr.relation = :relationId)
-              AND (:ownerId IS NULL OR rr.owner = :ownerId)
-              AND (
-                :notationId IS NULL OR (
-                  r.notation = :notationId AND
-                  c_from.notation = :notationId AND
-                  c_to.notation = :notationId
-                )
-              )
-              AND (
-                r.notation IN (
-                  SELECT n.id
-                  FROM notations n
-                  WHERE
-                    n.owner = :currentUserId
-                    OR EXISTS (
-                      SELECT 1
-                      FROM resource_shares rs
-                      WHERE rs.resource_type = 'NOTATION'
-                        AND rs.resource_id = n.id
-                        AND rs.permission IN ('VIEW', 'EDIT')
-                        AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                    )
-                )
-                OR r.notation IN (
-                  SELECT DISTINCT d.notation_id
-                  FROM diagrams d
-                  JOIN models m ON d.model = m.id
-                  WHERE
-                    m.owner = :currentUserId
-                    OR EXISTS (
-                      SELECT 1
-                      FROM resource_shares rs
-                      WHERE rs.resource_type = 'MODEL'
-                        AND rs.resource_id = m.id
-                        AND rs.permission IN ('VIEW', 'EDIT')
-                        AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                    )
-                )
-                OR (
-                  :diagramEditorModelId IS NOT NULL
-                  AND :notationId IS NOT NULL
-                  AND r.notation = :notationId
-                  AND EXISTS (
-                    SELECT 1
-                    FROM models m
-                    WHERE m.id = :diagramEditorModelId
-                      AND m.deleted = false
-                      AND (
-                        m.owner = :currentUserId
-                        OR EXISTS (
-                          SELECT 1
-                          FROM resource_shares rs
-                          WHERE rs.resource_type = 'MODEL'
-                            AND rs.resource_id = m.id
-                            AND rs.permission = 'EDIT'
-                            AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                        )
-                      )
-                  )
-                )
-              )
-            ORDER BY rr.id
-        """,
-        countQuery = """
-            SELECT COUNT(*)
-            FROM relation_rules rr
-            JOIN relations r ON rr.relation = r.id
-            JOIN components c_from ON rr.from_component = c_from.id
-            JOIN components c_to ON rr.to_component = c_to.id
-            WHERE (:relationId IS NULL OR rr.relation = :relationId)
-              AND (:ownerId IS NULL OR rr.owner = :ownerId)
-              AND (
-                :notationId IS NULL OR (
-                  r.notation = :notationId AND
-                  c_from.notation = :notationId AND
-                  c_to.notation = :notationId
-                )
-              )
-              AND (
-                r.notation IN (
-                  SELECT n.id
-                  FROM notations n
-                  WHERE
-                    n.owner = :currentUserId
-                    OR EXISTS (
-                      SELECT 1
-                      FROM resource_shares rs
-                      WHERE rs.resource_type = 'NOTATION'
-                        AND rs.resource_id = n.id
-                        AND rs.permission IN ('VIEW', 'EDIT')
-                        AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                    )
-                )
-                OR r.notation IN (
-                  SELECT DISTINCT d.notation_id
-                  FROM diagrams d
-                  JOIN models m ON d.model = m.id
-                  WHERE
-                    m.owner = :currentUserId
-                    OR EXISTS (
-                      SELECT 1
-                      FROM resource_shares rs
-                      WHERE rs.resource_type = 'MODEL'
-                        AND rs.resource_id = m.id
-                        AND rs.permission IN ('VIEW', 'EDIT')
-                        AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                    )
-                )
-                OR (
-                  :diagramEditorModelId IS NOT NULL
-                  AND :notationId IS NOT NULL
-                  AND r.notation = :notationId
-                  AND EXISTS (
-                    SELECT 1
-                    FROM models m
-                    WHERE m.id = :diagramEditorModelId
-                      AND m.deleted = false
-                      AND (
-                        m.owner = :currentUserId
-                        OR EXISTS (
-                          SELECT 1
-                          FROM resource_shares rs
-                          WHERE rs.resource_type = 'MODEL'
-                            AND rs.resource_id = m.id
-                            AND rs.permission = 'EDIT'
-                            AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                        )
-                      )
-                  )
-                )
-              )
-        """,
+        value = RelationRulesVisibilitySql.FIND_PROJECTED_FOR_USER,
+        countQuery = RelationRulesVisibilitySql.COUNT_FOR_USER,
         nativeQuery = true
     )
     fun findProjectedByFiltersForUser(
@@ -330,152 +79,8 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
     ): Page<RelationRuleListProjection>
 
     @Query(
-        value = """
-            SELECT
-                rr.id AS id,
-                rr.relation AS relationId,
-                rr.from_component AS fromComponentId,
-                rr.to_component AS toComponentId,
-                rr.owner AS ownerId,
-                rr.created_at AS createdAt,
-                rr.updated_at AS updatedAt
-            FROM relation_rules rr
-            JOIN relations r ON rr.relation = r.id
-            JOIN components c_from ON rr.from_component = c_from.id
-            JOIN components c_to ON rr.to_component = c_to.id
-            WHERE (:relationId IS NULL OR rr.relation = :relationId)
-              AND (:ownerId IS NULL OR rr.owner = :ownerId)
-              AND (
-                :notationId IS NULL OR (
-                  r.notation = :notationId AND
-                  c_from.notation = :notationId AND
-                  c_to.notation = :notationId
-                )
-              )
-              AND (
-                r.notation IN (
-                  SELECT n.id
-                  FROM notations n
-                  WHERE
-                    n.owner = :currentUserId
-                    OR EXISTS (
-                      SELECT 1
-                      FROM resource_shares rs
-                      WHERE rs.resource_type = 'NOTATION'
-                        AND rs.resource_id = n.id
-                        AND rs.permission IN ('VIEW', 'EDIT')
-                        AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                    )
-                )
-                OR r.notation IN (
-                  SELECT DISTINCT d.notation_id
-                  FROM diagrams d
-                  JOIN models m ON d.model = m.id
-                  WHERE
-                    m.owner = :currentUserId
-                    OR EXISTS (
-                      SELECT 1
-                      FROM resource_shares rs
-                      WHERE rs.resource_type = 'MODEL'
-                        AND rs.resource_id = m.id
-                        AND rs.permission IN ('VIEW', 'EDIT')
-                        AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                    )
-                )
-                OR (
-                  :diagramEditorModelId IS NOT NULL
-                  AND :notationId IS NOT NULL
-                  AND r.notation = :notationId
-                  AND EXISTS (
-                    SELECT 1
-                    FROM models m
-                    WHERE m.id = :diagramEditorModelId
-                      AND m.deleted = false
-                      AND (
-                        m.owner = :currentUserId
-                        OR EXISTS (
-                          SELECT 1
-                          FROM resource_shares rs
-                          WHERE rs.resource_type = 'MODEL'
-                            AND rs.resource_id = m.id
-                            AND rs.permission = 'EDIT'
-                            AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                        )
-                      )
-                  )
-                )
-              )
-            ORDER BY rr.id
-        """,
-        countQuery = """
-            SELECT COUNT(*)
-            FROM relation_rules rr
-            JOIN relations r ON rr.relation = r.id
-            JOIN components c_from ON rr.from_component = c_from.id
-            JOIN components c_to ON rr.to_component = c_to.id
-            WHERE (:relationId IS NULL OR rr.relation = :relationId)
-              AND (:ownerId IS NULL OR rr.owner = :ownerId)
-              AND (
-                :notationId IS NULL OR (
-                  r.notation = :notationId AND
-                  c_from.notation = :notationId AND
-                  c_to.notation = :notationId
-                )
-              )
-              AND (
-                r.notation IN (
-                  SELECT n.id
-                  FROM notations n
-                  WHERE
-                    n.owner = :currentUserId
-                    OR EXISTS (
-                      SELECT 1
-                      FROM resource_shares rs
-                      WHERE rs.resource_type = 'NOTATION'
-                        AND rs.resource_id = n.id
-                        AND rs.permission IN ('VIEW', 'EDIT')
-                        AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                    )
-                )
-                OR r.notation IN (
-                  SELECT DISTINCT d.notation_id
-                  FROM diagrams d
-                  JOIN models m ON d.model = m.id
-                  WHERE
-                    m.owner = :currentUserId
-                    OR EXISTS (
-                      SELECT 1
-                      FROM resource_shares rs
-                      WHERE rs.resource_type = 'MODEL'
-                        AND rs.resource_id = m.id
-                        AND rs.permission IN ('VIEW', 'EDIT')
-                        AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                    )
-                )
-                OR (
-                  :diagramEditorModelId IS NOT NULL
-                  AND :notationId IS NOT NULL
-                  AND r.notation = :notationId
-                  AND EXISTS (
-                    SELECT 1
-                    FROM models m
-                    WHERE m.id = :diagramEditorModelId
-                      AND m.deleted = false
-                      AND (
-                        m.owner = :currentUserId
-                        OR EXISTS (
-                          SELECT 1
-                          FROM resource_shares rs
-                          WHERE rs.resource_type = 'MODEL'
-                            AND rs.resource_id = m.id
-                            AND rs.permission = 'EDIT'
-                            AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
-                        )
-                      )
-                  )
-                )
-              )
-        """,
+        value = RelationRulesVisibilitySql.FIND_PROJECTED_LIGHT_FOR_USER,
+        countQuery = RelationRulesVisibilitySql.COUNT_FOR_USER,
         nativeQuery = true
     )
     fun findProjectedLightByFiltersForUser(
@@ -487,5 +92,3 @@ interface RelationRulesRepository : JpaRepository<RelationRules, UUID> {
         pageable: Pageable
     ): Page<RelationRuleListLightProjection>
 }
-
-
