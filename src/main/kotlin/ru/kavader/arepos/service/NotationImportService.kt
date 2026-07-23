@@ -1,5 +1,6 @@
 package ru.kavader.arepos.service
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -24,9 +25,11 @@ class NotationImportService(
     private val notationsRepository: NotationsRepository,
     private val nodeTypesRepository: NodeTypesRepository,
     private val linkTypesRepository: LinkTypesRepository,
+    private val nodeShapesRepository: NodeShapesRepository,
     private val componentsRepository: ComponentsRepository,
     private val relationsRepository: RelationsRepository,
-    private val relationRulesRepository: RelationRulesRepository
+    private val relationRulesRepository: RelationRulesRepository,
+    private val objectMapper: ObjectMapper
 ) {
     @Transactional
     fun import(request: NotationImportRequest, owner: Users): NotationImportResponse {
@@ -95,6 +98,26 @@ class NotationImportService(
             }
         }
 
+        val shapeIdMap = mutableMapOf<String, UUID>()
+        val takenShapeNames = nodeShapesRepository.findByOwner(owner)
+            .map { it.name.lowercase() }
+            .toMutableSet()
+        for (importedShape in buildEffectiveShapes(request.shapes, request.components, objectMapper)) {
+            val uniqueName = nextUniqueShapeName(importedShape.name, takenShapeNames)
+            val savedShape = nodeShapesRepository.save(
+                NodeShapes(
+                    name = uniqueName,
+                    owner = owner,
+                    outline = importedShape.outline,
+                    contentArea = importedShape.contentArea,
+                    attrs = stripDocumentFileIdFromAttrs(importedShape.attrs, objectMapper),
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
+            shapeIdMap[importedShape.id] = savedShape.id!!
+        }
+
         val componentIdMap = mutableMapOf<String, UUID>()
         for (importedComponent in request.components) {
             val nodeTypeId = nodeTypeIdMap[importedComponent.nodeTypeId]
@@ -109,7 +132,7 @@ class NotationImportService(
                 Components(
                     name = importedComponent.name.trim(),
                     version = importedComponent.version?.trim()?.ifEmpty { null } ?: savedNotation.version,
-                    attrs = importedComponent.attrs,
+                    attrs = remapCustomShapeIdInAttrs(importedComponent.attrs, shapeIdMap, objectMapper),
                     notation = savedNotation,
                     owner = owner,
                     nodeType = nodeType,
@@ -180,7 +203,8 @@ class NotationImportService(
             nodeTypeIdMap = nodeTypeIdMap,
             linkTypeIdMap = linkTypeIdMap,
             componentIdMap = componentIdMap,
-            relationIdMap = relationIdMap
+            relationIdMap = relationIdMap,
+            shapeIdMap = shapeIdMap
         )
     }
 }
