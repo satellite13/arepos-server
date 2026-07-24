@@ -28,5 +28,3 @@ select setval(
     coalesce((select max(public_number) from public.feedback_items), 0) + 1,
     false
 );
-
-create index feedback_items_public_number_idx on public.feedback_items (public_number);

@@ -166,6 +166,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items.length()").value(1))
             .andExpect(jsonPath("$.items[0].id").value(feedbackId.toString()))
+            .andExpect(jsonPath("$.items[0].publicKey").value(org.hamcrest.Matchers.matchesPattern("FB-\\d+")))
     }
 
     @Test

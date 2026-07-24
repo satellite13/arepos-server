@@ -700,6 +700,80 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.audit[0].rowId").value(id))
     }
 
+    @Test
+    fun `create returns publicKey and get accepts key`() {
+        val user = persistUser("feedback-key@test.com")
+        val created = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/v1/feedback")
+                    .withAuth(user.id!!, Role.USER)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            CreateFeedbackRequest("idea", "Keyed item", "Body")
+                        )
+                    )
+            )
+                .andExpect(status().isCreated)
+                .andExpect(jsonPath("$.publicKey").value(org.hamcrest.Matchers.matchesPattern("FB-\\d+")))
+                .andReturn().response.contentAsString
+        )
+        val publicKey = created.get("publicKey").asText()
+        val uuid = created.get("id").asText()
+
+        mockMvc.perform(get("/api/v1/feedback/$publicKey"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.id").value(uuid))
+            .andExpect(jsonPath("$.publicKey").value(publicKey))
+
+        mockMvc.perform(get("/api/v1/feedback/${publicKey.lowercase()}"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.publicKey").value(publicKey))
+
+        mockMvc.perform(get("/api/v1/feedback/$uuid"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.publicKey").value(publicKey))
+    }
+
+    @Test
+    fun `list finds by public key and plain number exactly`() {
+        val user = persistUser("feedback-key-search@test.com")
+        val created = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/v1/feedback")
+                    .withAuth(user.id!!, Role.USER)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            CreateFeedbackRequest("bug", "Exact key search", "contains 99999 noise")
+                        )
+                    )
+            ).andExpect(status().isCreated).andReturn().response.contentAsString
+        )
+        val publicKey = created.get("publicKey").asText()
+        val number = publicKey.removePrefix("FB-")
+
+        mockMvc.perform(get("/api/v1/feedback").param("q", publicKey))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].publicKey").value(publicKey))
+
+        mockMvc.perform(get("/api/v1/feedback").param("q", number))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].publicKey").value(publicKey))
+
+        mockMvc.perform(get("/api/v1/feedback").param("q", "99999"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(0))
+    }
+
+    @Test
+    fun `unknown public key returns 404`() {
+        mockMvc.perform(get("/api/v1/feedback/FB-999999999"))
+            .andExpect(status().isNotFound)
+    }
+
     private fun createFeedback(author: Users, title: String, body: String = "Feedback body"): String =
         objectMapper.readTree(
             mockMvc.perform(
