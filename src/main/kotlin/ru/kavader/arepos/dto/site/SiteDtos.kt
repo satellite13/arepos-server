@@ -12,6 +12,7 @@ data class FeedbackAuthorResponse(
 
 data class FeedbackItemResponse(
     val id: UUID,
+    val publicKey: String,
     val type: String,
     val title: String,
     val body: String,
@@ -65,6 +66,7 @@ data class CreateFeedbackCommentRequest(
 
 data class RoadmapLinkedItemResponse(
     val id: UUID,
+    val publicKey: String,
     val type: String,
     val title: String,
     val status: String,

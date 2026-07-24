@@ -21,6 +21,7 @@ import ru.kavader.arepos.repository.FeedbackItemRepository
 import ru.kavader.arepos.repository.RoadmapMilestoneItemRepository
 import ru.kavader.arepos.repository.RoadmapMilestoneRepository
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.util.FeedbackPublicKey
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -240,6 +241,7 @@ class RoadmapService(
                 val item = link.feedbackItem
                 RoadmapLinkedItemResponse(
                     id = item.id!!,
+                    publicKey = FeedbackPublicKey.format(item.publicNumber),
                     type = item.type,
                     title = item.title,
                     status = item.status,

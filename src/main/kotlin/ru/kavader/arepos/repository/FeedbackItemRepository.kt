@@ -11,6 +11,11 @@ import ru.kavader.arepos.model.FeedbackItem
 import java.util.UUID
 
 interface FeedbackItemRepository : JpaRepository<FeedbackItem, UUID> {
+    fun findByPublicNumber(publicNumber: Int): FeedbackItem?
+
+    @Query(value = "SELECT nextval('feedback_items_public_number_seq')", nativeQuery = true)
+    fun nextPublicNumber(): Long
+
     @Query(
         """
         SELECT f FROM FeedbackItem f
@@ -18,8 +23,16 @@ interface FeedbackItemRepository : JpaRepository<FeedbackItem, UUID> {
           AND (:status IS NULL OR f.status = :status)
           AND (
             :q IS NULL
-            OR LOWER(f.title) LIKE CONCAT('%', LOWER(CAST(:q AS string)), '%') ESCAPE '\'
-            OR LOWER(f.body) LIKE CONCAT('%', LOWER(CAST(:q AS string)), '%') ESCAPE '\'
+            OR (
+              :exactPublicNumber IS NOT NULL AND f.publicNumber = :exactPublicNumber
+            )
+            OR (
+              :exactPublicNumber IS NULL
+              AND (
+                LOWER(f.title) LIKE CONCAT('%', LOWER(CAST(:q AS string)), '%') ESCAPE '\'
+                OR LOWER(f.body) LIKE CONCAT('%', LOWER(CAST(:q AS string)), '%') ESCAPE '\'
+              )
+            )
           )
         """
     )
@@ -27,6 +40,7 @@ interface FeedbackItemRepository : JpaRepository<FeedbackItem, UUID> {
         @Param("type") type: String?,
         @Param("status") status: String?,
         @Param("q") q: String?,
+        @Param("exactPublicNumber") exactPublicNumber: Int?,
         pageable: Pageable
     ): Page<FeedbackItem>
 

@@ -21,7 +21,6 @@ import ru.kavader.arepos.dto.site.MergeFeedbackRequest
 import ru.kavader.arepos.dto.site.MergeFeedbackResponse
 import ru.kavader.arepos.dto.site.UpdateFeedbackRequest
 import ru.kavader.arepos.service.FeedbackService
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/feedback")
@@ -41,7 +40,7 @@ class FeedbackController(
 
     @GetMapping("/{id}")
     fun get(
-        @PathVariable id: UUID,
+        @PathVariable id: String,
         @RequestParam(required = false) include: String?
     ): FeedbackItemResponse = feedbackService.get(id, include)
 
@@ -52,32 +51,32 @@ class FeedbackController(
 
     @PatchMapping("/{id}")
     fun update(
-        @PathVariable id: UUID,
+        @PathVariable id: String,
         @RequestBody request: UpdateFeedbackRequest
     ): FeedbackItemResponse = feedbackService.update(id, request)
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun delete(@PathVariable id: UUID) {
+    fun delete(@PathVariable id: String) {
         feedbackService.delete(id)
     }
 
     @PostMapping("/{id}/merge")
     fun merge(
-        @PathVariable id: UUID,
+        @PathVariable id: String,
         @RequestBody request: MergeFeedbackRequest
     ): MergeFeedbackResponse = feedbackService.merge(id, request)
 
     @PostMapping("/{id}/votes")
-    fun vote(@PathVariable id: UUID): FeedbackItemResponse = feedbackService.vote(id)
+    fun vote(@PathVariable id: String): FeedbackItemResponse = feedbackService.vote(id)
 
     @DeleteMapping("/{id}/votes")
-    fun unvote(@PathVariable id: UUID): FeedbackItemResponse = feedbackService.unvote(id)
+    fun unvote(@PathVariable id: String): FeedbackItemResponse = feedbackService.unvote(id)
 
     @PostMapping("/{id}/comments")
     @ResponseStatus(HttpStatus.CREATED)
     fun comment(
-        @PathVariable id: UUID,
+        @PathVariable id: String,
         @RequestBody request: CreateFeedbackCommentRequest
     ): FeedbackCommentResponse = feedbackService.addComment(id, request)
 }

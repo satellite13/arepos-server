@@ -28,6 +28,7 @@ import ru.kavader.arepos.repository.RoadmapMilestoneItemRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.util.FeedbackPublicKey
 import java.time.Instant
 import java.util.UUID
 
@@ -45,7 +46,13 @@ class FeedbackService(
     fun list(type: String?, status: String?, q: String?, sort: String?, page: Int, size: Int): Page<FeedbackItemResponse> {
         validateOptionalType(type)
         validateOptionalStatus(status)
-        val query = q?.trim()?.takeIf { it.isNotEmpty() }?.let(::escapeLikeQuery)
+        val rawQuery = q?.trim()?.takeIf { it.isNotEmpty() }
+        val exactPublicNumber = resolveExactPublicNumber(rawQuery)
+        val query = if (exactPublicNumber == null) {
+            rawQuery?.let(::escapeLikeQuery)
+        } else {
+            rawQuery
+        }
         val sortSpec = when (sort) {
             "recent", null -> Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"))
             "votes" -> Sort.by(Sort.Direction.DESC, "voteCount")
@@ -55,7 +62,7 @@ class FeedbackService(
         }
         val pageable = PageRequest.of(page.coerceAtLeast(0), size.coerceIn(1, 100), sortSpec)
         val currentUserId = CurrentUser.getId()
-        return feedbackItemRepository.findByFilters(type, status, query, pageable).map { item ->
+        return feedbackItemRepository.findByFilters(type, status, query, exactPublicNumber, pageable).map { item ->
             toResponse(item, includeComments = false, currentUserId = currentUserId)
         }
     }
@@ -63,8 +70,13 @@ class FeedbackService(
     private fun escapeLikeQuery(query: String): String =
         query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
-    fun get(id: UUID, include: String?): FeedbackItemResponse {
-        val item = findItem(id)
+    private fun resolveExactPublicNumber(q: String?): Int? {
+        if (q == null) return null
+        return FeedbackPublicKey.parseNumber(q) ?: FeedbackPublicKey.parsePlainNumber(q)
+    }
+
+    fun get(ref: String, include: String?): FeedbackItemResponse {
+        val item = findItemByRef(ref)
         val includeAudit = include?.split(",")?.any { it.trim() == "audit" } == true
         if (includeAudit) {
             accessService.requireCanManageFeedback()
@@ -86,12 +98,14 @@ class FeedbackService(
         val body = request.body.trim()
         validateTitleBody(title, body)
         val now = Instant.now()
+        val publicNumber = feedbackItemRepository.nextPublicNumber().toInt()
         val saved = feedbackItemRepository.save(
             FeedbackItem(
                 type = type,
                 title = title,
                 body = body,
                 status = "new",
+                publicNumber = publicNumber,
                 author = author,
                 voteCount = 0,
                 createdAt = now,
@@ -102,8 +116,8 @@ class FeedbackService(
     }
 
     @Transactional
-    fun update(id: UUID, request: UpdateFeedbackRequest): FeedbackItemResponse {
-        val item = findItemForUpdate(id)
+    fun update(ref: String, request: UpdateFeedbackRequest): FeedbackItemResponse {
+        val item = findItemForUpdate(findItemByRef(ref).id!!)
         requireNotMerged(item)
         val authorId = item.author.id!!
         val isAdmin = accessService.canManageFeedback()
@@ -137,9 +151,9 @@ class FeedbackService(
     }
 
     @Transactional
-    fun vote(id: UUID): FeedbackItemResponse {
+    fun vote(ref: String): FeedbackItemResponse {
         accessService.requireCanVoteFeedback()
-        val item = findItemForUpdate(id)
+        val item = findItemForUpdate(findItemByRef(ref).id!!)
         requireNotMerged(item)
         val user = currentUser()
         if (!feedbackVoteRepository.existsByItemIdAndUserId(item.id!!, user.id!!)) {
@@ -158,9 +172,9 @@ class FeedbackService(
     }
 
     @Transactional
-    fun unvote(id: UUID): FeedbackItemResponse {
+    fun unvote(ref: String): FeedbackItemResponse {
         accessService.requireCanVoteFeedback()
-        val item = findItemForUpdate(id)
+        val item = findItemForUpdate(findItemByRef(ref).id!!)
         requireNotMerged(item)
         val userId = accessService.currentUserId()
         feedbackVoteRepository.findByItemIdAndUserId(item.id!!, userId).ifPresent { vote ->
@@ -173,9 +187,9 @@ class FeedbackService(
     }
 
     @Transactional
-    fun addComment(id: UUID, request: CreateFeedbackCommentRequest): FeedbackCommentResponse {
+    fun addComment(ref: String, request: CreateFeedbackCommentRequest): FeedbackCommentResponse {
         accessService.requireCanCommentFeedback()
-        val item = findItemForUpdate(id)
+        val item = findItemForUpdate(findItemByRef(ref).id!!)
         requireNotMerged(item)
         val author = currentUser()
         val body = request.body.trim()
@@ -194,8 +208,8 @@ class FeedbackService(
     }
 
     @Transactional
-    fun delete(id: UUID) {
-        val item = findItemForUpdate(id)
+    fun delete(ref: String) {
+        val item = findItemForUpdate(findItemByRef(ref).id!!)
         if (!accessService.canManageFeedback()) {
             accessService.requireCanDeleteOwnFeedback(item.author.id!!, item.status)
         }
@@ -206,8 +220,9 @@ class FeedbackService(
     }
 
     @Transactional
-    fun merge(sourceId: UUID, request: MergeFeedbackRequest): MergeFeedbackResponse {
+    fun merge(sourceRef: String, request: MergeFeedbackRequest): MergeFeedbackResponse {
         accessService.requireCanManageFeedback()
+        val sourceId = findItemByRef(sourceRef).id!!
         if (sourceId == request.targetId) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot merge feedback into itself")
         }
@@ -269,6 +284,20 @@ class FeedbackService(
         feedbackItemRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found") }
 
+    private fun findItemByRef(ref: String): FeedbackItem {
+        val trimmed = ref.trim()
+        FeedbackPublicKey.parseNumber(trimmed)?.let { number ->
+            return feedbackItemRepository.findByPublicNumber(number)
+                ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found")
+        }
+        val id = try {
+            UUID.fromString(trimmed)
+        } catch (_: IllegalArgumentException) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found")
+        }
+        return findItem(id)
+    }
+
     private fun findItemForUpdate(id: UUID): FeedbackItem =
         feedbackItemRepository.findByIdForUpdate(id)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found")
@@ -298,6 +327,7 @@ class FeedbackService(
         }
         return FeedbackItemResponse(
             id = item.id!!,
+            publicKey = FeedbackPublicKey.format(item.publicNumber),
             type = item.type,
             title = item.title,
             body = item.body,
