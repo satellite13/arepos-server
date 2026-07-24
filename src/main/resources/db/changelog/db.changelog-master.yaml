@@ -405,3 +405,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 044-feedback-public-number
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/044-feedback-public-number.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

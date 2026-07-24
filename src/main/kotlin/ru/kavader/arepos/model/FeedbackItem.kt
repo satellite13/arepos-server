@@ -34,6 +34,9 @@ class FeedbackItem(
     @Column(name = "status", nullable = false, length = 32)
     var status: String = "new",
 
+    @Column(name = "public_number", nullable = false, unique = true)
+    var publicNumber: Int = 0,
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id", nullable = false)
     var author: Users,
