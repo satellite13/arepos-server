@@ -97,6 +97,32 @@ class OefParseServiceTest {
     }
 
     @Test
+    fun `parses relationship name`() {
+        val xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="m1">
+              <name>Named</name>
+              <elements>
+                <element identifier="el-a" xsi:type="BusinessProcess"><name>A</name></element>
+                <element identifier="el-b" xsi:type="BusinessProcess"><name>B</name></element>
+              </elements>
+              <relationships>
+                <relationship identifier="rel-1" source="el-a" target="el-b" xsi:type="Flow">
+                  <name>Payload flow</name>
+                </relationship>
+              </relationships>
+              <views><diagrams/></views>
+            </model>
+            """.trimIndent().toByteArray()
+
+        val parsed = service.parseAndValidate(xml)
+        assertEquals(1, parsed.relationships.size)
+        assertEquals("Payload flow", parsed.relationships.single().name)
+        assertEquals("Flow", parsed.relationships.single().type)
+    }
+
+    @Test
     fun `flags missing relationship endpoints as errors`() {
         val xml =
             """

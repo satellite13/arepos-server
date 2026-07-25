@@ -128,6 +128,12 @@ class OefParseService {
                             }
                         }
 
+                        pathEquals(path, "model", "relationships", "relationship", "name") &&
+                            currentRelationship != null -> {
+                            textTarget = TextTarget.RELATIONSHIP_NAME
+                            textBuf.setLength(0)
+                        }
+
                         pathEquals(path, "model", "views", "diagrams", "view") -> {
                             val id = attr(reader, "identifier")
                             if (id.isNotEmpty()) {
@@ -233,6 +239,12 @@ class OefParseService {
                         TextTarget.ELEMENT_NAME -> {
                             if (local == "name") {
                                 currentElement?.name = textBuf.toString().trim()
+                                textTarget = null
+                            }
+                        }
+                        TextTarget.RELATIONSHIP_NAME -> {
+                            if (local == "name") {
+                                currentRelationship?.name = textBuf.toString().trim()
                                 textTarget = null
                             }
                         }
@@ -590,6 +602,7 @@ class OefParseService {
     private enum class TextTarget {
         MODEL_NAME,
         ELEMENT_NAME,
+        RELATIONSHIP_NAME,
         VIEW_NAME,
         NODE_LABEL,
         NODE_NAME,
@@ -650,6 +663,7 @@ class OefParseService {
         val type: String,
         val sourceElementId: String,
         val targetElementId: String,
+        var name: String = "",
     ) {
         fun toDto(): OefRelationshipDto =
             OefRelationshipDto(
@@ -657,6 +671,7 @@ class OefParseService {
                 type = type,
                 sourceElementId = sourceElementId,
                 targetElementId = targetElementId,
+                name = name,
             )
     }
 

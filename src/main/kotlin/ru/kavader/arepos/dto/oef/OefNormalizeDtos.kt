@@ -36,6 +36,7 @@ data class OefRelationshipDto(
     val type: String,
     val sourceElementId: String,
     val targetElementId: String,
+    val name: String = "",
 )
 
 data class OefViewNodeDto(
