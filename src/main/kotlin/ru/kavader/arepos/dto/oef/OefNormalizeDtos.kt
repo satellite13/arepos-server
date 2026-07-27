@@ -29,6 +29,7 @@ data class OefElementDto(
     val id: String,
     val type: String,
     val name: String,
+    val properties: Map<String, String> = emptyMap(),
 )
 
 data class OefRelationshipDto(
@@ -37,6 +38,7 @@ data class OefRelationshipDto(
     val sourceElementId: String,
     val targetElementId: String,
     val name: String = "",
+    val properties: Map<String, String> = emptyMap(),
 )
 
 data class OefViewNodeDto(

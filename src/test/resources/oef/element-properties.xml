@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       identifier="id-model-props">
+  <name>Props</name>
+  <elements>
+    <element identifier="id-el-1" xsi:type="BusinessService">
+      <name>Svc</name>
+      <properties>
+        <property propertyDefinitionRef="prop-owner">
+          <value>Team A</value>
+        </property>
+        <property propertyDefinitionRef="prop-count">
+          <value>7</value>
+        </property>
+        <property propertyDefinitionRef="prop-unknown">
+          <value>x</value>
+        </property>
+      </properties>
+    </element>
+  </elements>
+  <relationships>
+    <relationship identifier="id-rel-1" source="id-el-1" target="id-el-1" xsi:type="Association">
+      <name>Self</name>
+      <properties>
+        <property propertyDefinitionRef="prop-owner">
+          <value>Link Owner</value>
+        </property>
+      </properties>
+    </relationship>
+  </relationships>
+  <propertyDefinitions>
+    <propertyDefinition identifier="prop-owner" type="string">
+      <name>Owner</name>
+    </propertyDefinition>
+    <propertyDefinition identifier="prop-count" type="string">
+      <name>Count</name>
+    </propertyDefinition>
+    <propertyDefinition identifier="prop-unknown" type="string">
+      <name>OrphanProp</name>
+    </propertyDefinition>
+  </propertyDefinitions>
+</model>

@@ -61,13 +61,15 @@ class OefParseService {
         var modelName = ""
         var modelNameCaptured = false
 
-        val elements = mutableListOf<OefElementDto>()
-        val relationships = mutableListOf<OefRelationshipDto>()
+        val mutableElements = mutableListOf<MutableElement>()
+        val mutableRelationships = mutableListOf<MutableRelationship>()
         val views = mutableListOf<OefViewDto>()
         val organizationRoots = mutableListOf<MutableOrgNode>()
         val orgStack = ArrayDeque<MutableOrgFolder>()
         // Tracks whether the current <item> was a leaf (identifierRef) so END does not pop a folder.
         val orgItemIsLeaf = ArrayDeque<Boolean>()
+
+        val propertyDefinitions = mutableMapOf<String, String>()
 
         // Path of open element local names (for section detection).
         val path = ArrayDeque<String>()
@@ -77,6 +79,10 @@ class OefParseService {
         var currentView: MutableView? = null
         val openNodes = ArrayDeque<MutableViewNode>()
         var currentConnection: MutableConnection? = null
+        var currentPropertyDefId: String? = null
+        var currentPropertyDefName = ""
+        var pendingPropertyRef = ""
+        var pendingPropertyValue = ""
 
         // Text capture for direct-child name/label of the current entity.
         var textTarget: TextTarget? = null
@@ -115,6 +121,25 @@ class OefParseService {
                             textBuf.setLength(0)
                         }
 
+                        pathEquals(path, "model", "elements", "element", "properties", "property") &&
+                            currentElement != null -> {
+                            pendingPropertyRef = attr(reader, "propertyDefinitionRef")
+                            pendingPropertyValue = ""
+                        }
+
+                        pathEquals(
+                            path,
+                            "model",
+                            "elements",
+                            "element",
+                            "properties",
+                            "property",
+                            "value",
+                        ) && currentElement != null -> {
+                            textTarget = TextTarget.PROPERTY_VALUE
+                            textBuf.setLength(0)
+                        }
+
                         pathEquals(path, "model", "relationships", "relationship") -> {
                             val id = attr(reader, "identifier")
                             if (id.isNotEmpty()) {
@@ -131,6 +156,36 @@ class OefParseService {
                         pathEquals(path, "model", "relationships", "relationship", "name") &&
                             currentRelationship != null -> {
                             textTarget = TextTarget.RELATIONSHIP_NAME
+                            textBuf.setLength(0)
+                        }
+
+                        pathEquals(path, "model", "relationships", "relationship", "properties", "property") &&
+                            currentRelationship != null -> {
+                            pendingPropertyRef = attr(reader, "propertyDefinitionRef")
+                            pendingPropertyValue = ""
+                        }
+
+                        pathEquals(
+                            path,
+                            "model",
+                            "relationships",
+                            "relationship",
+                            "properties",
+                            "property",
+                            "value",
+                        ) && currentRelationship != null -> {
+                            textTarget = TextTarget.PROPERTY_VALUE
+                            textBuf.setLength(0)
+                        }
+
+                        pathEquals(path, "model", "propertyDefinitions", "propertyDefinition") -> {
+                            currentPropertyDefId = attr(reader, "identifier").takeIf { it.isNotEmpty() }
+                            currentPropertyDefName = ""
+                        }
+
+                        pathEquals(path, "model", "propertyDefinitions", "propertyDefinition", "name") &&
+                            currentPropertyDefId != null -> {
+                            textTarget = TextTarget.PROPERTY_DEF_NAME
                             textBuf.setLength(0)
                         }
 
@@ -272,17 +327,68 @@ class OefParseService {
                                 textTarget = null
                             }
                         }
+                        TextTarget.PROPERTY_DEF_NAME -> {
+                            if (local == "name") {
+                                currentPropertyDefName = textBuf.toString().trim()
+                                textTarget = null
+                            }
+                        }
+                        TextTarget.PROPERTY_VALUE -> {
+                            if (local == "value") {
+                                pendingPropertyValue = textBuf.toString().trim()
+                                textTarget = null
+                            }
+                        }
                         null -> Unit
                     }
 
                     when {
+                        local == "property" &&
+                            pathEquals(
+                                path,
+                                "model",
+                                "elements",
+                                "element",
+                                "properties",
+                                "property",
+                            ) && currentElement != null -> {
+                            if (pendingPropertyRef.isNotEmpty()) {
+                                currentElement!!.rawProperties[pendingPropertyRef] = pendingPropertyValue
+                            }
+                            pendingPropertyRef = ""
+                            pendingPropertyValue = ""
+                        }
+                        local == "property" &&
+                            pathEquals(
+                                path,
+                                "model",
+                                "relationships",
+                                "relationship",
+                                "properties",
+                                "property",
+                            ) && currentRelationship != null -> {
+                            if (pendingPropertyRef.isNotEmpty()) {
+                                currentRelationship!!.rawProperties[pendingPropertyRef] = pendingPropertyValue
+                            }
+                            pendingPropertyRef = ""
+                            pendingPropertyValue = ""
+                        }
+                        local == "propertyDefinition" &&
+                            pathEquals(path, "model", "propertyDefinitions", "propertyDefinition") -> {
+                            val id = currentPropertyDefId
+                            if (id != null && currentPropertyDefName.isNotEmpty()) {
+                                propertyDefinitions[id] = currentPropertyDefName
+                            }
+                            currentPropertyDefId = null
+                            currentPropertyDefName = ""
+                        }
                         local == "element" && pathEquals(path, "model", "elements", "element") -> {
-                            currentElement?.let { elements += it.toDto() }
+                            currentElement?.let { mutableElements += it }
                             currentElement = null
                         }
                         local == "relationship" &&
                             pathEquals(path, "model", "relationships", "relationship") -> {
-                            currentRelationship?.let { relationships += it.toDto() }
+                            currentRelationship?.let { mutableRelationships += it }
                             currentRelationship = null
                         }
                         local == "node" && inView(path) && openNodes.isNotEmpty() -> {
@@ -317,6 +423,8 @@ class OefParseService {
             throw IllegalArgumentException("Invalid OEF XML: missing <model>")
         }
 
+        val elements = mutableElements.map { it.toDto(propertyDefinitions) }
+        val relationships = mutableRelationships.map { it.toDto(propertyDefinitions) }
         val elementIds = elements.map { it.id }.toSet()
         val relationshipIds = relationships.map { it.id }.toSet()
         val viewIds = views.map { it.id }.toSet()
@@ -607,6 +715,8 @@ class OefParseService {
         NODE_LABEL,
         NODE_NAME,
         ORG_LABEL,
+        PROPERTY_DEF_NAME,
+        PROPERTY_VALUE,
     }
 
     private sealed interface MutableOrgNode {
@@ -654,8 +764,15 @@ class OefParseService {
         val id: String,
         val type: String,
         var name: String = "",
+        val rawProperties: MutableMap<String, String> = mutableMapOf(),
     ) {
-        fun toDto(): OefElementDto = OefElementDto(id = id, type = type, name = name)
+        fun toDto(propertyDefinitions: Map<String, String>): OefElementDto =
+            OefElementDto(
+                id = id,
+                type = type,
+                name = name,
+                properties = resolveProperties(rawProperties, propertyDefinitions),
+            )
     }
 
     private class MutableRelationship(
@@ -664,14 +781,16 @@ class OefParseService {
         val sourceElementId: String,
         val targetElementId: String,
         var name: String = "",
+        val rawProperties: MutableMap<String, String> = mutableMapOf(),
     ) {
-        fun toDto(): OefRelationshipDto =
+        fun toDto(propertyDefinitions: Map<String, String>): OefRelationshipDto =
             OefRelationshipDto(
                 id = id,
                 type = type,
                 sourceElementId = sourceElementId,
                 targetElementId = targetElementId,
                 name = name,
+                properties = resolveProperties(rawProperties, propertyDefinitions),
             )
     }
 
@@ -744,5 +863,19 @@ class OefParseService {
     companion object {
         private const val XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
         const val MAX_UPLOAD_BYTES: Long = 100L * 1024L * 1024L
+
+        private fun resolveProperties(
+            raw: Map<String, String>,
+            definitions: Map<String, String>,
+        ): Map<String, String> {
+            if (raw.isEmpty()) return emptyMap()
+            val result = LinkedHashMap<String, String>()
+            for ((ref, value) in raw) {
+                val name = definitions[ref] ?: continue
+                if (name.isEmpty()) continue
+                result[name] = value
+            }
+            return result
+        }
     }
 }

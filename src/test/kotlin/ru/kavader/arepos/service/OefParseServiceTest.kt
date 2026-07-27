@@ -143,6 +143,18 @@ class OefParseServiceTest {
         assertTrue(issues.any { it.code == "relationshipMissingTarget" && it.level == "error" })
     }
 
+    @Test
+    fun `resolves element and relationship properties by definition name`() {
+        val parsed = service.parse(readFixture("oef/element-properties.xml"))
+        val element = parsed.elements.single()
+        assertEquals(
+            mapOf("Owner" to "Team A", "Count" to "7", "OrphanProp" to "x"),
+            element.properties,
+        )
+        val relationship = parsed.relationships.single()
+        assertEquals(mapOf("Owner" to "Link Owner"), relationship.properties)
+    }
+
     private fun readFixture(path: String): ByteArray =
         checkNotNull(javaClass.classLoader.getResourceAsStream(path)) {
             "Missing test fixture: $path"
