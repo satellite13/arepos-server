@@ -75,10 +75,10 @@ class ModelDiffService(
         }
 
         val baseLinks = loadAllPages(MAX_LINKS_PER_MODEL, "links", baseModelId) { pageable ->
-            linksRepository.findByModel(baseModel, pageable)
+            linksRepository.findByModelOrderByIdAsc(baseModel, pageable)
         }
         val targetLinks = loadAllPages(MAX_LINKS_PER_MODEL, "links", targetModelId) { pageable ->
-            linksRepository.findByModel(targetModel, pageable)
+            linksRepository.findByModelOrderByIdAsc(targetModel, pageable)
         }
 
         val baseDiagrams = loadAllPages(MAX_DIAGRAMS_PER_MODEL, "diagrams", baseModelId) { pageable ->

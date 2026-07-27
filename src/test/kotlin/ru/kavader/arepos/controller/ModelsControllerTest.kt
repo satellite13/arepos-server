@@ -349,7 +349,7 @@ class ModelsControllerTest : ControllerIntegrationTest() {
         val copiedModel = objectMapper.readValue(copyResponse, ModelResponse::class.java)
         val copiedModelEntity = modelsRepository.findById(copiedModel.id).orElseThrow()
 
-        val copiedLinks = linksRepository.findByModel(copiedModelEntity, Pageable.unpaged()).content
+        val copiedLinks = linksRepository.findByModelOrderByIdAsc(copiedModelEntity, Pageable.unpaged()).content
         assertEquals(1, copiedLinks.size)
         val copiedLinkId = copiedLinks.first().id!!.toString()
 

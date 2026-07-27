@@ -72,7 +72,7 @@ class LinksController(
                 val model = modelsRepository.findById(modelId).orElse(null)
                 val owner = usersRepository.findById(ownerId).orElse(null)
                 if (model != null && owner != null) {
-                    linksRepository.findByModelAndOwner(model, owner, pageable)
+                    linksRepository.findByModelAndOwnerOrderByIdAsc(model, owner, pageable)
                 } else {
                     linksRepository.findAll(pageable)
                 }
@@ -81,7 +81,7 @@ class LinksController(
             modelId != null -> {
                 val model = modelsRepository.findById(modelId).orElse(null)
                 if (model != null) {
-                    linksRepository.findByModel(model, pageable)
+                    linksRepository.findByModelOrderByIdAsc(model, pageable)
                 } else {
                     linksRepository.findAll(pageable)
                 }

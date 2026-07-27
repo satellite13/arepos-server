@@ -63,6 +63,7 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
                         )
                     )
               )
+            ORDER BY n.id
         """,
         countQuery = """
             SELECT COUNT(*)

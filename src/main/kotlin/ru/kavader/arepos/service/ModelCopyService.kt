@@ -111,7 +111,7 @@ class ModelCopyService(
             }
         }
 
-        val sourceLinks = linksRepository.findByModel(source, Pageable.unpaged()).content
+        val sourceLinks = linksRepository.findByModelOrderByIdAsc(source, Pageable.unpaged()).content
         val linkIdMap = mutableMapOf<UUID, UUID>()
         for (srcLink in sourceLinks) {
             val sourceNodeId = requireNotNull(srcLink.source.id)

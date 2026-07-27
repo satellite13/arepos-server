@@ -11,12 +11,12 @@ import java.util.*
 
 @Repository
 interface LinksRepository : JpaRepository<Links, UUID> {
-    fun findByModel(model: Models, pageable: Pageable): Page<Links>
+    fun findByModelOrderByIdAsc(model: Models, pageable: Pageable): Page<Links>
     fun findByOwner(owner: Users, pageable: Pageable): Page<Links>
     fun findBySource(source: Nodes, pageable: Pageable): Page<Links>
     fun findByTarget(target: Nodes, pageable: Pageable): Page<Links>
     fun findByLinkType(linkType: LinkTypes, pageable: Pageable): Page<Links>
-    fun findByModelAndOwner(model: Models, owner: Users, pageable: Pageable): Page<Links>
+    fun findByModelAndOwnerOrderByIdAsc(model: Models, owner: Users, pageable: Pageable): Page<Links>
 
     @Query(
         value = """
@@ -44,6 +44,7 @@ interface LinksRepository : JpaRepository<Links, UUID> {
                         )
                     )
               )
+            ORDER BY l.id
         """,
         countQuery = """
             SELECT COUNT(*)
