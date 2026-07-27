@@ -48,3 +48,4 @@ metrics/prometheus/
 # Local Cerbos rollout artifacts
 authz/cerbos/releases/*.tar.gz
 authz/cerbos/releases/*.tar.gz.sha256
+.worktrees
