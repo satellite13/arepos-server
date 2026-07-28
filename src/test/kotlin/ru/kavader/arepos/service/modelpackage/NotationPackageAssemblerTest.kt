@@ -105,4 +105,62 @@ class NotationPackageAssemblerTest : RepositoryTestBase() {
         assertEquals(1, components.size)
         assertTrue(doc.containsKey("shapes"))
     }
+
+    @Test
+    fun `toImportRequest and toClientExportDocument aggregate relationRules`() {
+        val owner = usersRepository.save(
+            Users(
+                email = "notation-assembler-rules@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val notation = persistNotation(owner = owner, name = "Rules Notation", version = "1.0.0")
+        val nodeType = persistNodeType(owner = owner, name = "Rules Node Type")
+        val linkType = persistLinkType(owner = owner, name = "Rules Link Type")
+        val from = persistComponent(
+            notation = notation,
+            nodeType = nodeType,
+            owner = owner,
+            name = "From Component"
+        )
+        val to = persistComponent(
+            notation = notation,
+            nodeType = nodeType,
+            owner = owner,
+            name = "To Component"
+        )
+        val relation = persistRelation(
+            notation = notation,
+            linkType = linkType,
+            owner = owner,
+            name = "Allowed Relation"
+        )
+        persistRelationRule(relation = relation, fromComponent = from, toComponent = to)
+
+        val fromId = requireNotNull(from.id).toString()
+        val toId = requireNotNull(to.id).toString()
+        val relationId = requireNotNull(relation.id).toString()
+
+        val request = assembler.toImportRequest(notation)
+        assertEquals(2, request.components.size)
+        assertEquals(1, request.relations.size)
+        assertEquals(1, request.linkTypes.size)
+        assertEquals(1, request.relationRules.size)
+        val importRule = request.relationRules.single()
+        assertEquals(fromId, importRule.fromComponentId)
+        assertEquals(toId, importRule.toComponentId)
+        assertEquals(listOf(relationId), importRule.allowedRelationIds)
+
+        val doc = assembler.toClientExportDocument(notation)
+        @Suppress("UNCHECKED_CAST")
+        val state = doc["state"] as Map<String, Any?>
+        @Suppress("UNCHECKED_CAST")
+        val stateRules = state["relationRules"] as List<Map<String, Any?>>
+        assertEquals(1, stateRules.size)
+        val exportRule = stateRules.single()
+        assertEquals(fromId, exportRule["fromComponentId"])
+        assertEquals(toId, exportRule["toComponentId"])
+        assertEquals(listOf(relationId), exportRule["allowedRelationIds"])
+    }
 }

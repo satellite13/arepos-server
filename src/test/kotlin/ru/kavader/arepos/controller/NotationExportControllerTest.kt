@@ -112,4 +112,37 @@ class NotationExportControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isNotFound)
     }
+
+    @Test
+    fun `user cannot export foreign notation`() {
+        val userA = usersRepository.save(
+            Users(
+                email = "notation-export-reader-a@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val userB = usersRepository.save(
+            Users(
+                email = "notation-export-reader-b@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val foreignNotation = notationsRepository.save(
+            Notations(
+                name = "foreign-export-notation",
+                version = "1.0.0",
+                owner = userB,
+                createdAt = Instant.now(),
+                deleted = false
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/notations/${foreignNotation.id}/export")
+                .withAuth(userA.id!!, Role.USER)
+        )
+            .andExpect(status().isForbidden)
+    }
 }
