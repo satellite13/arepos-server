@@ -28,6 +28,14 @@ class MdFileLinkRewriter(
             .toSet()
     }
 
+    fun extractFromAttrsJson(attrs: String?): Set<UUID> {
+        if (attrs.isNullOrBlank()) return emptySet()
+        val root = objectMapper.readTree(attrs)
+        val uuids = mutableSetOf<UUID>()
+        extractFromNode(root, uuids, 0)
+        return uuids
+    }
+
     fun rewrite(text: String, fileIdMap: Map<UUID, UUID>): String {
         return MDFILE_PATTERN.replace(text) { match ->
             val id = UUID.fromString(match.groupValues[1])
@@ -85,6 +93,36 @@ class MdFileLinkRewriter(
                     } else {
                         rewriteNode(element, fileIdMap, depth + 1)
                     }
+                }
+            }
+        }
+    }
+
+    private fun extractFromNode(node: JsonNode, uuids: MutableSet<UUID>, depth: Int) {
+        if (depth > MAX_DEPTH) return
+
+        when {
+            node.isTextual -> uuids.addAll(extractFileUuids(node.asText()))
+
+            node.isObject -> {
+                val objectNode = node as ObjectNode
+                if (objectNode.has(DOCUMENT_FILE_ID_FIELD) && objectNode.get(DOCUMENT_FILE_ID_FIELD).isTextual) {
+                    try {
+                        uuids.add(UUID.fromString(objectNode.get(DOCUMENT_FILE_ID_FIELD).asText()))
+                    } catch (_: IllegalArgumentException) {
+                        // ignore invalid UUID
+                    }
+                }
+                objectNode.fieldNames().forEachRemaining { fieldName ->
+                    objectNode.get(fieldName)?.let { value ->
+                        extractFromNode(value, uuids, depth + 1)
+                    }
+                }
+            }
+
+            node.isArray -> {
+                node.forEach { element ->
+                    extractFromNode(element, uuids, depth + 1)
                 }
             }
         }

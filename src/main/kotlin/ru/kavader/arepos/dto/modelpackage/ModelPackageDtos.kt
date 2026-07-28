@@ -78,8 +78,8 @@ data class ModelPackageImportResponse(
     val modelName: String,
     val modelVersion: String,
     val notationIdMap: Map<UUID, UUID> = emptyMap(),
-    val nodeTypeIdMap: Map<UUID, UUID> = emptyMap(),
-    val linkTypeIdMap: Map<UUID, UUID> = emptyMap(),
+    val nodeTypeIdMap: Map<String, UUID> = emptyMap(),
+    val linkTypeIdMap: Map<String, UUID> = emptyMap(),
     val fileIdMap: Map<UUID, UUID> = emptyMap(),
     val warnings: List<String> = emptyList()
 )

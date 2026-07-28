@@ -32,4 +32,26 @@ class MdFileLinkRewriterTest {
         assertTrue(out!!.contains(b.toString()))
         assertTrue(!out.contains(a.toString()))
     }
+
+    @Test
+    fun extractDocumentFileIdFromAttrsJson() {
+        val a = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val attrs = """{"documentFileId":"$a","name":"n"}"""
+        assertEquals(setOf(a), rewriter.extractFromAttrsJson(attrs))
+    }
+
+    @Test
+    fun extractNestedDocumentFileIdFromAttrsJson() {
+        val a = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val attrs = """{"meta":{"documentFileId":"$a"}}"""
+        assertEquals(setOf(a), rewriter.extractFromAttrsJson(attrs))
+    }
+
+    @Test
+    fun extractNestedMdfileFromAttrsJson() {
+        val a = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val b = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val attrs = """{"nested":{"note":"See mdfile://$a"},"items":["mdfile://$b"]}"""
+        assertEquals(setOf(a, b), rewriter.extractFromAttrsJson(attrs))
+    }
 }
