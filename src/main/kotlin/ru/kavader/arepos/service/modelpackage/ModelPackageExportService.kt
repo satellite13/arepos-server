@@ -247,7 +247,7 @@ class ModelPackageExportService(
         val missing = linkedSetOf<UUID>()
         for (node in nodes) {
             val typeId = node.nodeType.id ?: continue
-            if (isSystemRootNodeType(node.nodeType.attrs)) continue
+            if (isSystemRootNodeType(node.nodeType.name, node.nodeType.attrs)) continue
             if (typeId !in coveredNodeTypeIds) missing.add(typeId)
         }
         for (link in links) {
@@ -262,10 +262,23 @@ class ModelPackageExportService(
         }
     }
 
-    private fun isSystemRootNodeType(attrs: String?): Boolean {
+    /**
+     * Recognizes the synthetic tree-root Directory type used by [SystemRootNodeTypeService]
+     * and legacy variants that exist in older databases
+     * (`{"kind":"directory","system":true}`).
+     */
+    private fun isSystemRootNodeType(name: String?, attrs: String?): Boolean {
         if (attrs.isNullOrBlank()) return false
         return try {
-            objectMapper.readTree(attrs).path("system").path("hiddenTreeRootType").asBoolean(false)
+            val root = objectMapper.readTree(attrs)
+            if (root.path("system").path("hiddenTreeRootType").asBoolean(false)) return true
+            val legacySystemFlag = root.path("system").asBoolean(false)
+            val legacyKindDirectory = root.path("kind").asText("").equals("directory", ignoreCase = true)
+            if (legacySystemFlag && legacyKindDirectory) return true
+            // Directory by name with any system marker (boolean or nested object)
+            val nameIsDirectory = name?.equals("Directory", ignoreCase = true) == true
+            val hasSystemMarker = root.path("system").asBoolean(false) || root.path("system").isObject
+            nameIsDirectory && hasSystemMarker
         } catch (_: Exception) {
             false
         }

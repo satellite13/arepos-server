@@ -176,6 +176,30 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
     }
 
     @Test
+    fun `export ignores legacy Directory system type outside notations`() {
+        val owner = persistUser(email = "package-export-legacy-directory@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val notation = persistNotation(owner = owner, name = "Dir Notation", version = "1.0.0")
+        val coveredType = persistNodeType(owner = owner, name = "Dir Covered Type")
+        persistComponent(notation = notation, nodeType = coveredType, owner = owner)
+
+        // Legacy attrs seen in older DBs: {"kind":"directory","system":true}
+        val legacyDirectory = persistNodeType(
+            owner = owner,
+            name = "Directory",
+            attrs = """{"kind":"directory","system":true}"""
+        )
+        val model = persistModel(owner = owner, name = "Dir Model", version = "1.0.0")
+        persistNode(model = model, owner = owner, nodeType = coveredType, name = "Business Node")
+        persistNode(model = model, owner = owner, nodeType = legacyDirectory, name = "Folder")
+        persistDiagram(model = model, notation = notation, owner = owner, name = "Diagram")
+
+        val zip = exportService.export(model.id!!)
+        assertTrue(zip.isNotEmpty())
+    }
+
+    @Test
     fun `export returns 403 when notation is not readable`() {
         val modelOwner = persistUser(email = "package-export-model-owner@test.com")
         val notationOwner = persistUser(email = "package-export-notation-owner@test.com")
