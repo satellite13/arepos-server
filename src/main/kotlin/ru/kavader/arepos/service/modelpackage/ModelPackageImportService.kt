@@ -123,7 +123,12 @@ class ModelPackageImportService(
         val fileIdMap: Map<UUID, UUID>
         try {
             fileIdMap = importFiles(entries, owner, uploadedObjectKeys)
-            remapNotationSideDocumentFileIds(notationIdMap, fileIdMap)
+            remapNotationSideDocumentFileIds(
+                notationIdMap = notationIdMap,
+                nodeTypeIdMap = nodeTypeIdMap,
+                linkTypeIdMap = linkTypeIdMap,
+                fileIdMap = fileIdMap
+            )
 
             if (modelsRepository.existsByNameAndVersion(packagedModel.name, packagedModel.version)) {
                 throw ResponseStatusException(
@@ -325,6 +330,8 @@ class ModelPackageImportService(
 
     private fun remapNotationSideDocumentFileIds(
         notationIdMap: Map<UUID, UUID>,
+        nodeTypeIdMap: Map<String, UUID>,
+        linkTypeIdMap: Map<String, UUID>,
         fileIdMap: Map<UUID, UUID>
     ) {
         if (fileIdMap.isEmpty()) return
@@ -355,6 +362,23 @@ class ModelPackageImportService(
                     relation.attrs = remappedRelation
                     relationsRepository.save(relation)
                 }
+            }
+        }
+
+        for (typeId in nodeTypeIdMap.values.toSet()) {
+            val nodeType = nodeTypesRepository.findById(typeId).orElse(null) ?: continue
+            val remapped = mdFileLinkRewriter.rewriteAttrsJson(nodeType.attrs, fileIdMap)
+            if (remapped != nodeType.attrs) {
+                nodeType.attrs = remapped
+                nodeTypesRepository.save(nodeType)
+            }
+        }
+        for (typeId in linkTypeIdMap.values.toSet()) {
+            val linkType = linkTypesRepository.findById(typeId).orElse(null) ?: continue
+            val remapped = mdFileLinkRewriter.rewriteAttrsJson(linkType.attrs, fileIdMap)
+            if (remapped != linkType.attrs) {
+                linkType.attrs = remapped
+                linkTypesRepository.save(linkType)
             }
         }
     }

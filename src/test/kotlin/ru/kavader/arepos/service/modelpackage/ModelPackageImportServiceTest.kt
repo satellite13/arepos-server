@@ -65,19 +65,35 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         val ownerA = persistUser(email = "package-import-a@test.com")
         authAs(ownerA.id!!, Role.USER)
 
+        val secondFileId = UUID.randomUUID()
+        val firstFileId = UUID.randomUUID()
+        val secondContent = "Second wiki page"
+        val firstContent = "See [second](mdfile://$secondFileId)"
+
         val notation = persistNotation(owner = ownerA, name = "Import Round Notation", version = "1.0.0")
-        val nodeType = persistNodeType(owner = ownerA, name = "Import Round Type")
+        // documentFileId on types is remapped after import (file also referenced from model so export includes it)
+        val nodeType = persistNodeType(
+            owner = ownerA,
+            name = "Import Round Type",
+            attrs = """{"documentFileId":"$firstFileId","color":"#00aa00"}"""
+        )
+        val linkType = persistLinkType(
+            owner = ownerA,
+            name = "Import Round Link Type",
+            attrs = """{"documentFileId":"$firstFileId","directional":true}"""
+        )
         val component = persistComponent(
             notation = notation,
             nodeType = nodeType,
             owner = ownerA,
             name = "Import Round Component"
         )
-
-        val secondFileId = UUID.randomUUID()
-        val firstFileId = UUID.randomUUID()
-        val secondContent = "Second wiki page"
-        val firstContent = "See [second](mdfile://$secondFileId)"
+        persistRelation(
+            notation = notation,
+            linkType = linkType,
+            owner = ownerA,
+            name = "Import Round Relation"
+        )
 
         val secondFile = persistWikiFile(ownerA, secondFileId, "second.md", secondContent)
         val firstFile = persistWikiFile(ownerA, firstFileId, "first.md", firstContent)
@@ -174,6 +190,16 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         assertNotNull(rewritten)
         assertTrue(rewritten.contains("mdfile://$newSecondId"))
         assertTrue(!rewritten.contains("mdfile://$secondFileId"))
+
+        val importedNodeTypeId = response.nodeTypeIdMap.values.first()
+        val importedNodeType = nodeTypesRepository.findById(importedNodeTypeId).orElseThrow()
+        assertTrue(importedNodeType.attrs!!.contains(newFirstId.toString()))
+        assertTrue(!importedNodeType.attrs!!.contains(firstFileId.toString()))
+
+        val importedLinkTypeId = response.linkTypeIdMap.values.first()
+        val importedLinkType = linkTypesRepository.findById(importedLinkTypeId).orElseThrow()
+        assertTrue(importedLinkType.attrs!!.contains(newFirstId.toString()))
+        assertTrue(!importedLinkType.attrs!!.contains(firstFileId.toString()))
 
         val modelRefs = documentRefsRepository.findAllByModelId(response.modelId)
         assertEquals(1, modelRefs.size)
