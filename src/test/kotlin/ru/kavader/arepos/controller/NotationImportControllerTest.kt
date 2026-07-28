@@ -16,11 +16,14 @@ import ru.kavader.arepos.dto.import.ImportedNodeShape
 import ru.kavader.arepos.dto.import.ImportedNodeType
 import ru.kavader.arepos.dto.import.NotationImportMeta
 import ru.kavader.arepos.dto.import.NotationImportRequest
+import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.model.NodeShapes
 import ru.kavader.arepos.model.NodeTypes
+import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.service.modelpackage.NotationPackageAssembler
 import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.repository.NodeShapesRepository
@@ -59,6 +62,9 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var componentsRepository: ComponentsRepository
+
+    @Autowired
+    lateinit var notationPackageAssembler: NotationPackageAssembler
 
     @Test
     fun `import creates notation owned by caller`() {
@@ -335,11 +341,131 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
         assertEquals(newShapeId.toString(), remappedShapeId)
     }
 
+    @Test
+    fun `import accepts warchi-notation-export v2 document`() {
+        val caller = persistUser("notation-v2-import@test.com")
+        val sourceOwner = persistUser("notation-v2-source@test.com")
+        val source = persistNotation(owner = sourceOwner, name = "V2 Source", version = "1.0.0")
+        val nodeType = persistNodeType(owner = sourceOwner, name = "V2 Node")
+        persistComponent(notation = source, nodeType = nodeType, owner = sourceOwner, name = "V2 Comp")
+
+        val doc = notationPackageAssembler.toClientExportDocument(source)
+        @Suppress("UNCHECKED_CAST")
+        val notationMeta = (doc["notation"] as MutableMap<String, Any?>)
+        notationMeta["name"] = "V2 Imported Copy"
+        notationMeta["version"] = "1.0.0"
+
+        mockMvc.perform(
+            post("/api/v1/notations/import")
+                .withAuth(caller.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(doc))
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.notationId").isNotEmpty)
+            .andExpect(jsonPath("$.componentIdMap").isMap)
+    }
+
+    @Test
+    fun `import v2 conflicts on existing name and version`() {
+        val caller = persistUser("notation-v2-conflict@test.com")
+        persistNotation(owner = caller, name = "Conflict Notation", version = "1.0.0")
+        val doc = linkedMapOf(
+            "format" to "warchi-notation-export",
+            "version" to 2,
+            "notation" to linkedMapOf("id" to "x", "name" to "Conflict Notation", "version" to "1.0.0"),
+            "state" to linkedMapOf(
+                "nodeTypes" to emptyList<Any>(),
+                "linkTypes" to emptyList<Any>(),
+                "components" to emptyList<Any>(),
+                "relations" to emptyList<Any>(),
+                "relationRules" to emptyList<Any>(),
+                "diagramLayer" to linkedMapOf("version" to 1, "nodes" to emptyList<Any>(), "edges" to emptyList<Any>())
+            ),
+            "shapes" to emptyList<Any>()
+        )
+
+        mockMvc.perform(
+            post("/api/v1/notations/import")
+                .withAuth(caller.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(doc))
+        ).andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `import rejects unknown export format`() {
+        val caller = persistUser("notation-bad-format@test.com")
+        val doc = linkedMapOf(
+            "format" to "not-a-real-format",
+            "version" to 2,
+            "notation" to linkedMapOf("name" to "X", "version" to "1.0.0"),
+            "state" to emptyMap<String, Any>()
+        )
+        mockMvc.perform(
+            post("/api/v1/notations/import")
+                .withAuth(caller.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(doc))
+        ).andExpect(status().isBadRequest)
+    }
+
     private fun persistUser(email: String): Users =
         usersRepository.save(
             Users(
                 email = email,
                 role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+
+    private fun persistNotation(
+        owner: Users,
+        name: String,
+        version: String = "1.0.0",
+        attrs: String? = """{"format":"json"}"""
+    ): Notations =
+        notationsRepository.save(
+            Notations(
+                owner = owner,
+                name = name,
+                version = version,
+                attrs = attrs,
+                createdAt = Instant.now(),
+                deleted = false
+            )
+        )
+
+    private fun persistNodeType(
+        owner: Users,
+        name: String,
+        attrs: String? = null
+    ): NodeTypes =
+        nodeTypesRepository.save(
+            NodeTypes(
+                name = name,
+                owner = owner,
+                attrs = attrs,
+                createdAt = Instant.now()
+            )
+        )
+
+    private fun persistComponent(
+        notation: Notations,
+        nodeType: NodeTypes,
+        owner: Users,
+        name: String,
+        version: String = "1.0.0",
+        attrs: String? = null
+    ): Components =
+        componentsRepository.save(
+            Components(
+                name = name,
+                version = version,
+                notation = notation,
+                owner = owner,
+                nodeType = nodeType,
+                attrs = attrs,
                 createdAt = Instant.now()
             )
         )
