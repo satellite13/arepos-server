@@ -70,6 +70,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     fun clearSecurity() {
         SecurityContextHolder.clearContext()
         FileStorageTestConfiguration.blobs.clear()
+        FileStorageTestConfiguration.versionBlobs.clear()
     }
 
     @Test
@@ -224,6 +225,64 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     }
 
     @Test
+    fun `round trip preserves wiki file version history`() {
+        val ownerA = persistUser(email = "package-import-versions-a@test.com")
+        authAs(ownerA.id!!, Role.USER)
+
+        val fileId = UUID.randomUUID()
+        val linkedId = UUID.randomUUID()
+        val v1 = "Draft one"
+        val v2 = "Draft two with [link](mdfile://$linkedId)"
+        val v3 = "Final with [link](mdfile://$linkedId)"
+        val linkedContent = "Linked page"
+
+        val notation = persistNotation(owner = ownerA, name = "Versions Round Notation", version = "1.0.0")
+        val nodeType = persistNodeType(owner = ownerA, name = "Versions Round Type")
+        persistComponent(notation = notation, nodeType = nodeType, owner = ownerA)
+
+        val linkedFile = persistWikiFile(ownerA, linkedId, "linked.md", linkedContent)
+        val historyFile = persistWikiFile(ownerA, fileId, "history.md", v3)
+        stubFileBlob(linkedFile, linkedContent)
+        stubFileVersions(historyFile, listOf(v1, v2, v3))
+
+        val model = persistModel(
+            owner = ownerA,
+            name = "Versions Round Model",
+            version = "1.0.0",
+            attrs = """{"documentFileId":"$fileId"}"""
+        )
+        persistNode(model = model, owner = ownerA, nodeType = nodeType, name = "Root")
+        persistDiagram(model = model, notation = notation, owner = ownerA, name = "Main")
+
+        val zipBytes = exportService.export(model.id!!)
+
+        notation.name = "Versions Round Notation Archived"
+        notationsRepository.save(notation)
+        model.name = "Versions Round Model Archived"
+        modelsRepository.save(model)
+
+        val ownerB = persistUser(email = "package-import-versions-b@test.com")
+        authAs(ownerB.id!!, Role.USER)
+
+        val response = importService.importPackage(zipBytes, ownerB)
+        val newFileId = response.fileIdMap.getValue(fileId)
+        val newLinkedId = response.fileIdMap.getValue(linkedId)
+
+        val importedVersions = FileStorageTestConfiguration.versionBlobs[newFileId]
+        assertNotNull(importedVersions)
+        assertEquals(3, importedVersions.size)
+        assertEquals(v1, importedVersions[0].toString(Charsets.UTF_8))
+        assertTrue(importedVersions[1].toString(Charsets.UTF_8).contains("mdfile://$newLinkedId"))
+        assertTrue(!importedVersions[1].toString(Charsets.UTF_8).contains("mdfile://$linkedId"))
+        assertTrue(importedVersions[2].toString(Charsets.UTF_8).contains("mdfile://$newLinkedId"))
+        assertEquals(v3.replace(linkedId.toString(), newLinkedId.toString()), importedVersions[2].toString(Charsets.UTF_8))
+
+        val listed = fileStorageService.listVersions(newFileId)
+        assertEquals(3, listed.size)
+        assertEquals(listOf(3, 2, 1), listed.map { it.versionNumber })
+    }
+
+    @Test
     fun `import conflicts on existing notation name and version`() {
         val owner = persistUser(email = "package-import-notation-conflict@test.com")
         authAs(owner.id!!, Role.USER)
@@ -295,6 +354,73 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
         assertTrue(ex.reason!!.contains("Unsupported package format"))
+    }
+
+    @Test
+    fun `import maps folder Directory type omitted from notation package`() {
+        val ownerA = persistUser(email = "package-import-folder-a@test.com")
+        authAs(ownerA.id!!, Role.USER)
+
+        val directoryType = persistNodeType(
+            owner = ownerA,
+            name = "Directory",
+            attrs = """{"kind":"directory","system":true}"""
+        )
+        val businessType = persistNodeType(owner = ownerA, name = "Folder Import Actor")
+        val notation = persistNotation(owner = ownerA, name = "Folder Import Notation", version = "1.0.0")
+        persistComponent(notation = notation, nodeType = businessType, owner = ownerA, name = "Actor")
+
+        val model = persistModel(owner = ownerA, name = "Folder Import Model", version = "1.0.0")
+        val root = persistNode(
+            model = model,
+            owner = ownerA,
+            nodeType = directoryType,
+            name = "Root",
+            attrs = """{"system":{"hiddenTreeRoot":true},"treeOrder":0}"""
+        )
+        val folder = persistNode(
+            model = model,
+            owner = ownerA,
+            nodeType = directoryType,
+            name = "Home Path",
+            parent = root,
+            attrs = """{"treeOrder":0}"""
+        )
+        persistNode(
+            model = model,
+            owner = ownerA,
+            nodeType = businessType,
+            name = "Home",
+            parent = folder,
+            attrs = """{"treeOrder":0}"""
+        )
+        persistDiagram(
+            model = model,
+            notation = notation,
+            owner = ownerA,
+            node = folder,
+            name = "Main",
+            version = "1.0.0"
+        )
+
+        val zipBytes = exportService.export(model.id!!)
+
+        notation.name = "Folder Import Notation Archived"
+        notationsRepository.save(notation)
+        model.name = "Folder Import Model Archived"
+        modelsRepository.save(model)
+
+        val ownerB = persistUser(email = "package-import-folder-b@test.com")
+        authAs(ownerB.id!!, Role.USER)
+
+        val response = importService.importPackage(zipBytes, ownerB)
+
+        val importedNodes = nodesRepository.findByModelIdOrdered(response.modelId, Pageable.unpaged()).content
+        assertEquals(3, importedNodes.size)
+        assertTrue(importedNodes.any { it.name == "Home Path" && it.parentNode != null })
+        assertTrue(importedNodes.any { it.name == "Home" && it.parentNode != null })
+        val folderNode = importedNodes.first { it.name == "Home Path" }
+        assertEquals("Directory", folderNode.nodeType.name)
     }
 
     @Test
@@ -465,11 +591,39 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         )
 
     private fun stubFileBlob(file: Files, content: String) {
-        FileStorageTestConfiguration.blobs[file.id] = content.toByteArray(Charsets.UTF_8)
+        val bytes = content.toByteArray(Charsets.UTF_8)
+        FileStorageTestConfiguration.blobs[file.id] = bytes
+        FileStorageTestConfiguration.versionBlobs[file.id] = mutableListOf(bytes.copyOf())
         `when`(fileStorageService.getFile(file.id)).thenReturn(
-            file to ByteArrayResource(content.toByteArray(Charsets.UTF_8))
+            file to ByteArrayResource(bytes)
         )
         `when`(fileStorageService.getFileMetadata(file.id)).thenReturn(file)
+        `when`(fileStorageService.listVersions(file.id)).thenReturn(emptyList())
+    }
+
+    private fun stubFileVersions(file: Files, versionsOldestFirst: List<String>) {
+        require(versionsOldestFirst.isNotEmpty())
+        val versionBytes = versionsOldestFirst.map { it.toByteArray(Charsets.UTF_8) }.toMutableList()
+        FileStorageTestConfiguration.blobs[file.id] = versionBytes.last().copyOf()
+        FileStorageTestConfiguration.versionBlobs[file.id] = versionBytes.map { it.copyOf() }.toMutableList()
+        val infos = versionsOldestFirst.mapIndexed { index, content ->
+            FileStorageService.FileVersionInfo(
+                versionNumber = index + 1,
+                createdAt = Instant.now(),
+                createdBy = file.owner.id!!,
+                size = content.toByteArray(Charsets.UTF_8).size.toLong()
+            )
+        }
+        `when`(fileStorageService.listVersions(file.id)).thenReturn(infos.asReversed())
+        `when`(fileStorageService.getFile(file.id)).thenReturn(
+            file to ByteArrayResource(versionBytes.last())
+        )
+        `when`(fileStorageService.getFileMetadata(file.id)).thenReturn(file)
+        versionsOldestFirst.forEachIndexed { index, content ->
+            `when`(fileStorageService.getFileVersion(file.id, index + 1)).thenReturn(
+                file to ByteArrayResource(content.toByteArray(Charsets.UTF_8))
+            )
+        }
     }
 
     private fun authAs(userId: UUID, role: Role) {
@@ -484,6 +638,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     class FileStorageTestConfiguration {
         companion object {
             val blobs = ConcurrentHashMap<UUID, ByteArray>()
+            val versionBlobs = ConcurrentHashMap<UUID, MutableList<ByteArray>>()
         }
 
         @Bean
@@ -509,6 +664,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
                     )
                 )
                 blobs[id] = content.copyOf()
+                versionBlobs[id] = mutableListOf(content.copyOf())
                 saved
             }.`when`(mock).createOwnedBlob(
                 any(UUID::class.java) ?: UUID.randomUUID(),
@@ -520,10 +676,57 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
 
             doAnswer { invocation ->
                 val id = invocation.getArgument<UUID>(0)
+                val content = invocation.getArgument<ByteArray>(1)
+                val file = filesRepository.findById(id).orElse(null)
+                    ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found: $id")
+                file.size = content.size.toLong()
+                file.createdAt = Instant.now()
+                val saved = filesRepository.save(file)
+                blobs[id] = content.copyOf()
+                versionBlobs.compute(id) { _, existing ->
+                    val list = existing ?: mutableListOf()
+                    list.add(content.copyOf())
+                    list
+                }
+                saved
+            }.`when`(mock).appendOwnedBlobVersion(
+                any(UUID::class.java) ?: UUID.randomUUID(),
+                any(ByteArray::class.java) ?: ByteArray(0),
+                any(Users::class.java) ?: dummyOwner
+            )
+
+            doAnswer { invocation ->
+                val id = invocation.getArgument<UUID>(0)
                 val file = filesRepository.findById(id).orElse(null) ?: return@doAnswer null
                 val content = blobs[id] ?: ByteArray(0)
                 file to ByteArrayResource(content)
             }.`when`(mock).getFile(any(UUID::class.java) ?: UUID.randomUUID())
+
+            doAnswer { invocation ->
+                val id = invocation.getArgument<UUID>(0)
+                val versionNumber = invocation.getArgument<Int>(1)
+                val file = filesRepository.findById(id).orElse(null) ?: return@doAnswer null
+                val versions = versionBlobs[id] ?: return@doAnswer null
+                val content = versions.getOrNull(versionNumber - 1) ?: return@doAnswer null
+                file to ByteArrayResource(content)
+            }.`when`(mock).getFileVersion(
+                any(UUID::class.java) ?: UUID.randomUUID(),
+                org.mockito.ArgumentMatchers.anyInt()
+            )
+
+            doAnswer { invocation ->
+                val id = invocation.getArgument<UUID>(0)
+                val file = filesRepository.findById(id).orElse(null) ?: return@doAnswer emptyList<FileStorageService.FileVersionInfo>()
+                val versions = versionBlobs[id] ?: return@doAnswer emptyList<FileStorageService.FileVersionInfo>()
+                versions.mapIndexed { index, bytes ->
+                    FileStorageService.FileVersionInfo(
+                        versionNumber = index + 1,
+                        createdAt = Instant.now(),
+                        createdBy = file.owner.id!!,
+                        size = bytes.size.toLong()
+                    )
+                }.asReversed()
+            }.`when`(mock).listVersions(any(UUID::class.java) ?: UUID.randomUUID())
 
             doAnswer { invocation ->
                 val id = invocation.getArgument<UUID>(0)

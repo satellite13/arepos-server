@@ -138,6 +138,9 @@ class ModelPackageImportService(
             }
 
             val now = Instant.now()
+            // Folder/root Directory types are excluded from notation packages on export.
+            mapUnmappedSystemDirectoryTypes(packagedModel, nodeTypeIdMap, owner, now)
+
             val graph = createModelGraph(
                 packaged = packagedModel,
                 owner = owner,
@@ -282,26 +285,56 @@ class ModelPackageImportService(
         for (sourceId in sourceIds) {
             val metaBytes = entries["files/$sourceId/meta.json"]
                 ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing meta.json for file $sourceId")
-            val blob = entries["files/$sourceId/blob"]
-                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing blob for file $sourceId")
             val meta = try {
                 objectMapper.readValue<PackagedFileMeta>(metaBytes)
             } catch (ex: Exception) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid meta.json for file $sourceId", ex)
             }
 
-            val rewrittenBlob = if (isTextualContent(meta.contentType, meta.filename)) {
-                mdFileLinkRewriter.rewrite(blob.toString(Charsets.UTF_8), fileIdMap)
-                    .toByteArray(Charsets.UTF_8)
+            val versionPrefix = "files/$sourceId/versions/"
+            val versionEntries = entries
+                .mapNotNull { (name, bytes) ->
+                    if (!name.startsWith(versionPrefix)) return@mapNotNull null
+                    val numberPart = name.removePrefix(versionPrefix)
+                    val versionNumber = numberPart.toIntOrNull()
+                        ?: throw ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Invalid version path for file $sourceId: $name"
+                        )
+                    versionNumber to bytes
+                }
+                .sortedBy { it.first }
+
+            if (versionEntries.size > ModelPackageLimits.MAX_FILE_VERSIONS) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "File $sourceId exceeds version limit of ${ModelPackageLimits.MAX_FILE_VERSIONS}"
+                )
+            }
+
+            val versionContents = if (versionEntries.isNotEmpty()) {
+                versionEntries.map { it.second }
             } else {
-                blob
+                val blob = entries["files/$sourceId/blob"]
+                    ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing blob for file $sourceId")
+                listOf(blob)
+            }
+
+            val rewrittenVersions = versionContents.map { content ->
+                if (isTextualContent(meta.contentType, meta.filename)) {
+                    mdFileLinkRewriter.rewrite(content.toString(Charsets.UTF_8), fileIdMap)
+                        .toByteArray(Charsets.UTF_8)
+                } else {
+                    content
+                }
             }
 
             val newId = fileIdMap.getValue(sourceId)
+            val firstContent = rewrittenVersions.first()
             val saved = try {
                 storage.createOwnedBlob(
                     id = newId,
-                    content = rewrittenBlob,
+                    content = firstContent,
                     filename = meta.filename,
                     contentType = meta.contentType,
                     owner = owner
@@ -316,6 +349,20 @@ class ModelPackageImportService(
                 )
             }
             uploadedObjectKeys.add(saved.objectKey)
+
+            for (i in 1 until rewrittenVersions.size) {
+                try {
+                    storage.appendOwnedBlobVersion(newId, rewrittenVersions[i], owner)
+                } catch (ex: ResponseStatusException) {
+                    throw ex
+                } catch (ex: Exception) {
+                    throw ResponseStatusException(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "File storage failed while importing file $sourceId version ${i + 1}",
+                        ex
+                    )
+                }
+            }
         }
         return fileIdMap
     }
@@ -380,6 +427,30 @@ class ModelPackageImportService(
                 linkType.attrs = remapped
                 linkTypesRepository.save(linkType)
             }
+        }
+    }
+
+    /**
+     * Export omits system Directory node types from notation payloads (they are not notation
+     * components). Folder nodes still reference those source type IDs — map them to the
+     * importer's Directory type so createModelGraph can resolve them.
+     */
+    private fun mapUnmappedSystemDirectoryTypes(
+        packaged: PackagedModel,
+        nodeTypeIdMap: MutableMap<String, UUID>,
+        owner: Users,
+        now: Instant
+    ) {
+        val unmapped = packaged.nodes
+            .map { it.nodeTypeId.toString() }
+            .filter { it !in nodeTypeIdMap }
+            .toSet()
+        if (unmapped.isEmpty()) return
+
+        val directoryTypeId = systemRootNodeTypeService.getOrCreate(owner, now).id
+            ?: throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Directory type id is null")
+        for (sourceTypeId in unmapped) {
+            nodeTypeIdMap[sourceTypeId] = directoryTypeId
         }
     }
 

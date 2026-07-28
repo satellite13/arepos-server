@@ -9,6 +9,7 @@ import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.model.ShareResourceType
 import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.repository.DocumentRefsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.ResourceSharesRepository
@@ -19,6 +20,7 @@ import java.util.UUID
 class ModelLifecycleService(
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
+    private val documentRefsRepository: DocumentRefsRepository,
     private val modelAttrsService: ModelAttrsService,
     private val systemRootNodeTypeService: SystemRootNodeTypeService,
     private val resourceSharesRepository: ResourceSharesRepository
@@ -63,6 +65,8 @@ class ModelLifecycleService(
     fun permanentDeleteModel(model: Models) {
         val modelId = model.id
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Model id is required")
+        // document_refs: ON DELETE SET NULL + context CHECK — must remove rows first
+        documentRefsRepository.deleteAllBelongingToModel(modelId)
         resourceSharesRepository.deleteByResourceTypeAndResourceId(ShareResourceType.MODEL, modelId)
         modelsRepository.delete(model)
     }

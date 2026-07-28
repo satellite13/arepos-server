@@ -8,6 +8,8 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.common.ListResponse
+import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.dto.notation.LinkTypeRequest
 import ru.kavader.arepos.dto.notation.LinkTypeResponse
 import ru.kavader.arepos.dto.notation.LinkTypeUpdateRequest
@@ -15,8 +17,10 @@ import ru.kavader.arepos.mapper.NotationMapper
 import ru.kavader.arepos.model.LinkTypes
 import ru.kavader.arepos.repository.LinkTypesRepository
 import ru.kavader.arepos.security.ACCESS_DENIED
+import ru.kavader.arepos.security.ADMIN_ONLY
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.CatalogLifecycleService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.TypeCatalogListService
 import java.time.Instant
@@ -30,6 +34,7 @@ class LinkTypesController(
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
     private val typeCatalogListService: TypeCatalogListService,
+    private val catalogLifecycleService: CatalogLifecycleService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val notationMapper: NotationMapper
 ) {
@@ -46,6 +51,15 @@ class LinkTypesController(
         mapLinkTypesPage(
             typeCatalogListService.listLinkTypes(pageable, ownerId, notationId, modelId, name)
         )
+
+    @GetMapping("/deleted")
+    @Operation(summary = "List soft-deleted link types (admin)")
+    fun listDeletedLinkTypes(pageable: Pageable): ListResponse<LinkTypeResponse> {
+        if (!accessService.canViewAdminPanel()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
+        }
+        return mapLinkTypesPage(linkTypesRepository.findByDeletedTrue(pageable)).toListResponse()
+    }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get link type by id")
@@ -103,13 +117,26 @@ class LinkTypesController(
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Delete link type")
+    @Operation(summary = "Soft-delete link type")
     fun deleteLinkType(@PathVariable id: UUID) {
         val linkType = linkTypesRepository.findById(id).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
         }
         accessService.requireCanEditLinkType(linkType)
-        linkTypesRepository.deleteById(id)
+        catalogLifecycleService.softDeleteLinkType(id)
+    }
+
+    @DeleteMapping("/{id}/permanent")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Permanently delete link type (admin)")
+    fun permanentDeleteLinkType(@PathVariable id: UUID) {
+        if (!accessService.canViewAdminPanel()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
+        }
+        val linkType = linkTypesRepository.findByIdIncludingDeleted(id).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType $id not found")
+        }
+        catalogLifecycleService.permanentDeleteLinkType(linkType)
     }
 
     private fun mapLinkTypesPage(page: Page<LinkTypes>): Page<LinkTypeResponse> =

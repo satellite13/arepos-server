@@ -43,5 +43,8 @@ class LinkTypes(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner", nullable = false)
-    override var owner: Users
+    override var owner: Users,
+
+    @Column(name = "deleted", nullable = false)
+    var deleted: Boolean = false
 ) : CatalogTypeEntity

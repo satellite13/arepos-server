@@ -1,6 +1,7 @@
 package ru.kavader.arepos.repository
 
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
@@ -16,6 +17,34 @@ interface DocumentRefsRepository : JpaRepository<DocumentRefs, UUID> {
     fun findAllByFileId(fileId: UUID): List<DocumentRefs>
 
     fun findAllByModelId(modelId: UUID): List<DocumentRefs>
+
+    /**
+     * Removes wiki/document bindings for a model before hard-delete.
+     * Needed because document_refs use ON DELETE SET NULL + CHECK(at least one context),
+     * so cascading FK nulling alone fails with a check violation.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        DELETE FROM DocumentRefs dr
+        WHERE dr.model.id = :modelId
+           OR dr.node.id IN (SELECT n.id FROM Nodes n WHERE n.model.id = :modelId)
+           OR dr.diagram.id IN (SELECT d.id FROM Diagrams d WHERE d.model.id = :modelId)
+        """
+    )
+    fun deleteAllBelongingToModel(@Param("modelId") modelId: UUID): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM DocumentRefs dr WHERE dr.nodeType.id = :nodeTypeId")
+    fun deleteAllByNodeTypeId(@Param("nodeTypeId") nodeTypeId: UUID): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM DocumentRefs dr WHERE dr.linkType.id = :linkTypeId")
+    fun deleteAllByLinkTypeId(@Param("linkTypeId") linkTypeId: UUID): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM DocumentRefs dr WHERE dr.nodeShape.id = :nodeShapeId")
+    fun deleteAllByNodeShapeId(@Param("nodeShapeId") nodeShapeId: UUID): Int
 
     fun findAllByNodeIdIn(nodeIds: Collection<UUID>): List<DocumentRefs>
 

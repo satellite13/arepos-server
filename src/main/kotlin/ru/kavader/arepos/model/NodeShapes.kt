@@ -48,4 +48,7 @@ class NodeShapes(
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attrs", columnDefinition = "jsonb")
     var attrs: String? = null,
+
+    @Column(name = "deleted", nullable = false)
+    var deleted: Boolean = false,
 )

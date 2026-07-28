@@ -150,6 +150,50 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
 
         assertEquals(firstContent, entries["files/$firstFileId/blob"]!!.toString(Charsets.UTF_8))
         assertEquals(secondContent, entries["files/$secondFileId/blob"]!!.toString(Charsets.UTF_8))
+        assertEquals(firstContent, entries["files/$firstFileId/versions/1"]!!.toString(Charsets.UTF_8))
+        assertEquals(secondContent, entries["files/$secondFileId/versions/1"]!!.toString(Charsets.UTF_8))
+    }
+
+    @Test
+    fun `export zip includes all wiki file versions`() {
+        val owner = persistUser(email = "package-export-versions@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val notation = persistNotation(owner = owner, name = "Versions Notation", version = "1.0.0")
+        val nodeType = persistNodeType(owner = owner, name = "Versions Node Type")
+        persistComponent(notation = notation, nodeType = nodeType, owner = owner, name = "Versions Component")
+
+        val fileId = UUID.randomUUID()
+        val v1 = "Wiki draft v1"
+        val v2 = "Wiki draft v2"
+        val v3 = "Wiki draft v3 final"
+        val file = filesRepository.save(
+            Files(
+                id = fileId,
+                owner = owner,
+                filename = "history.md",
+                contentType = "text/markdown",
+                size = v3.toByteArray().size.toLong(),
+                objectKey = "markdown/${owner.id}/$fileId/history.md",
+                createdAt = Instant.now()
+            )
+        )
+        stubFileVersions(file, listOf(v1, v2, v3))
+
+        val model = persistModel(
+            owner = owner,
+            name = "Versions Model",
+            version = "1.0.0",
+            attrs = """{"documentFileId":"$fileId"}"""
+        )
+        persistNode(model = model, owner = owner, nodeType = nodeType, name = "Node")
+        persistDiagram(model = model, notation = notation, owner = owner, name = "Diagram")
+
+        val entries = readZipEntries(exportService.export(model.id!!))
+        assertEquals(v3, entries["files/$fileId/blob"]!!.toString(Charsets.UTF_8))
+        assertEquals(v1, entries["files/$fileId/versions/1"]!!.toString(Charsets.UTF_8))
+        assertEquals(v2, entries["files/$fileId/versions/2"]!!.toString(Charsets.UTF_8))
+        assertEquals(v3, entries["files/$fileId/versions/3"]!!.toString(Charsets.UTF_8))
     }
 
     @Test
@@ -276,6 +320,29 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
             file to ByteArrayResource(content.toByteArray(Charsets.UTF_8))
         )
         `when`(fileStorageService.getFileMetadata(file.id)).thenReturn(file)
+        `when`(fileStorageService.listVersions(file.id)).thenReturn(emptyList())
+    }
+
+    private fun stubFileVersions(file: Files, versionsOldestFirst: List<String>) {
+        require(versionsOldestFirst.isNotEmpty())
+        val infos = versionsOldestFirst.mapIndexed { index, content ->
+            FileStorageService.FileVersionInfo(
+                versionNumber = index + 1,
+                createdAt = Instant.now(),
+                createdBy = file.owner.id!!,
+                size = content.toByteArray(Charsets.UTF_8).size.toLong()
+            )
+        }
+        `when`(fileStorageService.listVersions(file.id)).thenReturn(infos.asReversed())
+        `when`(fileStorageService.getFile(file.id)).thenReturn(
+            file to ByteArrayResource(versionsOldestFirst.last().toByteArray(Charsets.UTF_8))
+        )
+        `when`(fileStorageService.getFileMetadata(file.id)).thenReturn(file)
+        versionsOldestFirst.forEachIndexed { index, content ->
+            `when`(fileStorageService.getFileVersion(file.id, index + 1)).thenReturn(
+                file to ByteArrayResource(content.toByteArray(Charsets.UTF_8))
+            )
+        }
     }
 
     private fun readZipEntries(zipBytes: ByteArray): Map<String, ByteArray> {

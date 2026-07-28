@@ -57,6 +57,7 @@ interface ComponentsRepository : JpaRepository<Components, UUID> {
     )
     fun findDistinctNodeTypeIdsByNotationId(@Param("notationId") notationId: UUID): List<UUID>
 
+    fun existsByNodeTypeId(nodeTypeId: UUID): Boolean
     fun existsByNodeTypeIdAndNotationIdIn(nodeTypeId: UUID, notationIds: Collection<UUID>): Boolean
 
     /** Тип узла используется компонентом в «видимой» нотации (прямой шаринг или диаграмма в доступной модели). */

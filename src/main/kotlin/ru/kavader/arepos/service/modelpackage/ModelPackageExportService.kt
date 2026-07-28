@@ -330,7 +330,7 @@ class ModelPackageExportService(
         componentsByNotation: Map<UUID, List<Components>>,
         relationsByNotation: Map<UUID, List<Relations>>,
         documentRefs: List<DocumentRefs>
-    ): LinkedHashMap<UUID, Pair<Files, ByteArray>> {
+    ): LinkedHashMap<UUID, PackagedFileContent> {
         val seed = linkedSetOf<UUID>()
         seed.addAll(mdFileLinkRewriter.extractFromAttrsJson(model.attrs))
         for (node in nodes) {
@@ -352,7 +352,7 @@ class ModelPackageExportService(
             seed.add(ref.file.id)
         }
 
-        val blobs = linkedMapOf<UUID, Pair<Files, ByteArray>>()
+        val blobs = linkedMapOf<UUID, PackagedFileContent>()
         val queue = ArrayDeque<UUID>()
         for (id in seed) {
             queue.add(id)
@@ -367,19 +367,21 @@ class ModelPackageExportService(
                     "Package exceeds file limit of ${ModelPackageLimits.MAX_FILES}"
                 )
             }
-            val loaded = readFileBlob(fileId)
+            val loaded = readFileWithVersions(fileId)
             blobs[fileId] = loaded
-            val text = loaded.second.toString(Charsets.UTF_8)
-            for (linked in mdFileLinkRewriter.extractFileUuids(text)) {
-                if (!blobs.containsKey(linked)) queue.add(linked)
+            for (version in loaded.versions) {
+                val text = version.content.toString(Charsets.UTF_8)
+                for (linked in mdFileLinkRewriter.extractFileUuids(text)) {
+                    if (!blobs.containsKey(linked)) queue.add(linked)
+                }
             }
         }
         return blobs
     }
 
-    private fun readFileBlob(fileId: UUID): Pair<Files, ByteArray> {
+    private fun readFileWithVersions(fileId: UUID): PackagedFileContent {
         val storage = fileStorage()
-        val pair = try {
+        val latestPair = try {
             storage.getFile(fileId)
         } catch (ex: ResponseStatusException) {
             throw ex
@@ -393,8 +395,9 @@ class ModelPackageExportService(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "Referenced file blob missing: $fileId"
         )
-        val bytes = try {
-            pair.second.inputStream.use { it.readBytes() }
+        val file = latestPair.first
+        val latestBytes = try {
+            latestPair.second.inputStream.use { it.readBytes() }
         } catch (ex: Exception) {
             throw ResponseStatusException(
                 HttpStatus.INTERNAL_SERVER_ERROR,
@@ -402,7 +405,72 @@ class ModelPackageExportService(
                 ex
             )
         }
-        return pair.first to bytes
+
+        val versionInfos = try {
+            storage.listVersions(fileId).sortedBy { it.versionNumber }
+        } catch (ex: ResponseStatusException) {
+            throw ex
+        } catch (ex: Exception) {
+            throw ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "File storage failed while listing versions for file $fileId",
+                ex
+            )
+        }
+
+        if (versionInfos.size > ModelPackageLimits.MAX_FILE_VERSIONS) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "File $fileId exceeds version limit of ${ModelPackageLimits.MAX_FILE_VERSIONS}"
+            )
+        }
+
+        if (versionInfos.isEmpty()) {
+            return PackagedFileContent(
+                file = file,
+                versions = listOf(PackagedFileVersion(versionNumber = 1, content = latestBytes))
+            )
+        }
+
+        val versions = versionInfos.map { info ->
+            val bytes = if (info.versionNumber == versionInfos.last().versionNumber) {
+                latestBytes
+            } else {
+                readHistoricVersionBytes(storage, fileId, info.versionNumber)
+            }
+            PackagedFileVersion(versionNumber = info.versionNumber, content = bytes)
+        }
+        return PackagedFileContent(file = file, versions = versions)
+    }
+
+    private fun readHistoricVersionBytes(
+        storage: FileStorageService,
+        fileId: UUID,
+        versionNumber: Int
+    ): ByteArray {
+        val pair = try {
+            storage.getFileVersion(fileId, versionNumber)
+        } catch (ex: ResponseStatusException) {
+            throw ex
+        } catch (ex: Exception) {
+            throw ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "File storage failed while reading file $fileId version $versionNumber",
+                ex
+            )
+        } ?: throw ResponseStatusException(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "Referenced file version missing: $fileId#$versionNumber"
+        )
+        return try {
+            pair.second.inputStream.use { it.readBytes() }
+        } catch (ex: Exception) {
+            throw ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Referenced file version missing: $fileId#$versionNumber",
+                ex
+            )
+        }
     }
 
     private fun fileStorage(): FileStorageService =
@@ -414,7 +482,7 @@ class ModelPackageExportService(
         packagedModel: PackagedModel,
         packagedRefs: List<PackagedDocumentRef>,
         notationRequests: Map<UUID, NotationImportRequest>,
-        fileBlobs: Map<UUID, Pair<Files, ByteArray>>
+        fileBlobs: Map<UUID, PackagedFileContent>
     ): ByteArray {
         ByteArrayOutputStream().use { baos ->
             ZipOutputStream(baos).use { zos ->
@@ -436,21 +504,34 @@ class ModelPackageExportService(
                         objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(request)
                     )
                 }
-                for ((fileId, pair) in fileBlobs) {
-                    val (file, blob) = pair
+                for ((fileId, packaged) in fileBlobs) {
                     val meta = PackagedFileMeta(
-                        filename = file.filename,
-                        contentType = file.contentType,
+                        filename = packaged.file.filename,
+                        contentType = packaged.file.contentType,
                         attrs = null
                     )
                     put(
                         "files/$fileId/meta.json",
                         objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(meta)
                     )
-                    put("files/$fileId/blob", blob)
+                    val latest = packaged.versions.lastOrNull()?.content ?: ByteArray(0)
+                    put("files/$fileId/blob", latest)
+                    for (version in packaged.versions) {
+                        put("files/$fileId/versions/${version.versionNumber}", version.content)
+                    }
                 }
             }
             return baos.toByteArray()
         }
     }
+
+    private data class PackagedFileVersion(
+        val versionNumber: Int,
+        val content: ByteArray
+    )
+
+    private data class PackagedFileContent(
+        val file: Files,
+        val versions: List<PackagedFileVersion>
+    )
 }

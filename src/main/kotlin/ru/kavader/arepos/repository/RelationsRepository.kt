@@ -57,6 +57,7 @@ interface RelationsRepository : JpaRepository<Relations, UUID> {
     )
     fun findDistinctLinkTypeIdsByNotationId(@Param("notationId") notationId: UUID): List<UUID>
 
+    fun existsByLinkTypeId(linkTypeId: UUID): Boolean
     fun existsByLinkTypeIdAndNotationIdIn(linkTypeId: UUID, notationIds: Collection<UUID>): Boolean
 
     /** Тип связи используется отношением в «видимой» нотации (прямой шаринг или диаграмма в доступной модели). */

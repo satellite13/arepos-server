@@ -376,19 +376,46 @@ class FileStorageService(
             "Markdown content exceeds 5 MB limit"
         )
 
-        val result = minioClient.putObject(
-            PutObjectArgs.builder()
-                .bucket(minioProperties.bucket)
-                .`object`(file.objectKey)
-                .stream(ByteArrayInputStream(bytes), bytes.size.toLong(), -1)
-                .contentType(MARKDOWN_TYPE)
-                .build()
-        )
+        return putNewObjectVersion(file, bytes, MARKDOWN_TYPE, owner)
+    }
 
-        // Save new version
+    /**
+     * Appends a new object version for an existing owned file (used by model-package import
+     * to recreate wiki history). Content-type stays as stored on the file record.
+     */
+    fun appendOwnedBlobVersion(id: UUID, content: ByteArray, owner: Users): Files {
+        val file = filesRepository.findById(id).orElse(null)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found: $id")
+        if (content.size > MAX_SIZE) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "File size exceeds 5 MB limit")
+        }
+        return putNewObjectVersion(file, content, file.contentType, owner)
+    }
+
+    private fun putNewObjectVersion(
+        file: Files,
+        bytes: ByteArray,
+        contentType: String,
+        owner: Users
+    ): Files {
+        val result = try {
+            minioClient.putObject(
+                PutObjectArgs.builder()
+                    .bucket(minioProperties.bucket)
+                    .`object`(file.objectKey)
+                    .stream(ByteArrayInputStream(bytes), bytes.size.toLong(), -1)
+                    .contentType(contentType)
+                    .build()
+            )
+        } catch (ex: Exception) {
+            throw ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "File storage failed while writing version for file ${file.id}",
+                ex
+            )
+        }
+
         saveVersion(file, result.versionId(), owner, bytes.size.toLong())
-
-        // Update file record with new size
         file.size = bytes.size.toLong()
         file.createdAt = java.time.Instant.now()
         return filesRepository.save(file)

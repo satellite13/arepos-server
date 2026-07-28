@@ -16,6 +16,7 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
     fun findByModel(model: Models, pageable: Pageable): Page<Nodes>
     fun findByOwner(owner: Users, pageable: Pageable): Page<Nodes>
     fun findByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<Nodes>
+    fun existsByNodeTypeId(nodeTypeId: UUID): Boolean
 
     @Query(
         value = """

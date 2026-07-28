@@ -8,6 +8,8 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.common.ListResponse
+import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.dto.notation.NodeShapeRequest
 import ru.kavader.arepos.dto.notation.NodeShapeResponse
 import ru.kavader.arepos.dto.notation.NodeShapeUpdateRequest
@@ -15,7 +17,9 @@ import ru.kavader.arepos.mapper.NotationMapper
 import ru.kavader.arepos.model.NodeShapes
 import ru.kavader.arepos.repository.NodeShapesRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.ADMIN_ONLY
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.CatalogLifecycleService
 import java.time.Instant
 import java.util.*
 
@@ -26,6 +30,7 @@ class NodeShapesController(
     private val nodeShapesRepository: NodeShapesRepository,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
+    private val catalogLifecycleService: CatalogLifecycleService,
     private val notationMapper: NotationMapper
 ) {
 
@@ -53,6 +58,15 @@ class NodeShapesController(
             .filter { normalizedName.isEmpty() || it.name.contains(normalizedName, ignoreCase = true) }
             .toList()
         return mapNodeShapesPage(visibleShapes.toPage(pageable))
+    }
+
+    @GetMapping("/deleted")
+    @Operation(summary = "List soft-deleted node shapes (admin)")
+    fun listDeleted(pageable: Pageable): ListResponse<NodeShapeResponse> {
+        if (!accessService.canViewAdminPanel()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
+        }
+        return mapNodeShapesPage(nodeShapesRepository.findByDeletedTrue(pageable)).toListResponse()
     }
 
     @GetMapping("/{id}")
@@ -109,14 +123,27 @@ class NodeShapesController(
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete node shape")
+    @Operation(summary = "Soft-delete node shape")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@PathVariable id: UUID) {
         val shape = nodeShapesRepository.findById(id).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "NodeShape $id not found")
         }
         accessService.requireCanEditNodeShape(shape)
-        nodeShapesRepository.deleteById(id)
+        catalogLifecycleService.softDeleteNodeShape(id)
+    }
+
+    @DeleteMapping("/{id}/permanent")
+    @Operation(summary = "Permanently delete node shape (admin)")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun permanentDelete(@PathVariable id: UUID) {
+        if (!accessService.canViewAdminPanel()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
+        }
+        val shape = nodeShapesRepository.findByIdIncludingDeleted(id).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "NodeShape $id not found")
+        }
+        catalogLifecycleService.permanentDeleteNodeShape(shape)
     }
 
     private fun mapNodeShapesPage(page: Page<NodeShapes>): Page<NodeShapeResponse> =

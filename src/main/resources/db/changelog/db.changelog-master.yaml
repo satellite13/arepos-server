@@ -415,3 +415,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 045-catalog-soft-delete
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/045-catalog-soft-delete.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

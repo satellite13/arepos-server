@@ -8,6 +8,8 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.common.ListResponse
+import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.dto.notation.NodeTypeRequest
 import ru.kavader.arepos.dto.notation.NodeTypeResponse
 import ru.kavader.arepos.dto.notation.NodeTypeUpdateRequest
@@ -15,8 +17,10 @@ import ru.kavader.arepos.mapper.NotationMapper
 import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.security.ACCESS_DENIED
+import ru.kavader.arepos.security.ADMIN_ONLY
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.CatalogLifecycleService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.TypeCatalogListService
 import java.time.Instant
@@ -30,6 +34,7 @@ class NodeTypesController(
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
     private val typeCatalogListService: TypeCatalogListService,
+    private val catalogLifecycleService: CatalogLifecycleService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val notationMapper: NotationMapper
 ) {
@@ -46,6 +51,15 @@ class NodeTypesController(
         mapNodeTypesPage(
             typeCatalogListService.listNodeTypes(pageable, ownerId, notationId, modelId, name)
         )
+
+    @GetMapping("/deleted")
+    @Operation(summary = "List soft-deleted node types (admin)")
+    fun listDeletedNodeTypes(pageable: Pageable): ListResponse<NodeTypeResponse> {
+        if (!accessService.canViewAdminPanel()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
+        }
+        return mapNodeTypesPage(nodeTypesRepository.findByDeletedTrue(pageable)).toListResponse()
+    }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get node type by id")
@@ -103,13 +117,26 @@ class NodeTypesController(
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Delete node type")
+    @Operation(summary = "Soft-delete node type")
     fun deleteNodeType(@PathVariable id: UUID) {
         val nodeType = nodeTypesRepository.findById(id).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
         }
         accessService.requireCanEditNodeType(nodeType)
-        nodeTypesRepository.deleteById(id)
+        catalogLifecycleService.softDeleteNodeType(id)
+    }
+
+    @DeleteMapping("/{id}/permanent")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Permanently delete node type (admin)")
+    fun permanentDeleteNodeType(@PathVariable id: UUID) {
+        if (!accessService.canViewAdminPanel()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
+        }
+        val nodeType = nodeTypesRepository.findByIdIncludingDeleted(id).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
+        }
+        catalogLifecycleService.permanentDeleteNodeType(nodeType)
     }
 
     private fun mapNodeTypesPage(page: Page<NodeTypes>): Page<NodeTypeResponse> =
