@@ -18,6 +18,9 @@ abstract class PostgresContainerTest {
             .withDatabaseName("arepos")
             .withUsername("arepos")
             .withPassword("arepos")
+            // Many Spring test contexts each open a Hikari pool; default PG max_connections=100
+            // is exhausted when pool size stays at production default (30).
+            .withCommand("postgres", "-c", "max_connections=300")
             .also { it.start() }
 
         private val policyDir: Path = Path.of("").toAbsolutePath().normalize().resolve("authz/cerbos/policies")
@@ -58,6 +61,7 @@ abstract class PostgresContainerTest {
             registry.add("spring.datasource.username") { postgres.username }
             registry.add("spring.datasource.password") { postgres.password }
             registry.add("spring.datasource.driver-class-name") { postgres.driverClassName }
+            registry.add("spring.datasource.hikari.maximum-pool-size") { "5" }
             registry.add("arepos.files.storage") { "disabled" }
         }
 

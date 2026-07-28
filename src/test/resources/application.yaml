@@ -4,6 +4,11 @@ server:
     min-response-size: 1024
     mime-types: application/json,application/xml,text/plain,text/html
 
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 5
+
 arepos:
   auth:
     csrf-enabled: false
