@@ -8,8 +8,12 @@ import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.http.MediaType
+import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.model.Diagrams
@@ -208,6 +212,114 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
                 .withAuth(modelOwner.id!!, Role.USER)
         )
             .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `import returns 201 for valid package zip`() {
+        val owner = usersRepository.save(
+            Users(email = "model-package-import-controller@test.com", role = Role.USER, createdAt = Instant.now())
+        )
+        val notation = notationsRepository.save(
+            Notations(
+                owner = owner,
+                name = "Import Controller Notation",
+                version = "1.0.0",
+                createdAt = Instant.now(),
+                deleted = false
+            )
+        )
+        val nodeType = nodeTypesRepository.save(
+            NodeTypes(name = "Import Controller Type", owner = owner, createdAt = Instant.now())
+        )
+        componentsRepository.save(
+            Components(
+                name = "Import Controller Component",
+                version = "1.0.0",
+                notation = notation,
+                owner = owner,
+                nodeType = nodeType,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "Import Controller Model",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now(),
+                deleted = false
+            )
+        )
+        val node = nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "Node",
+                createdAt = Instant.now(),
+                model = model,
+                owner = owner,
+                nodeType = nodeType
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "Diagram",
+                version = "1.0.0",
+                createdAt = Instant.now(),
+                owner = owner,
+                model = model,
+                notation = notation,
+                node = node,
+                deleted = false
+            )
+        )
+
+        val exportResult = mockMvc.perform(
+            get("/api/v1/models/${model.id}/package")
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+
+        model.name = "Import Controller Model Archived"
+        modelsRepository.save(model)
+        notation.name = "Import Controller Notation Archived"
+        notationsRepository.save(notation)
+
+        val upload = MockMultipartFile(
+            "file",
+            "model-package.zip",
+            "application/zip",
+            exportResult.response.contentAsByteArray
+        )
+
+        mockMvc.perform(
+            multipart("/api/v1/models/package")
+                .file(upload)
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.modelName").value("Import Controller Model"))
+            .andExpect(jsonPath("$.modelVersion").value("1.0.0"))
+    }
+
+    @Test
+    fun `import returns 400 for invalid zip upload`() {
+        val owner = usersRepository.save(
+            Users(email = "model-package-import-bad-zip@test.com", role = Role.USER, createdAt = Instant.now())
+        )
+        val upload = MockMultipartFile(
+            "file",
+            "bad.zip",
+            MediaType.APPLICATION_OCTET_STREAM_VALUE,
+            "not-a-zip".toByteArray()
+        )
+
+        mockMvc.perform(
+            multipart("/api/v1/models/package")
+                .file(upload)
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isBadRequest)
     }
 
     @TestConfiguration(proxyBeanMethods = false)

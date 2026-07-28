@@ -197,6 +197,48 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }
 
+    @Test
+    fun `export returns 500 when referenced file blob is missing`() {
+        val owner = persistUser(email = "package-export-missing-blob@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val fileId = UUID.randomUUID()
+        val file = filesRepository.save(
+            Files(
+                id = fileId,
+                owner = owner,
+                filename = "missing.md",
+                contentType = "text/markdown",
+                size = 12,
+                objectKey = "markdown/${owner.id}/$fileId/missing.md",
+                createdAt = Instant.now()
+            )
+        )
+        `when`(fileStorageService.getFileMetadata(file.id)).thenReturn(file)
+        `when`(fileStorageService.getFile(file.id)).thenReturn(null)
+
+        val notation = persistNotation(owner = owner, name = "Missing Blob Notation", version = "1.0.0")
+        val nodeType = persistNodeType(owner = owner, name = "Missing Blob Type")
+        persistComponent(notation = notation, nodeType = nodeType, owner = owner)
+
+        val model = persistModel(
+            owner = owner,
+            name = "Missing Blob Model",
+            version = "1.0.0",
+            attrs = """{"documentFileId":"$fileId"}"""
+        )
+        persistNode(model = model, owner = owner, nodeType = nodeType, name = "Node")
+        persistDiagram(model = model, notation = notation, owner = owner, name = "Diagram")
+
+        val ex = assertThrows<ResponseStatusException> {
+            exportService.export(model.id!!)
+        }
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.statusCode)
+        assertNotNull(ex.reason)
+        assertTrue(ex.reason!!.contains("Referenced file blob missing"))
+        assertTrue(ex.reason!!.contains(fileId.toString()))
+    }
+
     private fun authAs(userId: UUID, role: Role) {
         SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken(
             userId,

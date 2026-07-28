@@ -1,5 +1,6 @@
 package ru.kavader.arepos.service.modelpackage
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -26,10 +27,18 @@ import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.DocumentRefsRepository
 import ru.kavader.arepos.repository.FilesRepository
 import ru.kavader.arepos.repository.RepositoryTestBase
+import ru.kavader.arepos.dto.modelpackage.ModelPackageManifest
+import ru.kavader.arepos.dto.modelpackage.ModelPackageSource
+import ru.kavader.arepos.dto.modelpackage.PackagedDiagram
+import ru.kavader.arepos.dto.modelpackage.PackagedModel
+import ru.kavader.arepos.dto.modelpackage.PackagedNode
 import ru.kavader.arepos.service.FileStorageService
+import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -53,6 +62,9 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
 
     @Autowired
     lateinit var fileStorageService: FileStorageService
+
+    @Autowired
+    lateinit var objectMapper: ObjectMapper
 
     @AfterEach
     fun clearSecurity() {
@@ -264,6 +276,179 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         assertTrue(ex.reason!!.contains("Model"))
         assertEquals(beforeModels, modelsRepository.count())
         assertTrue(notationsRepository.findAll().none { it.name == "Model Conflict Notation" && it.version == "1.0.0" })
+    }
+
+    @Test
+    fun `import rejects unsupported manifest format`() {
+        val owner = persistUser(email = "package-import-bad-format@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val zipBytes = buildZip(
+            mapOf(
+                "manifest.json" to manifestBytes(format = "legacy-model-package"),
+                "model.json" to minimalModelBytes()
+            )
+        )
+
+        val ex = assertThrows<ResponseStatusException> {
+            importService.importPackage(zipBytes, owner)
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertTrue(ex.reason!!.contains("Unsupported package format"))
+    }
+
+    @Test
+    fun `import rejects unsupported manifest version`() {
+        val owner = persistUser(email = "package-import-bad-version@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val zipBytes = buildZip(
+            mapOf(
+                "manifest.json" to manifestBytes(version = 99),
+                "model.json" to minimalModelBytes()
+            )
+        )
+
+        val ex = assertThrows<ResponseStatusException> {
+            importService.importPackage(zipBytes, owner)
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertTrue(ex.reason!!.contains("Unsupported package version"))
+    }
+
+    @Test
+    fun `import rejects empty zip`() {
+        val owner = persistUser(email = "package-import-empty-zip@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val ex = assertThrows<ResponseStatusException> {
+            importService.importPackage(ByteArray(0), owner)
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertTrue(ex.reason!!.contains("empty"))
+    }
+
+    @Test
+    fun `import rejects invalid zip bytes`() {
+        val owner = persistUser(email = "package-import-invalid-zip@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val ex = assertThrows<ResponseStatusException> {
+            importService.importPackage(
+                byteArrayOf(0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00),
+                owner
+            )
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertTrue(
+            ex.reason!!.contains("Invalid package ZIP") ||
+                ex.reason!!.contains("Package ZIP has no entries")
+        )
+    }
+
+    @Test
+    fun `import rejects package exceeding diagram count limit`() {
+        val owner = persistUser(email = "package-import-diagram-limit@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val notationId = UUID.randomUUID()
+        val zipBytes = buildZip(
+            mapOf(
+                "manifest.json" to manifestBytes(notationIds = listOf(notationId)),
+                "model.json" to minimalModelBytes(
+                    diagramCount = ModelPackageLimits.MAX_DIAGRAMS + 1,
+                    notationId = notationId
+                )
+            )
+        )
+
+        val ex = assertThrows<ResponseStatusException> {
+            importService.importPackage(zipBytes, owner)
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertTrue(ex.reason!!.contains("diagram limit"))
+    }
+
+    @Test
+    fun `import rejects package exceeding notation count limit`() {
+        val owner = persistUser(email = "package-import-notation-limit@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val entries = linkedMapOf(
+            "manifest.json" to manifestBytes(),
+            "model.json" to minimalModelBytes()
+        )
+        repeat(ModelPackageLimits.MAX_NOTATIONS + 1) {
+            entries["notations/${UUID.randomUUID()}.json"] = "{}".toByteArray()
+        }
+
+        val ex = assertThrows<ResponseStatusException> {
+            importService.importPackage(buildZip(entries), owner)
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertTrue(ex.reason!!.contains("notation limit"))
+    }
+
+    private fun manifestBytes(
+        format: String = ModelPackageLimits.FORMAT,
+        version: Int = ModelPackageLimits.VERSION,
+        notationIds: List<UUID> = emptyList()
+    ): ByteArray {
+        val manifest = ModelPackageManifest(
+            format = format,
+            version = version,
+            exportedAt = Instant.parse("2026-01-01T00:00:00Z"),
+            source = ModelPackageSource(
+                modelId = UUID.randomUUID(),
+                modelName = "Package",
+                modelVersion = "1.0.0"
+            ),
+            notationIds = notationIds,
+            fileIds = emptyList()
+        )
+        return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(manifest)
+    }
+
+    private fun minimalModelBytes(
+        diagramCount: Int = 0,
+        notationId: UUID = UUID.randomUUID()
+    ): ByteArray {
+        val rootId = UUID.randomUUID()
+        val model = PackagedModel(
+            name = "Limit Test Model",
+            version = "1.0.0",
+            nodes = listOf(
+                PackagedNode(
+                    id = rootId,
+                    stableId = UUID.randomUUID(),
+                    name = "Root",
+                    nodeTypeId = UUID.randomUUID(),
+                    parentNodeId = null
+                )
+            ),
+            diagrams = (1..diagramCount).map { index ->
+                PackagedDiagram(
+                    id = UUID.randomUUID(),
+                    name = "Diagram $index",
+                    version = "1.0.0",
+                    notationId = notationId
+                )
+            }
+        )
+        return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(model)
+    }
+
+    private fun buildZip(entries: Map<String, ByteArray>): ByteArray {
+        ByteArrayOutputStream().use { baos ->
+            ZipOutputStream(baos).use { zos ->
+                for ((name, bytes) in entries) {
+                    zos.putNextEntry(ZipEntry(name))
+                    zos.write(bytes)
+                    zos.closeEntry()
+                }
+            }
+            return baos.toByteArray()
+        }
     }
 
     private fun persistWikiFile(owner: Users, id: UUID, filename: String, content: String): Files =
