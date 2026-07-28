@@ -1,9 +1,12 @@
 package ru.kavader.arepos.controller
 
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.ConstraintViolationException
+import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
@@ -22,7 +25,8 @@ class NotationImportController(
     private val accessService: ResourceAccessService,
     private val notationImportService: NotationImportService,
     private val exportDocumentMapper: NotationExportDocumentMapper,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val validator: Validator
 ) {
 
     @PostMapping("/import")
@@ -42,9 +46,16 @@ class NotationImportController(
         } else {
             try {
                 objectMapper.treeToValue(body, NotationImportRequest::class.java)
-            } catch (ex: Exception) {
+            } catch (ex: JsonProcessingException) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid notation import payload", ex)
+            } catch (ex: IllegalArgumentException) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid notation import payload", ex)
             }
+        }
+
+        val violations = validator.validate(request)
+        if (violations.isNotEmpty()) {
+            throw ConstraintViolationException(violations)
         }
 
         return notationImportService.import(request, owner)

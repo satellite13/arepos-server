@@ -394,6 +394,23 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `import rejects flat payload with blank notation name`() {
+        val caller = persistUser("notation-blank-name@test.com")
+        val payload = linkedMapOf(
+            "notation" to linkedMapOf("name" to "", "version" to "1.0.0")
+        )
+
+        mockMvc.perform(
+            post("/api/v1/notations/import")
+                .withAuth(caller.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
+    }
+
+    @Test
     fun `import rejects unknown export format`() {
         val caller = persistUser("notation-bad-format@test.com")
         val doc = linkedMapOf(
