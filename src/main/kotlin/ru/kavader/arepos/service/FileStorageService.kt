@@ -242,6 +242,84 @@ class FileStorageService(
         return saved
     }
 
+    /**
+     * Creates a file owned by [owner] with a predetermined [id] (used by model package import
+     * so mdfile:// links can be rewritten against a complete fileIdMap before upload).
+     */
+    fun createOwnedBlob(
+        id: UUID,
+        content: ByteArray,
+        filename: String,
+        contentType: String,
+        owner: Users
+    ): Files {
+        if (content.size > MAX_SIZE) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "File size exceeds 5 MB limit")
+        }
+        val normalizedType = contentType.ifBlank { "application/octet-stream" }
+        if (!isAllowedType(normalizedType) && !normalizedType.equals(MARKDOWN_TYPE, ignoreCase = true)) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "File type not allowed: $normalizedType"
+            )
+        }
+
+        val isMarkdown = normalizedType.equals(MARKDOWN_TYPE, ignoreCase = true) ||
+            normalizedType.startsWith("text/markdown", ignoreCase = true)
+        val safeFilename = sanitizeFilename(filename).let { name ->
+            if (isMarkdown && !name.endsWith(".md")) "$name.md" else name
+        }
+        val objectKey = if (isMarkdown) {
+            "markdown/${owner.id!!}/$id/$safeFilename"
+        } else {
+            "uploads/${owner.id!!}/$id/$safeFilename"
+        }
+        val storedType = if (isMarkdown) MARKDOWN_TYPE else normalizedType
+
+        val result = try {
+            minioClient.putObject(
+                PutObjectArgs.builder()
+                    .bucket(minioProperties.bucket)
+                    .`object`(objectKey)
+                    .stream(ByteArrayInputStream(content), content.size.toLong(), -1)
+                    .contentType(storedType)
+                    .build()
+            )
+        } catch (ex: Exception) {
+            throw ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "File storage failed while writing file $id",
+                ex
+            )
+        }
+
+        val entity = Files(
+            id = id,
+            owner = owner,
+            filename = safeFilename,
+            contentType = storedType,
+            size = content.size.toLong(),
+            objectKey = objectKey,
+            createdAt = java.time.Instant.now()
+        )
+        val saved = filesRepository.save(entity)
+        saveVersion(saved, result.versionId(), owner, content.size.toLong())
+        return saved
+    }
+
+    fun deleteObjectQuietly(objectKey: String) {
+        try {
+            minioClient.removeObject(
+                RemoveObjectArgs.builder()
+                    .bucket(minioProperties.bucket)
+                    .`object`(objectKey)
+                    .build()
+            )
+        } catch (ex: Exception) {
+            log.warn("Failed to delete orphan object key {}", objectKey, ex)
+        }
+    }
+
     fun getFile(id: UUID): Pair<Files, Resource>? {
         val file = filesRepository.findById(id).orElse(null) ?: return null
         val latestVersion = fileVersionsRepository.findTopByFileOrderByVersionNumberDesc(file)
