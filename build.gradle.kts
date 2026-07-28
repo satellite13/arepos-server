@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "ru.kvader"
-version = "0.6.5"
+version = "0.7.0"
 
 val mockitoAgent = configurations.create("mockitoAgent")
 val reflectiveAccessOpens = listOf(
