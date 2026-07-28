@@ -15,6 +15,18 @@ interface DocumentRefsRepository : JpaRepository<DocumentRefs, UUID> {
 
     fun findAllByFileId(fileId: UUID): List<DocumentRefs>
 
+    fun findAllByModelId(modelId: UUID): List<DocumentRefs>
+
+    fun findAllByNodeIdIn(nodeIds: Collection<UUID>): List<DocumentRefs>
+
+    fun findAllByDiagramIdIn(diagramIds: Collection<UUID>): List<DocumentRefs>
+
+    fun findAllByNotationIdIn(notationIds: Collection<UUID>): List<DocumentRefs>
+
+    fun findAllByComponentIdIn(componentIds: Collection<UUID>): List<DocumentRefs>
+
+    fun findAllByRelationIdIn(relationIds: Collection<UUID>): List<DocumentRefs>
+
     @Query(
         """
         SELECT dr FROM DocumentRefs dr
