@@ -7,6 +7,7 @@ import ru.kavader.arepos.model.NodeShapes
 import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.ShareResourceType
+import ru.kavader.arepos.model.ValidationScripts
 import ru.kavader.arepos.security.CerbosAction
 import ru.kavader.arepos.security.CerbosMappers
 import ru.kavader.arepos.security.CurrentUser
@@ -72,6 +73,23 @@ class TopLevelAccess(
         return shapes.filter { shape -> shape.id?.let { decisions[it] } == true }
     }
 
+    fun canEditValidationScript(script: ValidationScripts): Boolean =
+        canEdit(script.owner.id!!, ShareResourceType.VALIDATION_SCRIPT, script.id!!)
+
+    fun canViewValidationScript(script: ValidationScripts): Boolean =
+        canView(script.owner.id!!, ShareResourceType.VALIDATION_SCRIPT, script.id!!)
+
+    fun canViewValidationScripts(scripts: Collection<ValidationScripts>): Map<UUID, Boolean> =
+        evaluate(
+            scripts.mapEntries(ShareResourceType.VALIDATION_SCRIPT) { it.owner.id!! to it.id },
+            CerbosAction.VIEW
+        )
+
+    fun filterViewableValidationScripts(scripts: Collection<ValidationScripts>): List<ValidationScripts> {
+        val decisions = canViewValidationScripts(scripts)
+        return scripts.filter { script -> script.id?.let { decisions[it] } == true }
+    }
+
     fun modelAccessPermission(model: Models, isAdmin: () -> Boolean): String? =
         accessPermission(model.owner.id!!, ShareResourceType.MODEL, model.id!!, isAdmin)
 
@@ -101,6 +119,18 @@ class TopLevelAccess(
 
     fun nodeShapeAccessPermissions(shapes: Collection<NodeShapes>, isAdmin: () -> Boolean): Map<UUID, String?> =
         accessPermissions(shapes.mapEntries(ShareResourceType.NODE_SHAPE) { it.owner.id!! to it.id }, isAdmin)
+
+    fun validationScriptAccessPermission(script: ValidationScripts, isAdmin: () -> Boolean): String? =
+        accessPermission(script.owner.id!!, ShareResourceType.VALIDATION_SCRIPT, script.id!!, isAdmin)
+
+    fun validationScriptAccessPermissions(
+        scripts: Collection<ValidationScripts>,
+        isAdmin: () -> Boolean
+    ): Map<UUID, String?> =
+        accessPermissions(
+            scripts.mapEntries(ShareResourceType.VALIDATION_SCRIPT) { it.owner.id!! to it.id },
+            isAdmin
+        )
 
     private fun canEdit(ownerId: UUID, resourceType: ShareResourceType, resourceId: UUID): Boolean =
         evaluate(ownerId, resourceType, resourceId, CerbosAction.EDIT)

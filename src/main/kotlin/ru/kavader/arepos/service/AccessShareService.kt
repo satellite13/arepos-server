@@ -25,6 +25,7 @@ class AccessShareService(
     private val nodeTypesRepository: NodeTypesRepository,
     private val nodeShapesRepository: NodeShapesRepository,
     private val linkTypesRepository: LinkTypesRepository,
+    private val validationScriptsRepository: ValidationScriptsRepository,
     private val accessService: ResourceAccessService,
     private val accessMapper: AccessMapper
 ) {
@@ -110,6 +111,10 @@ class AccessShareService(
 
             ShareResourceType.NODE_SHAPE -> nodeShapesRepository.findById(resourceId).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeShape $resourceId not found")
+            }.owner.id!!
+
+            ShareResourceType.VALIDATION_SCRIPT -> validationScriptsRepository.findById(resourceId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "ValidationScript $resourceId not found")
             }.owner.id!!
         }
 }

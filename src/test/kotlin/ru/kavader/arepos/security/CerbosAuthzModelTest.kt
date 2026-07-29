@@ -12,5 +12,9 @@ class CerbosAuthzModelTest {
         assertEquals(CerbosResourceKind.NODE_TYPE, CerbosMappers.fromShareResourceType(ShareResourceType.NODE_TYPE))
         assertEquals(CerbosResourceKind.LINK_TYPE, CerbosMappers.fromShareResourceType(ShareResourceType.LINK_TYPE))
         assertEquals(CerbosResourceKind.NODE_SHAPE, CerbosMappers.fromShareResourceType(ShareResourceType.NODE_SHAPE))
+        assertEquals(
+            CerbosResourceKind.VALIDATION_SCRIPT,
+            CerbosMappers.fromShareResourceType(ShareResourceType.VALIDATION_SCRIPT)
+        )
     }
 }

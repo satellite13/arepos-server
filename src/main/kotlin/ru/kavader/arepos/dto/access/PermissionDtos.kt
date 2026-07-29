@@ -10,6 +10,7 @@ enum class PermissionResourceType {
     NODE_TYPE,
     LINK_TYPE,
     NODE_SHAPE,
+    VALIDATION_SCRIPT,
     FILE,
     SHARE,
     ADMIN_PANEL

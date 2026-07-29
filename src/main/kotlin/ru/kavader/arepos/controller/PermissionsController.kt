@@ -28,6 +28,7 @@ class PermissionsController(
     private val nodeTypesRepository: NodeTypesRepository,
     private val linkTypesRepository: LinkTypesRepository,
     private val nodeShapesRepository: NodeShapesRepository,
+    private val validationScriptsRepository: ValidationScriptsRepository,
     private val filesRepository: FilesRepository,
     private val accessService: ResourceAccessService
 ) {
@@ -127,6 +128,17 @@ class PermissionsController(
                     PermissionAction.VIEW -> accessService.canViewNodeShape(shape)
                     PermissionAction.EDIT -> accessService.canEditNodeShape(shape)
                     PermissionAction.MANAGE -> accessService.canManageShares(shape.owner.id!!)
+                }
+            }
+
+            PermissionResourceType.VALIDATION_SCRIPT -> {
+                val script = validationScriptsRepository.findById(resourceId).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "ValidationScript $resourceId not found")
+                }
+                when (action) {
+                    PermissionAction.VIEW -> accessService.canViewValidationScript(script)
+                    PermissionAction.EDIT -> accessService.canEditValidationScript(script)
+                    PermissionAction.MANAGE -> accessService.canManageShares(script.owner.id!!)
                 }
             }
 

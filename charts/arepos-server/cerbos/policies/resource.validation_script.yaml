@@ -1,0 +1,42 @@
+# nonk8s
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/Policy.schema.json
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  version: default
+  resource: validation_script
+  rules:
+    - name: admin-all
+      actions: ["*"]
+      effect: EFFECT_ALLOW
+      roles:
+        - ADMIN
+
+    - name: owner-view-edit
+      actions: ["view", "edit"]
+      effect: EFFECT_ALLOW
+      roles:
+        - USER
+        - EDITOR
+      condition:
+        match:
+          expr: request.resource.attr.isOwner == true
+
+    - name: shared-view
+      actions: ["view"]
+      effect: EFFECT_ALLOW
+      roles:
+        - USER
+        - EDITOR
+      condition:
+        match:
+          expr: request.resource.attr.hasShareView == true
+
+    - name: shared-edit
+      actions: ["edit"]
+      effect: EFFECT_ALLOW
+      roles:
+        - USER
+        - EDITOR
+      condition:
+        match:
+          expr: request.resource.attr.hasShareEdit == true

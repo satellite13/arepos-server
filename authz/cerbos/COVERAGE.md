@@ -17,6 +17,7 @@
 - `node_type`
 - `link_type`
 - `node_shape`
+- `validation_script`
 - `file`
 - `share`
 - `admin_panel`
@@ -38,6 +39,7 @@ Policy-файлы: `authz/cerbos/policies/resource.*.yaml`.
 - `canViewNodeType` / `canEditNodeType` -> `node_type:view|edit`
 - `canViewLinkType` / `canEditLinkType` -> `link_type:view|edit`
 - `canViewNodeShape` / `canEditNodeShape` -> `node_shape:view|edit`
+- `canViewValidationScript` / `canEditValidationScript` -> `validation_script:view|edit`
 - `canViewFile` -> `file:view`
 - `canManageShares` -> `share:manage`
 - `canViewAdminPanel` -> `admin_panel:view`

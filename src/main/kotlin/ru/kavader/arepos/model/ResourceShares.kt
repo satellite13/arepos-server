@@ -9,7 +9,8 @@ enum class ShareResourceType {
     NOTATION,
     NODE_TYPE,
     LINK_TYPE,
-    NODE_SHAPE
+    NODE_SHAPE,
+    VALIDATION_SCRIPT
 }
 
 enum class SharePermission {

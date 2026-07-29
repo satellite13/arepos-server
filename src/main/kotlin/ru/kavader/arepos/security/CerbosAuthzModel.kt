@@ -10,6 +10,7 @@ enum class CerbosResourceKind(val policyValue: String) {
     NODE_TYPE("node_type"),
     LINK_TYPE("link_type"),
     NODE_SHAPE("node_shape"),
+    VALIDATION_SCRIPT("validation_script"),
     FILE("file"),
     SHARE("share"),
     FEEDBACK_ITEM("feedback_item"),
@@ -37,5 +38,6 @@ object CerbosMappers {
             ShareResourceType.NODE_TYPE -> CerbosResourceKind.NODE_TYPE
             ShareResourceType.LINK_TYPE -> CerbosResourceKind.LINK_TYPE
             ShareResourceType.NODE_SHAPE -> CerbosResourceKind.NODE_SHAPE
+            ShareResourceType.VALIDATION_SCRIPT -> CerbosResourceKind.VALIDATION_SCRIPT
         }
 }

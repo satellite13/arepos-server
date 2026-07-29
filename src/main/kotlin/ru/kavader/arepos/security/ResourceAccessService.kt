@@ -17,6 +17,7 @@ import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.RelationRules
 import ru.kavader.arepos.model.Relations
 import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.model.ValidationScripts
 import ru.kavader.arepos.security.access.BatchEvaluator
 import ru.kavader.arepos.security.access.NotationDiagramAccess
 import ru.kavader.arepos.security.access.TopLevelAccess
@@ -74,6 +75,18 @@ class ResourceAccessService(
 
     fun filterViewableNodeShapes(shapes: Collection<NodeShapes>): List<NodeShapes> =
         topLevelAccess.filterViewableNodeShapes(shapes)
+
+    fun canEditValidationScript(script: ValidationScripts): Boolean =
+        topLevelAccess.canEditValidationScript(script)
+
+    fun canViewValidationScript(script: ValidationScripts): Boolean =
+        topLevelAccess.canViewValidationScript(script)
+
+    fun canViewValidationScripts(scripts: Collection<ValidationScripts>): Map<UUID, Boolean> =
+        topLevelAccess.canViewValidationScripts(scripts)
+
+    fun filterViewableValidationScripts(scripts: Collection<ValidationScripts>): List<ValidationScripts> =
+        topLevelAccess.filterViewableValidationScripts(scripts)
 
     fun canUseNodeType(nodeType: NodeTypes): Boolean = canViewNodeType(nodeType) || isCommonType(nodeType.owner)
 
@@ -140,6 +153,12 @@ class ResourceAccessService(
     fun requireCanEditNodeShape(shape: NodeShapes) = requireAllowed(canEditNodeShape(shape))
 
     fun requireCanViewNodeShape(shape: NodeShapes) = requireAllowed(canViewNodeShape(shape))
+
+    fun requireCanEditValidationScript(script: ValidationScripts) =
+        requireAllowed(canEditValidationScript(script))
+
+    fun requireCanViewValidationScript(script: ValidationScripts) =
+        requireAllowed(canViewValidationScript(script))
 
     fun requireCanEditNode(node: Nodes) = requireAllowed(canEditNode(node))
 
@@ -359,6 +378,12 @@ class ResourceAccessService(
 
     fun nodeShapeAccessPermissions(shapes: Collection<NodeShapes>): Map<UUID, String?> =
         topLevelAccess.nodeShapeAccessPermissions(shapes, ::canViewAdminPanel)
+
+    fun validationScriptAccessPermission(script: ValidationScripts): String? =
+        topLevelAccess.validationScriptAccessPermission(script, ::canViewAdminPanel)
+
+    fun validationScriptAccessPermissions(scripts: Collection<ValidationScripts>): Map<UUID, String?> =
+        topLevelAccess.validationScriptAccessPermissions(scripts, ::canViewAdminPanel)
 
     private fun isCommonType(owner: Users): Boolean =
         owner.email.equals("system@arepos.local", ignoreCase = true) || !owner.isActive
