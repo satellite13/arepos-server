@@ -56,6 +56,16 @@ interface NodeTypesRepository : JpaRepository<NodeTypes, UUID> {
 
     @Query(
         """
+        SELECT nt FROM NodeTypes nt
+        WHERE LOWER(nt.owner.email) = LOWER(:ownerEmail)
+          AND LOWER(nt.name) = LOWER(:name)
+          AND nt.deleted = false
+        """
+    )
+    fun findByOwnerEmailIgnoreCaseAndNameIgnoreCase(ownerEmail: String, name: String): NodeTypes?
+
+    @Query(
+        """
         SELECT nt
         FROM NodeTypes nt
         WHERE nt.deleted = false

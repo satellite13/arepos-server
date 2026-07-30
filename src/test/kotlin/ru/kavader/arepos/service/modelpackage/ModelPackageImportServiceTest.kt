@@ -413,6 +413,12 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         val ownerB = persistUser(email = "package-import-folder-b@test.com")
         authAs(ownerB.id!!, Role.USER)
 
+        val systemDirectory = nodeTypesRepository.findByOwnerEmailIgnoreCaseAndNameIgnoreCase(
+            ownerEmail = "system@arepos.local",
+            name = "Directory"
+        )
+        assertNotNull(systemDirectory)
+
         val response = importService.importPackage(zipBytes, ownerB)
 
         val importedNodes = nodesRepository.findByModelIdOrdered(response.modelId, Pageable.unpaged()).content
@@ -421,6 +427,9 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         assertTrue(importedNodes.any { it.name == "Home" && it.parentNode != null })
         val folderNode = importedNodes.first { it.name == "Home Path" }
         assertEquals("Directory", folderNode.nodeType.name)
+        assertEquals(systemDirectory.id, folderNode.nodeType.id)
+        // Must not create a second Directory owned by the importer.
+        kotlin.test.assertNull(nodeTypesRepository.findByOwnerAndNameIgnoreCase(ownerB, "Directory"))
     }
 
     @Test
