@@ -736,4 +736,10 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.message").value("Share link not found or expired"))
             .andExpect(jsonPath("$.traceId").isNotEmpty)
     }
+
+    @Test
+    fun `public svg HEAD is permitted without auth`() {
+        mockMvc.perform(head("/api/v1/diagrams/svg/public/${UUID.randomUUID()}"))
+            .andExpect(status().isNotFound)
+    }
 }

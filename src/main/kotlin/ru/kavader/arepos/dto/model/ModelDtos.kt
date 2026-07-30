@@ -153,7 +153,9 @@ data class DiagramShareLinkRequest(
 
 data class DiagramShareLinkResponse(
     val url: String,
-    val token: UUID
+    val token: UUID,
+    /** Diagram whose preview SVG the public URL resolves to (pinned id or current latest-by-name). */
+    val diagramId: UUID
 )
 
 data class DiagramLockStatusResponse(

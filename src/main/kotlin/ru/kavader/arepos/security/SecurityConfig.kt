@@ -80,7 +80,8 @@ class SecurityConfig(
                     .requestMatchers("/api/v1/auth/**").permitAll()
                     .requestMatchers("/actuator/health/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/system/version").permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/v1/diagrams/svg/public/**").permitAll()
+                    // GET + HEAD: browsers/previews often probe with HEAD first.
+                    .requestMatchers("/api/v1/diagrams/svg/public/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/feedback", "/api/v1/feedback/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/roadmap", "/api/v1/roadmap/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/tutorials", "/api/v1/tutorials/**").permitAll()

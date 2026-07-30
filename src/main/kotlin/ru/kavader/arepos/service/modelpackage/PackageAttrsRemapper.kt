@@ -98,11 +98,7 @@ class PackageAttrsRemapper(
     ) {
         val node = parent.get(fieldName) as? ObjectNode ?: return
         val remapped = objectMapper.createObjectNode()
-        val fields = node.fields()
-        while (fields.hasNext()) {
-            val entry = fields.next()
-            val key = entry.key
-            val value = entry.value
+        node.properties().forEach { (key, value) ->
             val newKey = remapUuidKey(key, notationIdMap) ?: key
             if (value is ObjectNode) {
                 val copy = value.deepCopy()
@@ -126,18 +122,13 @@ class PackageAttrsRemapper(
     ) {
         val scoped = parent.get(fieldName) as? ObjectNode ?: return
         val remappedScoped = objectMapper.createObjectNode()
-        val notationFields = scoped.fields()
-        while (notationFields.hasNext()) {
-            val notationEntry = notationFields.next()
-            val notationKey = remapUuidKey(notationEntry.key, notationIdMap) ?: notationEntry.key
-            val byEntity = notationEntry.value
+        scoped.properties().forEach { (notationEntryKey, byEntity) ->
+            val notationKey = remapUuidKey(notationEntryKey, notationIdMap) ?: notationEntryKey
             if (byEntity is ObjectNode) {
                 val remappedEntities = objectMapper.createObjectNode()
-                val entityFields = byEntity.fields()
-                while (entityFields.hasNext()) {
-                    val entityEntry = entityFields.next()
-                    val newEntityKey = entityIdMap[entityEntry.key]?.toString() ?: entityEntry.key
-                    remappedEntities.set<JsonNode>(newEntityKey, entityEntry.value)
+                byEntity.properties().forEach { (entityKey, entityValue) ->
+                    val newEntityKey = entityIdMap[entityKey]?.toString() ?: entityKey
+                    remappedEntities.set<JsonNode>(newEntityKey, entityValue)
                 }
                 remappedScoped.set<ObjectNode>(notationKey, remappedEntities)
             } else {

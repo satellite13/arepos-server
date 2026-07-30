@@ -8,6 +8,8 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.DiagramShareLinkRequest
 import ru.kavader.arepos.dto.model.DiagramShareLinkResponse
 import ru.kavader.arepos.model.DiagramPreviewLinks
+import ru.kavader.arepos.model.Diagrams
+import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.repository.DiagramPreviewLinksRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
@@ -39,7 +41,7 @@ class DiagramShareLinkService(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Current user not found")
             }
-        val link: DiagramPreviewLinks = when {
+        return when {
             request.diagramId != null -> {
                 val diagram = diagramsRepository.findById(request.diagramId)
                     .orElseThrow {
@@ -47,19 +49,21 @@ class DiagramShareLinkService(
                     }
                 accessService.requireCanViewDiagram(diagram)
                 val existing = diagramPreviewLinksRepository.findByDiagram(diagram)
-                if (existing.isPresent) {
-                    return toResponse(existing.get())
-                }
-                diagramPreviewLinksRepository.save(
-                    DiagramPreviewLinks(
-                        token = UUID.randomUUID(),
-                        diagram = diagram,
-                        model = null,
-                        diagramName = null,
-                        createdAt = Instant.now(),
-                        createdBy = user
+                val link = if (existing.isPresent) {
+                    existing.get()
+                } else {
+                    diagramPreviewLinksRepository.save(
+                        DiagramPreviewLinks(
+                            token = UUID.randomUUID(),
+                            diagram = diagram,
+                            model = null,
+                            diagramName = null,
+                            createdAt = Instant.now(),
+                            createdBy = user
+                        )
                     )
-                )
+                }
+                toResponse(link, diagram.id!!)
             }
 
             request.modelId != null && request.diagramName != null && request.latest == true -> {
@@ -68,27 +72,23 @@ class DiagramShareLinkService(
                         ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
                     }
                 accessService.requireCanViewModel(model)
-                val allByName = diagramsRepository.findByModelIdAndNameAndDeletedFalse(model.id!!, request.diagramName)
-                    .let { accessService.filterViewableDiagrams(it) }
-                allByName.maxWithOrNull(diagramLifecycleService::compareDiagramVersions)
-                    ?: throw ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "No diagram named '${request.diagramName}' found"
-                    )
+                val latest = resolveLatestDiagram(model, request.diagramName)
                 val existing = diagramPreviewLinksRepository.findByModelAndDiagramName(model, request.diagramName)
-                if (existing.isPresent) {
-                    return toResponse(existing.get())
-                }
-                diagramPreviewLinksRepository.save(
-                    DiagramPreviewLinks(
-                        token = UUID.randomUUID(),
-                        diagram = null,
-                        model = model,
-                        diagramName = request.diagramName,
-                        createdAt = Instant.now(),
-                        createdBy = user
+                val link = if (existing.isPresent) {
+                    existing.get()
+                } else {
+                    diagramPreviewLinksRepository.save(
+                        DiagramPreviewLinks(
+                            token = UUID.randomUUID(),
+                            diagram = null,
+                            model = model,
+                            diagramName = request.diagramName,
+                            createdAt = Instant.now(),
+                            createdBy = user
+                        )
                     )
-                )
+                }
+                toResponse(link, latest.id!!)
             }
 
             else -> throw ResponseStatusException(
@@ -96,29 +96,13 @@ class DiagramShareLinkService(
                 "Provide either diagramId or (modelId, diagramName, latest: true)"
             )
         }
-        return toResponse(link)
     }
 
+    @Transactional(readOnly = true)
     fun resolvePublicSvg(token: UUID): ByteArray {
-        val link = diagramPreviewLinksRepository.findByToken(token).orElse(null)
+        val link = diagramPreviewLinksRepository.findByTokenWithTargets(token).orElse(null)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Share link not found or expired")
-        val linkedDiagram = link.diagram
-        val linkedModel = link.model
-        val linkedDiagramName = link.diagramName
-        val diagramId: UUID = when {
-            linkedDiagram != null -> linkedDiagram.id!!
-            linkedModel != null && linkedDiagramName != null -> {
-                val allByName = diagramsRepository.findByModelIdAndNameAndDeletedFalse(
-                    linkedModel.id!!,
-                    linkedDiagramName
-                )
-                val latest = allByName.maxWithOrNull(diagramLifecycleService::compareDiagramVersions)
-                    ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram not found")
-                latest.id!!
-            }
-
-            else -> throw ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid share link")
-        }
+        val diagramId = resolveTargetDiagramId(link)
         return when (val svgResult = diagramSvgStorage.getSvg(diagramId)) {
             is DiagramSvgReadResult.Found -> svgResult.bytes
             DiagramSvgReadResult.NotFound ->
@@ -137,7 +121,7 @@ class DiagramShareLinkService(
 
     @Transactional
     fun revokeShareLink(token: UUID) {
-        val link = diagramPreviewLinksRepository.findByToken(token)
+        val link = diagramPreviewLinksRepository.findByTokenWithTargets(token)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Share link not found")
             }
@@ -158,8 +142,32 @@ class DiagramShareLinkService(
         return if (normalizedBase.isBlank()) path else "$normalizedBase$path"
     }
 
-    private fun toResponse(link: DiagramPreviewLinks) = DiagramShareLinkResponse(
+    private fun resolveLatestDiagram(model: Models, diagramName: String): Diagrams {
+        val allByName = diagramsRepository.findByModelIdAndNameAndDeletedFalse(model.id!!, diagramName)
+            .let { accessService.filterViewableDiagrams(it) }
+        return allByName.maxWithOrNull(diagramLifecycleService::compareDiagramVersions)
+            ?: throw ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "No diagram named '$diagramName' found"
+            )
+    }
+
+    private fun resolveTargetDiagramId(link: DiagramPreviewLinks): UUID {
+        val linkedDiagram = link.diagram
+        if (linkedDiagram != null) {
+            return linkedDiagram.id!!
+        }
+        val linkedModel = link.model
+        val linkedDiagramName = link.diagramName
+        if (linkedModel != null && linkedDiagramName != null) {
+            return resolveLatestDiagram(linkedModel, linkedDiagramName).id!!
+        }
+        throw ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid share link")
+    }
+
+    private fun toResponse(link: DiagramPreviewLinks, diagramId: UUID) = DiagramShareLinkResponse(
         url = buildPublicSvgUrl(link.token),
-        token = link.token
+        token = link.token,
+        diagramId = diagramId
     )
 }
