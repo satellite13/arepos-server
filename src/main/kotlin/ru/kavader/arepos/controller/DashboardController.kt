@@ -37,7 +37,7 @@ class DashboardController(
             return DashboardStatsResponse(
                 models = modelsRepository.countDistinctNamesUndeleted().toInt(),
                 notations = notationsRepository.countDistinctNamesUndeleted().toInt(),
-                nodeTypes = nodeTypesRepository.count().toInt(),
+                nodeTypes = nodeTypesRepository.countActiveExcludingSystemDirectory().toInt(),
                 linkTypes = linkTypesRepository.count().toInt()
             )
         }
@@ -47,7 +47,7 @@ class DashboardController(
         return DashboardStatsResponse(
             models = modelsRepository.countDistinctAccessibleNamesForUser(currentUserId, viewPermissions).toInt(),
             notations = notationsRepository.countDistinctAccessibleNamesForUser(currentUserId, viewPermissions).toInt(),
-            nodeTypes = nodeTypesRepository.countAccessibleForUser(currentUserId, viewPermissions).toInt(),
+            nodeTypes = nodeTypesRepository.countAccessibleForUser(currentUserId).toInt(),
             linkTypes = linkTypesRepository.countAccessibleForUser(currentUserId, viewPermissions).toInt()
         )
     }

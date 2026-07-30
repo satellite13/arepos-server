@@ -215,7 +215,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `import returns 201 for valid package zip`() {
+    fun `import accepts job and succeeds asynchronously`() {
         val owner = usersRepository.save(
             Users(email = "model-package-import-controller@test.com", role = Role.USER, createdAt = Instant.now())
         )
@@ -292,18 +292,137 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
             exportResult.response.contentAsByteArray
         )
 
-        mockMvc.perform(
+        val accepted = mockMvc.perform(
             multipart("/api/v1/models/package")
                 .file(upload)
                 .withAuth(owner.id!!, Role.USER)
         )
-            .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.modelName").value("Import Controller Model"))
-            .andExpect(jsonPath("$.modelVersion").value("1.0.0"))
+            .andExpect(status().isAccepted)
+            .andExpect(jsonPath("$.jobId").isNotEmpty)
+            .andExpect(jsonPath("$.status").value("QUEUED"))
+            .andReturn()
+
+        val jobId = com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(accepted.response.contentAsString)
+            .path("jobId")
+            .asText()
+
+        val terminal = awaitImportJob(owner.id!!, jobId)
+        kotlin.test.assertEquals("SUCCEEDED", terminal.status)
+        mockMvc.perform(
+            get("/api/v1/models/package/jobs/$jobId")
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("SUCCEEDED"))
+            .andExpect(jsonPath("$.result.modelName").value("Import Controller Model"))
+            .andExpect(jsonPath("$.result.modelVersion").value("1.0.0"))
+            .andExpect(jsonPath("$.stage").value("DONE"))
+            .andExpect(jsonPath("$.progress").value(100))
     }
 
     @Test
-    fun `import returns 400 for invalid zip upload`() {
+    fun `import job fails with conflict when model name version exists`() {
+        val owner = usersRepository.save(
+            Users(email = "model-package-import-conflict@test.com", role = Role.USER, createdAt = Instant.now())
+        )
+        val notation = notationsRepository.save(
+            Notations(
+                owner = owner,
+                name = "Conflict Package Notation",
+                version = "1.0.0",
+                createdAt = Instant.now(),
+                deleted = false
+            )
+        )
+        val nodeType = nodeTypesRepository.save(
+            NodeTypes(name = "Conflict Package Type", owner = owner, createdAt = Instant.now())
+        )
+        componentsRepository.save(
+            Components(
+                name = "Conflict Package Component",
+                version = "1.0.0",
+                notation = notation,
+                owner = owner,
+                nodeType = nodeType,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "Conflict Package Model",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now(),
+                deleted = false
+            )
+        )
+        val node = nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "Node",
+                createdAt = Instant.now(),
+                model = model,
+                owner = owner,
+                nodeType = nodeType
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "Diagram",
+                version = "1.0.0",
+                createdAt = Instant.now(),
+                owner = owner,
+                model = model,
+                notation = notation,
+                node = node,
+                deleted = false
+            )
+        )
+
+        val exportResult = mockMvc.perform(
+            get("/api/v1/models/${model.id}/package")
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+
+        // Keep original model name+version so import hits CONFLICT.
+        notation.name = "Conflict Package Notation Archived"
+        notationsRepository.save(notation)
+
+        val upload = MockMultipartFile(
+            "file",
+            "model-package.zip",
+            "application/zip",
+            exportResult.response.contentAsByteArray
+        )
+        val accepted = mockMvc.perform(
+            multipart("/api/v1/models/package")
+                .file(upload)
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isAccepted)
+            .andReturn()
+        val jobId = com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(accepted.response.contentAsString)
+            .path("jobId")
+            .asText()
+
+        val terminal = awaitImportJob(owner.id!!, jobId)
+        kotlin.test.assertEquals("FAILED", terminal.status)
+        mockMvc.perform(
+            get("/api/v1/models/package/jobs/$jobId")
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("FAILED"))
+            .andExpect(jsonPath("$.error.status").value(409))
+            .andExpect(jsonPath("$.error.code").value("CONFLICT"))
+    }
+
+    @Test
+    fun `import job fails for invalid zip upload`() {
         val owner = usersRepository.save(
             Users(email = "model-package-import-bad-zip@test.com", role = Role.USER, createdAt = Instant.now())
         )
@@ -314,12 +433,51 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
             "not-a-zip".toByteArray()
         )
 
-        mockMvc.perform(
+        val accepted = mockMvc.perform(
             multipart("/api/v1/models/package")
                 .file(upload)
                 .withAuth(owner.id!!, Role.USER)
         )
-            .andExpect(status().isBadRequest)
+            .andExpect(status().isAccepted)
+            .andExpect(jsonPath("$.jobId").isNotEmpty)
+            .andReturn()
+
+        val jobId = com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(accepted.response.contentAsString)
+            .path("jobId")
+            .asText()
+
+        awaitImportJob(owner.id!!, jobId)
+        mockMvc.perform(
+            get("/api/v1/models/package/jobs/$jobId")
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("FAILED"))
+            .andExpect(jsonPath("$.error.status").value(400))
+            .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"))
+    }
+
+    private data class ImportJobPoll(val status: String)
+
+    private fun awaitImportJob(ownerId: UUID, jobId: String, timeoutMs: Long = 30_000): ImportJobPoll {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        var lastStatus = "QUEUED"
+        while (System.currentTimeMillis() < deadline) {
+            val result = mockMvc.perform(
+                get("/api/v1/models/package/jobs/$jobId")
+                    .withAuth(ownerId, Role.USER)
+            )
+                .andExpect(status().isOk)
+                .andReturn()
+            val tree = com.fasterxml.jackson.databind.ObjectMapper().readTree(result.response.contentAsString)
+            lastStatus = tree.path("status").asText()
+            if (lastStatus == "SUCCEEDED" || lastStatus == "FAILED") {
+                return ImportJobPoll(lastStatus)
+            }
+            Thread.sleep(100)
+        }
+        throw AssertionError("Import job $jobId did not finish in time, lastStatus=$lastStatus")
     }
 
     @TestConfiguration(proxyBeanMethods = false)

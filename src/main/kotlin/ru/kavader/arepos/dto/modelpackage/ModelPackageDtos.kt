@@ -83,3 +83,31 @@ data class ModelPackageImportResponse(
     val fileIdMap: Map<UUID, UUID> = emptyMap(),
     val warnings: List<String> = emptyList()
 )
+
+data class PackageImportJobAcceptedResponse(
+    val jobId: UUID,
+    val status: String
+)
+
+data class PackageImportJobResultDto(
+    val modelId: UUID,
+    val modelName: String,
+    val modelVersion: String,
+    val warnings: List<String> = emptyList()
+)
+
+data class PackageImportJobErrorDto(
+    val status: Int,
+    val message: String,
+    val code: String? = null
+)
+
+data class PackageImportJobStatusResponse(
+    val jobId: UUID,
+    val status: String,
+    val stage: String,
+    val progress: Int,
+    val message: String? = null,
+    val result: PackageImportJobResultDto? = null,
+    val error: PackageImportJobErrorDto? = null
+)
