@@ -55,6 +55,8 @@ dependencies {
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+    // Used by custom Keycloak-compatible OIDC client (ID token claims parsing)
+    implementation("com.nimbusds:nimbus-jose-jwt:9.48")
     implementation("com.squareup.okhttp3:okhttp")
     implementation("io.github.resilience4j:resilience4j-circuitbreaker:2.4.0")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")

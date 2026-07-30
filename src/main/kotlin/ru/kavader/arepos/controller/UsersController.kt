@@ -38,13 +38,14 @@ class UsersController(
     @Operation(summary = "List users")
     fun listUsers(
         pageable: Pageable,
-        @RequestParam(required = false) email: String?
+        @RequestParam(required = false) email: String?,
+        @RequestParam(required = false) search: String?
     ): ListResponse<UserResponse> {
         accessService.requireCanManageUsers()
-        val users = if (email != null) {
-            usersRepository.findByEmailContainingIgnoreCase(email, pageable)
-        } else {
-            usersRepository.findAll(pageable)
+        val users = when {
+            email != null -> usersRepository.findByEmailContainingIgnoreCase(email, pageable)
+            search != null -> usersRepository.searchByEmailOrOidcSubContaining(search, pageable)
+            else -> usersRepository.findAll(pageable)
         }
         return users.map { userMapper.toResponse(it) }.toListResponse()
     }

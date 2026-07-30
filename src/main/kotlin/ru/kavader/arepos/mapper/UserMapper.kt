@@ -32,6 +32,7 @@ class UserMapper(
             middleName = profile.middleName,
             position = profile.position,
             attrs = user.attrs,
+            oidcSub = user.oidcSub,
             createdAt = user.createdAt,
             updatedAt = user.updatedAt
         )

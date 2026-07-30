@@ -435,3 +435,23 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 047-add-oidc-sub
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/047-add-oidc-sub.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
+  - changeSet:
+      id: 048-users-email-case-insensitive-unique
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/048-users-email-case-insensitive-unique.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

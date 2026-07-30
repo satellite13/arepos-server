@@ -26,7 +26,12 @@ import ru.kavader.arepos.config.AreposSwaggerProperties
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties::class, AreposAuthProperties::class, AreposSwaggerProperties::class)
+@EnableConfigurationProperties(
+    JwtProperties::class,
+    AreposAuthProperties::class,
+    AreposSwaggerProperties::class,
+    OidcProperties::class
+)
 class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter,
     private val csrfFilter: CsrfFilter,
