@@ -73,7 +73,11 @@ class ModelPackageImportService(
     private val mdFileLinkRewriter = MdFileLinkRewriter(objectMapper)
 
     @Transactional
-    fun importPackage(zipBytes: ByteArray, owner: Users): ModelPackageImportResponse {
+    fun importPackage(
+        zipBytes: ByteArray,
+        owner: Users,
+        progress: PackageImportProgressListener? = null
+    ): ModelPackageImportResponse {
         if (zipBytes.size > ModelPackageLimits.MAX_ZIP_BYTES) {
             throw ResponseStatusException(
                 HttpStatus.PAYLOAD_TOO_LARGE,
@@ -81,6 +85,7 @@ class ModelPackageImportService(
             )
         }
 
+        progress?.onProgress(PackageImportStages.VALIDATING, 5, "Validating package")
         val entries = readZipEntries(zipBytes)
         val manifest = parseManifest(entries)
         val packagedModel = parseModel(entries)
@@ -103,7 +108,16 @@ class ModelPackageImportService(
             )
         }
 
-        for (path in notationPaths) {
+        if (notationPaths.isEmpty()) {
+            progress?.onProgress(PackageImportStages.IMPORTING_NOTATIONS, 40, "No notations to import")
+        }
+        notationPaths.forEachIndexed { index, path ->
+            val pct = 15 + ((index + 1) * 30) / notationPaths.size
+            progress?.onProgress(
+                PackageImportStages.IMPORTING_NOTATIONS,
+                pct,
+                "Importing notation ${index + 1}/${notationPaths.size}"
+            )
             val request = try {
                 objectMapper.readValue<NotationImportRequest>(entries.getValue(path))
             } catch (ex: Exception) {
@@ -122,6 +136,7 @@ class ModelPackageImportService(
         val uploadedObjectKeys = mutableListOf<String>()
         val fileIdMap: Map<UUID, UUID>
         try {
+            progress?.onProgress(PackageImportStages.IMPORTING_FILES, 55, "Importing files")
             fileIdMap = importFiles(entries, owner, uploadedObjectKeys)
             remapNotationSideDocumentFileIds(
                 notationIdMap = notationIdMap,
@@ -141,6 +156,7 @@ class ModelPackageImportService(
             // Folder/root Directory types are excluded from notation packages on export.
             mapUnmappedSystemDirectoryTypes(packagedModel, nodeTypeIdMap, owner, now)
 
+            progress?.onProgress(PackageImportStages.CREATING_MODEL, 75, "Creating model graph")
             val graph = createModelGraph(
                 packaged = packagedModel,
                 owner = owner,
@@ -153,6 +169,7 @@ class ModelPackageImportService(
                 fileIdMap = fileIdMap
             )
 
+            progress?.onProgress(PackageImportStages.DOCUMENT_REFS, 90, "Restoring document references")
             val warnings = recreateDocumentRefs(
                 entries = entries,
                 owner = owner,
@@ -169,6 +186,7 @@ class ModelPackageImportService(
                 shapeIdMap = shapeIdMap
             )
 
+            progress?.onProgress(PackageImportStages.DONE, 100, "Done")
             return ModelPackageImportResponse(
                 modelId = graph.model.id!!,
                 modelName = graph.model.name,

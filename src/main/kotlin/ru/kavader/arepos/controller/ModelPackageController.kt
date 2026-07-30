@@ -15,12 +15,12 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
-import ru.kavader.arepos.dto.modelpackage.ModelPackageImportResponse
+import ru.kavader.arepos.dto.modelpackage.PackageImportJobAcceptedResponse
+import ru.kavader.arepos.dto.modelpackage.PackageImportJobStatusResponse
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.modelpackage.ModelPackageExportService
-import ru.kavader.arepos.service.modelpackage.ModelPackageImportService
-import ru.kavader.arepos.service.modelpackage.ModelPackageLimits
+import ru.kavader.arepos.service.modelpackage.ModelPackageImportJobService
 import java.util.UUID
 
 @RestController
@@ -28,7 +28,7 @@ import java.util.UUID
 @Tag(name = "Model Package", description = "Model package import/export endpoints")
 class ModelPackageController(
     private val exportService: ModelPackageExportService,
-    private val importService: ModelPackageImportService,
+    private val importJobService: ModelPackageImportJobService,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService
 ) {
@@ -43,22 +43,19 @@ class ModelPackageController(
     }
 
     @PostMapping("/package", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
-    @Operation(summary = "Import model package ZIP as a new owned model")
-    @ResponseStatus(HttpStatus.CREATED)
-    fun importPackage(@RequestParam("file") file: MultipartFile): ModelPackageImportResponse {
-        if (file.isEmpty) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Package file is required")
-        }
-        if (file.size > ModelPackageLimits.MAX_ZIP_BYTES) {
-            throw ResponseStatusException(
-                HttpStatus.PAYLOAD_TOO_LARGE,
-                "Package exceeds ${ModelPackageLimits.MAX_ZIP_BYTES} bytes limit"
-            )
-        }
+    @Operation(summary = "Start async import of a model package ZIP")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    fun importPackage(@RequestParam("file") file: MultipartFile): PackageImportJobAcceptedResponse {
         val currentUserId = accessService.currentUserId()
         val owner = usersRepository.findById(currentUserId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "User $currentUserId not found")
         }
-        return importService.importPackage(file.bytes, owner)
+        return importJobService.acceptUpload(file, owner)
+    }
+
+    @GetMapping("/package/jobs/{jobId}")
+    @Operation(summary = "Get async model package import job status")
+    fun getImportJob(@PathVariable jobId: UUID): PackageImportJobStatusResponse {
+        return importJobService.getJob(jobId, accessService.currentUserId())
     }
 }
