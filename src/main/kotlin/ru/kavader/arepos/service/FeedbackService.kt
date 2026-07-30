@@ -1,5 +1,7 @@
 package ru.kavader.arepos.service
 
+import jakarta.persistence.EntityManager
+import jakarta.persistence.LockModeType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -41,7 +43,8 @@ class FeedbackService(
     private val auditLogRepository: AuditLogRepository,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
-    private val auditMapper: AuditMapper
+    private val auditMapper: AuditMapper,
+    private val entityManager: EntityManager
 ) {
     fun list(type: String?, status: String?, q: String?, sort: String?, page: Int, size: Int): Page<FeedbackItemResponse> {
         validateOptionalType(type)
@@ -117,7 +120,7 @@ class FeedbackService(
 
     @Transactional
     fun update(ref: String, request: UpdateFeedbackRequest): FeedbackItemResponse {
-        val item = findItemForUpdate(findItemByRef(ref).id!!)
+        val item = findItemForUpdate(resolveItemId(ref))
         requireNotMerged(item)
         val authorId = item.author.id!!
         val isAdmin = accessService.canManageFeedback()
@@ -153,7 +156,7 @@ class FeedbackService(
     @Transactional
     fun vote(ref: String): FeedbackItemResponse {
         accessService.requireCanVoteFeedback()
-        val item = findItemForUpdate(findItemByRef(ref).id!!)
+        val item = findItemForUpdate(resolveItemId(ref))
         requireNotMerged(item)
         val user = currentUser()
         if (!feedbackVoteRepository.existsByItemIdAndUserId(item.id!!, user.id!!)) {
@@ -174,7 +177,7 @@ class FeedbackService(
     @Transactional
     fun unvote(ref: String): FeedbackItemResponse {
         accessService.requireCanVoteFeedback()
-        val item = findItemForUpdate(findItemByRef(ref).id!!)
+        val item = findItemForUpdate(resolveItemId(ref))
         requireNotMerged(item)
         val userId = accessService.currentUserId()
         feedbackVoteRepository.findByItemIdAndUserId(item.id!!, userId).ifPresent { vote ->
@@ -189,7 +192,7 @@ class FeedbackService(
     @Transactional
     fun addComment(ref: String, request: CreateFeedbackCommentRequest): FeedbackCommentResponse {
         accessService.requireCanCommentFeedback()
-        val item = findItemForUpdate(findItemByRef(ref).id!!)
+        val item = findItemForUpdate(resolveItemId(ref))
         requireNotMerged(item)
         val author = currentUser()
         val body = request.body.trim()
@@ -209,7 +212,7 @@ class FeedbackService(
 
     @Transactional
     fun delete(ref: String) {
-        val item = findItemForUpdate(findItemByRef(ref).id!!)
+        val item = findItemForUpdate(resolveItemId(ref))
         if (!accessService.canManageFeedback()) {
             accessService.requireCanDeleteOwnFeedback(item.author.id!!, item.status)
         }
@@ -222,7 +225,7 @@ class FeedbackService(
     @Transactional
     fun merge(sourceRef: String, request: MergeFeedbackRequest): MergeFeedbackResponse {
         accessService.requireCanManageFeedback()
-        val sourceId = findItemByRef(sourceRef).id!!
+        val sourceId = resolveItemId(sourceRef)
         if (sourceId == request.targetId) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot merge feedback into itself")
         }
@@ -284,23 +287,35 @@ class FeedbackService(
         feedbackItemRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found") }
 
-    private fun findItemByRef(ref: String): FeedbackItem {
+    private fun findItemByRef(ref: String): FeedbackItem = findItem(resolveItemId(ref))
+
+    /**
+     * Resolve id without keeping a managed entity in the persistence context.
+     * Loading then locking the same row can reuse a stale L1-cached instance and miss
+     * concurrent merge (`mergedInto` / vote moves) under READ COMMITTED.
+     */
+    private fun resolveItemId(ref: String): UUID {
         val trimmed = ref.trim()
         FeedbackPublicKey.parseNumber(trimmed)?.let { number ->
-            return feedbackItemRepository.findByPublicNumber(number)
+            val item = feedbackItemRepository.findByPublicNumber(number)
                 ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found")
+            val id = item.id!!
+            entityManager.detach(item)
+            return id
         }
-        val id = try {
+        return try {
             UUID.fromString(trimmed)
         } catch (_: IllegalArgumentException) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found")
         }
-        return findItem(id)
     }
 
-    private fun findItemForUpdate(id: UUID): FeedbackItem =
-        feedbackItemRepository.findByIdForUpdate(id)
+    private fun findItemForUpdate(id: UUID): FeedbackItem {
+        // Detach any prior managed instance so PESSIMISTIC_WRITE reloads committed state.
+        entityManager.find(FeedbackItem::class.java, id)?.let(entityManager::detach)
+        return entityManager.find(FeedbackItem::class.java, id, LockModeType.PESSIMISTIC_WRITE)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found")
+    }
 
     private fun requireNotMerged(item: FeedbackItem) {
         if (item.mergedInto != null) {
