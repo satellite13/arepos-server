@@ -53,7 +53,7 @@ class RoadmapService(
         if (title.isEmpty() || title.length > 200) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid title")
         }
-        val now = Instant.now()
+        val now = nowMicros()
         val saved = milestoneRepository.save(
             RoadmapMilestone(
                 title = title,
@@ -92,7 +92,7 @@ class RoadmapService(
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid target period")
             }
         }
-        milestone.updatedAt = Instant.now()
+        milestone.updatedAt = nowMicros()
         return toResponse(milestoneRepository.save(milestone))
     }
 
@@ -124,7 +124,7 @@ class RoadmapService(
             throw RoadmapConflictException("ROADMAP_ORDER_CONFLICT", conflicts)
         }
 
-        val now = Instant.now()
+        val now = nowMicros()
         request.items.forEach { item ->
             val milestone = requireNotNull(milestonesById[item.id])
             milestone.sortOrder = item.sortOrder
@@ -222,8 +222,22 @@ class RoadmapService(
             baseUpdatedAt == null ||
             normalizePostgresTimestamp(serverUpdatedAt) != normalizePostgresTimestamp(baseUpdatedAt)
 
-    private fun normalizePostgresTimestamp(timestamp: Instant): Instant =
-        timestamp.truncatedTo(ChronoUnit.MICROS)
+    /**
+     * PostgreSQL `timestamptz` stores microseconds (values are rounded on write).
+     * Compare after the same rounding so client timestamps from JSON do not false-conflict.
+     */
+    private fun normalizePostgresTimestamp(timestamp: Instant): Instant {
+        val nanos = timestamp.nano.toLong()
+        val roundedNanos = ((nanos + 500) / 1_000) * 1_000
+        return if (roundedNanos >= 1_000_000_000L) {
+            Instant.ofEpochSecond(timestamp.epochSecond + 1, 0)
+        } else {
+            Instant.ofEpochSecond(timestamp.epochSecond, roundedNanos)
+        }
+    }
+
+    /** Store the same microsecond precision the DB will persist. */
+    private fun nowMicros(): Instant = Instant.now().truncatedTo(ChronoUnit.MICROS)
 
     private fun toResponse(
         milestone: RoadmapMilestone,
