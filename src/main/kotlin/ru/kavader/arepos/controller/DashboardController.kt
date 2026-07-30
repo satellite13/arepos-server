@@ -14,7 +14,6 @@ import ru.kavader.arepos.mapper.AuditMapper
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService
-import ru.kavader.arepos.service.SystemRootNodeTypeService
 
 @RestController
 @RequestMapping("/api/v1/dashboard")
@@ -34,12 +33,11 @@ class DashboardController(
     @GetMapping("/stats")
     @Operation(summary = "Get dashboard statistics")
     fun getStats(): DashboardStatsResponse {
-        val systemOwnerEmail = SystemRootNodeTypeService.SYSTEM_OWNER_EMAIL
         if (accessService.canViewAdminPanel()) {
             return DashboardStatsResponse(
                 models = modelsRepository.countDistinctNamesUndeleted().toInt(),
                 notations = notationsRepository.countDistinctNamesUndeleted().toInt(),
-                nodeTypes = nodeTypesRepository.countActiveExcludingSystemDirectory(systemOwnerEmail).toInt(),
+                nodeTypes = nodeTypesRepository.countActiveExcludingSystemDirectory().toInt(),
                 linkTypes = linkTypesRepository.count().toInt()
             )
         }
@@ -49,9 +47,7 @@ class DashboardController(
         return DashboardStatsResponse(
             models = modelsRepository.countDistinctAccessibleNamesForUser(currentUserId, viewPermissions).toInt(),
             notations = notationsRepository.countDistinctAccessibleNamesForUser(currentUserId, viewPermissions).toInt(),
-            nodeTypes = nodeTypesRepository
-                .countAccessibleForUser(currentUserId, viewPermissions, systemOwnerEmail)
-                .toInt(),
+            nodeTypes = nodeTypesRepository.countAccessibleForUser(currentUserId).toInt(),
             linkTypes = linkTypesRepository.countAccessibleForUser(currentUserId, viewPermissions).toInt()
         )
     }

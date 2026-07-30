@@ -88,7 +88,7 @@ class DashboardControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `stats nodeTypes count excludes system Directory for admin`() {
+    fun `stats nodeTypes count excludes system Directory by attrs for admin`() {
         val admin = usersRepository.save(
             Users(
                 email = "dashboard-stats-admin@test.com",
@@ -96,11 +96,10 @@ class DashboardControllerTest : ControllerIntegrationTest() {
                 createdAt = Instant.now()
             )
         )
-        val systemUser = usersRepository.save(
+        val otherUser = usersRepository.save(
             Users(
-                email = "system@arepos.local",
+                email = "dashboard-stats-admin-other@test.com",
                 role = Role.USER,
-                isActive = false,
                 createdAt = Instant.now()
             )
         )
@@ -112,9 +111,16 @@ class DashboardControllerTest : ControllerIntegrationTest() {
                     attrs = """{"system":{"hiddenTreeRootType":true}}""",
                     createdAt = now,
                     updatedAt = now,
-                    owner = systemUser
+                    owner = admin
                 ),
-                NodeTypes(name = "BusinessActor", createdAt = now, updatedAt = now, owner = admin)
+                NodeTypes(name = "BusinessActor", createdAt = now, updatedAt = now, owner = admin),
+                NodeTypes(
+                    name = "Directory",
+                    attrs = """{"label":"user folder type"}""",
+                    createdAt = now,
+                    updatedAt = now,
+                    owner = otherUser
+                )
             )
         )
 
@@ -123,7 +129,7 @@ class DashboardControllerTest : ControllerIntegrationTest() {
                 .withAuth(admin.id!!, Role.ADMIN)
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.nodeTypes").value(1))
+            .andExpect(jsonPath("$.nodeTypes").value(2))
     }
 
     @Test

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.NodeTypes
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.repository.sql.SystemDirectoryNodeTypeSql
 import java.util.*
 
 @Repository
@@ -93,45 +94,37 @@ interface NodeTypesRepository : JpaRepository<NodeTypes, UUID> {
     ): Page<NodeTypes>
 
     @Query(
-        """
-        SELECT COUNT(nt)
-        FROM NodeTypes nt
+        value = """
+        SELECT COUNT(*)
+        FROM node_types nt
         WHERE nt.deleted = false
-          AND NOT (
-              LOWER(nt.name) = 'directory'
-              AND LOWER(nt.owner.email) = LOWER(:systemOwnerEmail)
-          )
+          AND NOT (${SystemDirectoryNodeTypeSql.IS_SYSTEM_DIRECTORY})
           AND (
-            nt.owner.id = :userId
+            nt.owner = :userId
             OR EXISTS (
-                SELECT rs.id
-                FROM ResourceShares rs
-                WHERE rs.resourceType = ru.kavader.arepos.model.ShareResourceType.NODE_TYPE
-                  AND rs.resourceId = nt.id
-                  AND rs.permission IN :viewPermissions
-                  AND (rs.granteeUser.id = :userId OR rs.granteeUser IS NULL)
+                SELECT 1
+                FROM resource_shares rs
+                WHERE rs.resource_type = 'NODE_TYPE'
+                  AND rs.resource_id = nt.id
+                  AND rs.permission IN ('VIEW', 'EDIT')
+                  AND (rs.grantee_user_id = :userId OR rs.grantee_user_id IS NULL)
             )
-        )
-        """
+          )
+        """,
+        nativeQuery = true
     )
-    fun countAccessibleForUser(
-        userId: UUID,
-        viewPermissions: Collection<SharePermission>,
-        systemOwnerEmail: String
-    ): Long
+    fun countAccessibleForUser(userId: UUID): Long
 
     @Query(
-        """
-        SELECT COUNT(nt)
-        FROM NodeTypes nt
+        value = """
+        SELECT COUNT(*)
+        FROM node_types nt
         WHERE nt.deleted = false
-          AND NOT (
-              LOWER(nt.name) = 'directory'
-              AND LOWER(nt.owner.email) = LOWER(:systemOwnerEmail)
-          )
-        """
+          AND NOT (${SystemDirectoryNodeTypeSql.IS_SYSTEM_DIRECTORY})
+        """,
+        nativeQuery = true
     )
-    fun countActiveExcludingSystemDirectory(systemOwnerEmail: String): Long
+    fun countActiveExcludingSystemDirectory(): Long
 
     /** Includes soft-deleted rows (needed when resolving types still referenced by components/nodes). */
     fun findByIdIn(ids: Collection<UUID>): List<NodeTypes>
