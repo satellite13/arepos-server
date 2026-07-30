@@ -253,6 +253,24 @@ env: []
 #   value: "500"
 # - name: MODEL_SYNC_OUTBOX_BATCH_SIZE
 #   value: "50"
+# Keycloak-compatible OIDC SSO (opt-in; leave unset to keep SSO disabled):
+# - name: OIDC_ENABLED
+#   value: "auto"
+# - name: OIDC_ISSUER_URI
+#   value: "https://idp.example.com/realms/app/"
+# - name: OIDC_CLIENT_ID
+#   value: "warchi"
+# - name: OIDC_REDIRECT_URI
+#   value: "https://app.example.com/auth/oidc/callback"
+# - name: OIDC_POST_LOGOUT_URI
+#   value: "https://app.example.com/"
+# - name: OIDC_FRONTEND_URL
+#   value: "https://app.example.com/"
+# - name: OIDC_SCOPE
+#   value: "openid profile email"
+# - name: OIDC_DISPLAY_NAME
+#   value: "SSO"
+# Put OIDC_CLIENT_SECRET in envSecret / external secret store.
 
 # Restrict arepos-server traffic (enable after warchi release name/labels are confirmed).
 networkPolicy:

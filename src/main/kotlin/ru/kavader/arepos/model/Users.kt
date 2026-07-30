@@ -51,6 +51,9 @@ class Users(
     @Column(name = "attrs", columnDefinition = "jsonb")
     var attrs: String? = null,
 
+    @Column(name = "oidc_sub", nullable = true)
+    var oidcSub: String? = null,
+
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant? = null,
 

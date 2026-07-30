@@ -43,6 +43,7 @@ data class UserResponse(
     val middleName: String?,
     val position: String?,
     val attrs: String?,
+    val oidcSub: String?,
     val createdAt: Instant?,
     val updatedAt: Instant?
 )

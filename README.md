@@ -77,6 +77,11 @@ Important environment variables:
 - `AREPOS_AUTH_COOKIE_SECURE` (set `true` behind HTTPS so auth cookies get the Secure flag)
 - `AREPOS_AUTH_CSRF_ENABLED` (default `true`; double-submit CSRF for cookie-session mutating requests)
 - `AREPOS_AUTH_REGISTRATION_ENABLED` (default `true`)
+- Optional Keycloak-compatible OIDC SSO (`GET /api/v1/auth/sso/config` reports `{ enabled, displayName }`):
+  - `OIDC_ENABLED` (`auto` by default — on when issuer/client/secret/redirect are set; or `true`/`false`)
+  - `OIDC_ISSUER_URI`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`
+  - `OIDC_POST_LOGOUT_URI`, `OIDC_FRONTEND_URL`, `OIDC_SCOPE` (default `openid profile email`)
+  - `OIDC_DISPLAY_NAME` (login button brand, default `SSO`)
 - `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` (in `prod` profile, `*` is forbidden and startup fails)
 - `MODEL_SYNC_OUTBOX_ENABLED` (enable transactional outbox for model sync)
 - `MODEL_SYNC_OUTBOX_PUBLISH_MS`, `MODEL_SYNC_OUTBOX_BATCH_SIZE` (outbox publisher tuning)

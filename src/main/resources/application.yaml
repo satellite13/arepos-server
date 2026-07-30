@@ -106,6 +106,18 @@ arepos:
       batch-chunk-size: ${CERBOS_BATCH_CHUNK_SIZE:50}
       circuit-failure-threshold: ${CERBOS_CIRCUIT_FAILURE_THRESHOLD:5}
       circuit-open-duration: ${CERBOS_CIRCUIT_OPEN_DURATION:PT30S}
+  # Keycloak-compatible OIDC SSO (opt-in). With enabled=auto, SSO turns on when
+  # issuer/client/secret/redirect are all set. display-name brands the login button.
+  oidc:
+    enabled: ${OIDC_ENABLED:auto}
+    issuer-uri: ${OIDC_ISSUER_URI:}
+    client-id: ${OIDC_CLIENT_ID:}
+    client-secret: ${OIDC_CLIENT_SECRET:}
+    redirect-uri: ${OIDC_REDIRECT_URI:}
+    post-logout-uri: ${OIDC_POST_LOGOUT_URI:}
+    frontend-url: ${OIDC_FRONTEND_URL:}
+    scope: ${OIDC_SCOPE:openid profile email}
+    display-name: ${OIDC_DISPLAY_NAME:SSO}
   files:
     storage: ${FILE_STORAGE:minio}
     minio:
