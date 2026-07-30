@@ -564,6 +564,83 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `batch save moves existing node under newly created folder in same request`() {
+        val owner = usersRepository.save(
+            Users(
+                email = "batch-owner-move-under-new@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "m-move-under-new",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+        val nodeType = nodeTypesRepository.save(
+            NodeTypes(
+                name = "nt-move-under-new",
+                createdAt = Instant.now(),
+                owner = owner
+            )
+        )
+        val existing = nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "Existing",
+                model = model,
+                owner = owner,
+                nodeType = nodeType,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+        val folderTempId = UUID.randomUUID().toString()
+        val payload = mapOf(
+            "nodes" to mapOf(
+                "create" to listOf(
+                    mapOf(
+                        "tempId" to folderTempId,
+                        "name" to "New folder",
+                        "nodeTypeId" to nodeType.id.toString(),
+                        "parentNodeId" to null,
+                        "attrs" to """{"role":"folder"}"""
+                    )
+                ),
+                "update" to listOf(
+                    mapOf(
+                        "id" to existing.id.toString(),
+                        "name" to existing.name,
+                        "nodeTypeId" to nodeType.id.toString(),
+                        "parentNodeId" to folderTempId,
+                        "attrs" to existing.attrs,
+                        "baseUpdatedAt" to existing.updatedAt.toString()
+                    )
+                )
+            )
+        )
+
+        val mvcResult = mockMvc.perform(
+            post("/api/v1/models/${model.id}/batch-save")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.nodesCreated").value(1))
+            .andExpect(jsonPath("$.nodesUpdated").value(1))
+            .andReturn()
+
+        val body = objectMapper.readTree(mvcResult.response.contentAsString)
+        val folderId = UUID.fromString(body.path("nodeIdMap").path(folderTempId).asText())
+        val moved = nodesRepository.findById(requireNotNull(existing.id)).orElseThrow()
+        assertEquals(folderId, moved.parentNode?.id)
+    }
+
+    @Test
     fun `batch save cleans diagram attrs after delete and bumps model sync revision`() {
         val owner = usersRepository.save(
             Users(

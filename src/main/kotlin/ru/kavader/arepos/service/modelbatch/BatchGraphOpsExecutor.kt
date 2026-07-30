@@ -55,8 +55,10 @@ class BatchGraphOpsExecutor(
         val linkIdMap = mutableMapOf<String, UUID>()
         val diagramIdMap = mutableMapOf<String, UUID>()
 
-        val nodesUpdated = updateNodes(request.nodes.update, model, now)
+        // Creates must run before updates: moving existing nodes under a newly created
+        // folder sends parentNodeId as the create tempId, which only resolves via nodeIdMap.
         val nodesCreated = createNodesTopological(request.nodes.create, model, owner, now, nodeIdMap)
+        val nodesUpdated = updateNodes(request.nodes.update, model, now, nodeIdMap)
         val nodesDeleted = deleteModelScoped(
             entries = request.nodes.delete,
             model = model,
@@ -110,12 +112,17 @@ class BatchGraphOpsExecutor(
         )
     }
 
-    private fun updateNodes(updates: List<BatchNodeUpdate>, model: Models, now: Instant): Int {
+    private fun updateNodes(
+        updates: List<BatchNodeUpdate>,
+        model: Models,
+        now: Instant,
+        nodeIdMap: Map<String, UUID>
+    ): Int {
         for (upd in updates) {
             val node = findNodeOrThrow(upd.id)
             val nodeType = findNodeTypeOrThrow(upd.nodeTypeId)
             typeUsageAuthorization.requireCanUseNodeTypeForModel(nodeType, model)
-            val parentNode = resolveParentNode(upd.parentNodeId, emptyMap())
+            val parentNode = resolveParentNode(upd.parentNodeId, nodeIdMap)
             node.name = upd.name
             node.nodeType = nodeType
             node.parentNode = parentNode
