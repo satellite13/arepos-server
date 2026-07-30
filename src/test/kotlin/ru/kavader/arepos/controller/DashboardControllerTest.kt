@@ -88,6 +88,45 @@ class DashboardControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `stats nodeTypes count excludes system Directory for admin`() {
+        val admin = usersRepository.save(
+            Users(
+                email = "dashboard-stats-admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val systemUser = usersRepository.save(
+            Users(
+                email = "system@arepos.local",
+                role = Role.USER,
+                isActive = false,
+                createdAt = Instant.now()
+            )
+        )
+        val now = Instant.now()
+        nodeTypesRepository.saveAll(
+            listOf(
+                NodeTypes(
+                    name = "Directory",
+                    attrs = """{"system":{"hiddenTreeRootType":true}}""",
+                    createdAt = now,
+                    updatedAt = now,
+                    owner = systemUser
+                ),
+                NodeTypes(name = "BusinessActor", createdAt = now, updatedAt = now, owner = admin)
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/dashboard/stats")
+                .withAuth(admin.id!!, Role.ADMIN)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.nodeTypes").value(1))
+    }
+
+    @Test
     fun `stats linkTypes count reflects accessible types for non-admin`() {
         val currentUser = usersRepository.save(
             Users(

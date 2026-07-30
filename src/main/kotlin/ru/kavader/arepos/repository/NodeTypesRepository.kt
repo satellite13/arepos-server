@@ -97,6 +97,10 @@ interface NodeTypesRepository : JpaRepository<NodeTypes, UUID> {
         SELECT COUNT(nt)
         FROM NodeTypes nt
         WHERE nt.deleted = false
+          AND NOT (
+              LOWER(nt.name) = 'directory'
+              AND LOWER(nt.owner.email) = LOWER(:systemOwnerEmail)
+          )
           AND (
             nt.owner.id = :userId
             OR EXISTS (
@@ -112,8 +116,22 @@ interface NodeTypesRepository : JpaRepository<NodeTypes, UUID> {
     )
     fun countAccessibleForUser(
         userId: UUID,
-        viewPermissions: Collection<SharePermission>
+        viewPermissions: Collection<SharePermission>,
+        systemOwnerEmail: String
     ): Long
+
+    @Query(
+        """
+        SELECT COUNT(nt)
+        FROM NodeTypes nt
+        WHERE nt.deleted = false
+          AND NOT (
+              LOWER(nt.name) = 'directory'
+              AND LOWER(nt.owner.email) = LOWER(:systemOwnerEmail)
+          )
+        """
+    )
+    fun countActiveExcludingSystemDirectory(systemOwnerEmail: String): Long
 
     /** Includes soft-deleted rows (needed when resolving types still referenced by components/nodes). */
     fun findByIdIn(ids: Collection<UUID>): List<NodeTypes>
