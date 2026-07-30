@@ -50,7 +50,7 @@ charts/arepos-server/
   values.yaml   # chart values
 ```
 
-Authz policies live under `authz/cerbos/`. Collaboration API notes: `docs/api-collaboration.md`.
+Authz policies live under `authz/cerbos/`. Collaboration API notes: `docs/api-collaboration.md`. OIDC SSO setup: `docs/oidc.md`.
 
 ## Requirements
 
@@ -77,9 +77,9 @@ Important environment variables:
 - `AREPOS_AUTH_COOKIE_SECURE` (set `true` behind HTTPS so auth cookies get the Secure flag)
 - `AREPOS_AUTH_CSRF_ENABLED` (default `true`; double-submit CSRF for cookie-session mutating requests)
 - `AREPOS_AUTH_REGISTRATION_ENABLED` (default `true`)
-- Optional Keycloak-compatible OIDC SSO (`GET /api/v1/auth/sso/config` reports `{ enabled, displayName }`):
+- Optional Keycloak-compatible OIDC SSO (`GET /api/v1/auth/sso/config` reports `{ enabled, displayName }`). Full setup: [`docs/oidc.md`](docs/oidc.md).
   - `OIDC_ENABLED` (`auto` by default — on when issuer/client/secret/redirect are set; or `true`/`false`)
-  - `OIDC_ISSUER_URI`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`
+  - `OIDC_ISSUER_URI` (trailing `/` required), `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`
   - `OIDC_POST_LOGOUT_URI`, `OIDC_FRONTEND_URL`, `OIDC_SCOPE` (default `openid profile email`)
   - `OIDC_DISPLAY_NAME` (login button brand, default `SSO`)
 - `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` (in `prod` profile, `*` is forbidden and startup fails)
@@ -134,6 +134,7 @@ docker build -f Dockerfile -t arch/arepos-server:dev .  # build via Dockerfile
   - `authz/cerbos/README.md`
   - `authz/cerbos/RUNBOOK.md`
   - `authz/cerbos/VERIFY.md`
+- OIDC SSO enablement (Keycloak-compatible): `docs/oidc.md`
 
 ## Deployment
 

@@ -50,7 +50,7 @@ charts/arepos-server/
   values.yaml   # значения chart
 ```
 
-Политики Cerbos: `authz/cerbos/`. Контракты коллаборации: `docs/api-collaboration.md`.
+Политики Cerbos: `authz/cerbos/`. Контракты коллаборации: `docs/api-collaboration.md`. Настройка OIDC SSO: `docs/oidc.ru.md`.
 
 ## Требования
 
@@ -77,6 +77,11 @@ charts/arepos-server/
 - `AREPOS_AUTH_COOKIE_SECURE` (`true` за HTTPS — флаг Secure на auth-cookies)
 - `AREPOS_AUTH_CSRF_ENABLED` (по умолчанию `true`; double-submit CSRF для mutating-запросов cookie-сессии)
 - `AREPOS_AUTH_REGISTRATION_ENABLED` (по умолчанию `true`)
+- Опциональный Keycloak-совместимый OIDC SSO (`GET /api/v1/auth/sso/config` → `{ enabled, displayName }`). Полная настройка: [`docs/oidc.ru.md`](docs/oidc.ru.md).
+  - `OIDC_ENABLED` (`auto` по умолчанию — включается, когда заданы issuer/client/secret/redirect; либо `true`/`false`)
+  - `OIDC_ISSUER_URI` (обязателен завершающий `/`), `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`
+  - `OIDC_POST_LOGOUT_URI`, `OIDC_FRONTEND_URL`, `OIDC_SCOPE` (по умолчанию `openid profile email`)
+  - `OIDC_DISPLAY_NAME` (подпись кнопки входа, по умолчанию `SSO`)
 - `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` (в профиле `prod` значение `*` запрещено, иначе fail-fast на старте)
 - `MODEL_SYNC_OUTBOX_ENABLED` (включение transactional outbox для model sync)
 - `MODEL_SYNC_OUTBOX_PUBLISH_MS`, `MODEL_SYNC_OUTBOX_BATCH_SIZE` (тюнинг outbox-паблишера)
@@ -129,6 +134,7 @@ docker build -f Dockerfile -t arch/arepos-server:dev .  # сборка чере�
   - `authz/cerbos/README.md`
   - `authz/cerbos/RUNBOOK.md`
   - `authz/cerbos/VERIFY.md`
+- Включение OIDC SSO (Keycloak-совместимый): `docs/oidc.ru.md`
 
 ## Деплой
 

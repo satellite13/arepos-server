@@ -60,3 +60,10 @@ BLUE_GREEN=true BG_SWITCH=true IMAGE_TAG=0.3.1-abcdef CERBOS_DEPLOY=true CERBOS_
   - `authz/cerbos/README.md`
   - `authz/cerbos/RUNBOOK.md`
   - `authz/cerbos/VERIFY.md`
+
+## OIDC SSO
+
+Optional Keycloak-compatible SSO is configured via `env` / `envSecret` (`OIDC_*`). See commented examples in `values.yaml` and the full runbook:
+
+- `docs/oidc.md`
+- `docs/oidc.ru.md`
