@@ -4,7 +4,6 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -52,10 +51,7 @@ class NodeTypesController(
         @RequestParam(required = false) name: String?
     ): Page<NodeTypeResponse> =
         mapNodeTypesPage(
-            page = typeCatalogListService.listNodeTypes(pageable, ownerId, notationId, modelId, name),
-            // Model editor needs Directory in the payload to render folder expand/diagrams.
-            // Types catalog (no modelId) keeps system Directory hidden.
-            includeSystemDirectory = modelId != null
+            typeCatalogListService.listNodeTypes(pageable, ownerId, notationId, modelId, name)
         )
 
     @GetMapping("/deleted")
@@ -64,10 +60,7 @@ class NodeTypesController(
         if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
         }
-        return mapNodeTypesPage(
-            page = nodeTypesRepository.findByDeletedTrue(pageable),
-            includeSystemDirectory = false
-        ).toListResponse()
+        return mapNodeTypesPage(nodeTypesRepository.findByDeletedTrue(pageable)).toListResponse()
     }
 
     @GetMapping("/{id}")
@@ -149,31 +142,10 @@ class NodeTypesController(
         catalogLifecycleService.permanentDeleteNodeType(nodeType)
     }
 
-    private fun mapNodeTypesPage(
-        page: Page<NodeTypes>,
-        includeSystemDirectory: Boolean
-    ): Page<NodeTypeResponse> {
-        val visible =
-            if (includeSystemDirectory) {
-                page.content
-            } else {
-                page.content.filterNot(systemRootNodeTypeService::isProtectedSystemDirectory)
-            }
-        val filteredPage =
-            if (visible.size == page.content.size) {
-                page
-            } else {
-                val removed = page.content.size - visible.size
-                PageImpl(
-                    visible,
-                    page.pageable,
-                    (page.totalElements - removed).coerceAtLeast(0)
-                )
-            }
-        return filteredPage.mapWithPermissions(
+    private fun mapNodeTypesPage(page: Page<NodeTypes>): Page<NodeTypeResponse> =
+        page.mapWithPermissions(
             loadPermissions = accessService::nodeTypeAccessPermissions,
             idOf = NodeTypes::id,
             transform = notationMapper::toResponse
         )
-    }
 }

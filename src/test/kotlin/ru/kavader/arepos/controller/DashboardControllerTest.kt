@@ -88,18 +88,11 @@ class DashboardControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `stats nodeTypes count excludes system Directory by attrs for admin`() {
+    fun `stats nodeTypes count includes system Directory for admin`() {
         val admin = usersRepository.save(
             Users(
                 email = "dashboard-stats-admin@test.com",
                 role = Role.ADMIN,
-                createdAt = Instant.now()
-            )
-        )
-        val otherUser = usersRepository.save(
-            Users(
-                email = "dashboard-stats-admin-other@test.com",
-                role = Role.USER,
                 createdAt = Instant.now()
             )
         )
@@ -113,14 +106,7 @@ class DashboardControllerTest : ControllerIntegrationTest() {
                     updatedAt = now,
                     owner = admin
                 ),
-                NodeTypes(name = "BusinessActor", createdAt = now, updatedAt = now, owner = admin),
-                NodeTypes(
-                    name = "Directory",
-                    attrs = """{"label":"user folder type"}""",
-                    createdAt = now,
-                    updatedAt = now,
-                    owner = otherUser
-                )
+                NodeTypes(name = "BusinessActor", createdAt = now, updatedAt = now, owner = admin)
             )
         )
 
