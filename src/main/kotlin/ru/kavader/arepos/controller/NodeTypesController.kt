@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -22,6 +23,7 @@ import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.CatalogLifecycleService
 import ru.kavader.arepos.service.MdFileLinkValidator
+import ru.kavader.arepos.service.SystemRootNodeTypeService
 import ru.kavader.arepos.service.TypeCatalogListService
 import java.time.Instant
 import java.util.*
@@ -35,6 +37,7 @@ class NodeTypesController(
     private val ownerResolutionService: OwnerResolutionService,
     private val typeCatalogListService: TypeCatalogListService,
     private val catalogLifecycleService: CatalogLifecycleService,
+    private val systemRootNodeTypeService: SystemRootNodeTypeService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val notationMapper: NotationMapper
 ) {
@@ -105,6 +108,7 @@ class NodeTypesController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
             }
         accessService.requireCanEditNodeType(nodeType)
+        systemRootNodeTypeService.assertMutable(nodeType)
         return CatalogTypeWriteSupport.persistUpdate(
             entity = nodeType,
             request = request,
@@ -139,10 +143,23 @@ class NodeTypesController(
         catalogLifecycleService.permanentDeleteNodeType(nodeType)
     }
 
-    private fun mapNodeTypesPage(page: Page<NodeTypes>): Page<NodeTypeResponse> =
-        page.mapWithPermissions(
+    private fun mapNodeTypesPage(page: Page<NodeTypes>): Page<NodeTypeResponse> {
+        val visible = page.content.filterNot(systemRootNodeTypeService::isProtectedSystemDirectory)
+        val filteredPage =
+            if (visible.size == page.content.size) {
+                page
+            } else {
+                val removed = page.content.size - visible.size
+                PageImpl(
+                    visible,
+                    page.pageable,
+                    (page.totalElements - removed).coerceAtLeast(0)
+                )
+            }
+        return filteredPage.mapWithPermissions(
             loadPermissions = accessService::nodeTypeAccessPermissions,
             idOf = NodeTypes::id,
             transform = notationMapper::toResponse
         )
+    }
 }

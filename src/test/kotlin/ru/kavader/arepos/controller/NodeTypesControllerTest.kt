@@ -7,6 +7,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -320,6 +321,52 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.name").value("Directory"))
+    }
+
+    @Test
+    fun `admin cannot soft-delete or permanently delete system Directory`() {
+        val systemUser = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "system@arepos.local",
+                role = Role.USER,
+                isActive = false,
+                createdAt = Instant.now()
+            )
+        )
+        val directoryType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "Directory",
+                attrs = """{"system":{"hiddenTreeRootType":true}}""",
+                createdAt = Instant.now(),
+                owner = systemUser
+            )
+        )
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin-directory-guard@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            delete("/api/v1/node-types/${directoryType.id}")
+                .withAuth(admin.id!!, Role.ADMIN)
+        )
+            .andExpect(status().isForbidden)
+
+        mockMvc.perform(
+            delete("/api/v1/node-types/${directoryType.id}/permanent")
+                .withAuth(admin.id!!, Role.ADMIN)
+        )
+            .andExpect(status().isForbidden)
+
+        mockMvc.perform(
+            get("/api/v1/node-types")
+                .withAuth(admin.id!!, Role.ADMIN)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content[?(@.name=='Directory')]").isEmpty)
     }
 
     @Test

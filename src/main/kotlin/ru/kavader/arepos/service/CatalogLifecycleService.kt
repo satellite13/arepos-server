@@ -29,10 +29,15 @@ class CatalogLifecycleService(
     private val componentsRepository: ComponentsRepository,
     private val relationsRepository: RelationsRepository,
     private val documentRefsRepository: DocumentRefsRepository,
-    private val resourceSharesRepository: ResourceSharesRepository
+    private val resourceSharesRepository: ResourceSharesRepository,
+    private val systemRootNodeTypeService: SystemRootNodeTypeService
 ) {
     @Transactional
     fun softDeleteNodeType(id: UUID) {
+        val nodeType = nodeTypesRepository.findById(id).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
+        }
+        systemRootNodeTypeService.assertMutable(nodeType)
         val deletedCount = nodeTypesRepository.softDeleteById(id)
         if (deletedCount == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
@@ -41,6 +46,7 @@ class CatalogLifecycleService(
 
     @Transactional
     fun permanentDeleteNodeType(nodeType: NodeTypes) {
+        systemRootNodeTypeService.assertMutable(nodeType)
         val id = nodeType.id
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "NodeType id is required")
         if (nodesRepository.existsByNodeTypeId(id) || componentsRepository.existsByNodeTypeId(id)) {
