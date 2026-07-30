@@ -41,6 +41,9 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
     lateinit var modelsRepository: ModelsRepository
 
     @Autowired
+    lateinit var nodesRepository: NodesRepository
+
+    @Autowired
     lateinit var diagramsRepository: DiagramsRepository
 
     @Autowired
@@ -367,6 +370,64 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content[?(@.name=='Directory')]").isEmpty)
+    }
+
+    @Test
+    fun `list node types with modelId includes system Directory used by model nodes`() {
+        val now = Instant.now()
+        val systemUser = usersRepository.save(
+            Users(
+                email = "system@arepos.local",
+                role = Role.USER,
+                isActive = false,
+                createdAt = now
+            )
+        )
+        val admin = usersRepository.save(
+            Users(
+                email = "admin-directory-modelid@test.com",
+                role = Role.ADMIN,
+                createdAt = now
+            )
+        )
+        val directoryType = nodeTypesRepository.save(
+            NodeTypes(
+                name = "Directory",
+                attrs = """{"system":{"hiddenTreeRootType":true}}""",
+                createdAt = now,
+                updatedAt = now,
+                owner = systemUser
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "Directory Model Scope",
+                version = "1.0.0",
+                createdAt = now,
+                updatedAt = now,
+                owner = admin
+            )
+        )
+        nodesRepository.save(
+            Nodes(
+                stableId = java.util.UUID.randomUUID(),
+                name = "Root",
+                createdAt = now,
+                updatedAt = now,
+                parentNode = null,
+                model = model,
+                owner = admin,
+                nodeType = directoryType
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/node-types")
+                .param("modelId", model.id!!.toString())
+                .withAuth(admin.id!!, Role.ADMIN)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content[?(@.name=='Directory')]").isNotEmpty)
     }
 
     @Test

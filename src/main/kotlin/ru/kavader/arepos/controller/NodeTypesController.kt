@@ -52,7 +52,10 @@ class NodeTypesController(
         @RequestParam(required = false) name: String?
     ): Page<NodeTypeResponse> =
         mapNodeTypesPage(
-            typeCatalogListService.listNodeTypes(pageable, ownerId, notationId, modelId, name)
+            page = typeCatalogListService.listNodeTypes(pageable, ownerId, notationId, modelId, name),
+            // Model editor needs Directory in the payload to render folder expand/diagrams.
+            // Types catalog (no modelId) keeps system Directory hidden.
+            includeSystemDirectory = modelId != null
         )
 
     @GetMapping("/deleted")
@@ -61,7 +64,10 @@ class NodeTypesController(
         if (!accessService.canViewAdminPanel()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, ADMIN_ONLY)
         }
-        return mapNodeTypesPage(nodeTypesRepository.findByDeletedTrue(pageable)).toListResponse()
+        return mapNodeTypesPage(
+            page = nodeTypesRepository.findByDeletedTrue(pageable),
+            includeSystemDirectory = false
+        ).toListResponse()
     }
 
     @GetMapping("/{id}")
@@ -143,8 +149,16 @@ class NodeTypesController(
         catalogLifecycleService.permanentDeleteNodeType(nodeType)
     }
 
-    private fun mapNodeTypesPage(page: Page<NodeTypes>): Page<NodeTypeResponse> {
-        val visible = page.content.filterNot(systemRootNodeTypeService::isProtectedSystemDirectory)
+    private fun mapNodeTypesPage(
+        page: Page<NodeTypes>,
+        includeSystemDirectory: Boolean
+    ): Page<NodeTypeResponse> {
+        val visible =
+            if (includeSystemDirectory) {
+                page.content
+            } else {
+                page.content.filterNot(systemRootNodeTypeService::isProtectedSystemDirectory)
+            }
         val filteredPage =
             if (visible.size == page.content.size) {
                 page
