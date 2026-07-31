@@ -88,7 +88,7 @@ charts/arepos-server/
 - `CERBOS_CIRCUIT_FAILURE_THRESHOLD`, `CERBOS_CIRCUIT_OPEN_DURATION` (параметры circuit breaker для authz)
 - `HIBERNATE_DEFAULT_BATCH_FETCH_SIZE`, `HIBERNATE_JDBC_BATCH_SIZE` (тюнинг JPA/Hibernate)
 - `FILE_STORAGE` (`minio` по умолчанию; `disabled` для локального запуска без файлового хранилища)
-- `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET` (когда `FILE_STORAGE=minio`)
+- `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`, `MINIO_REGION` (когда `FILE_STORAGE=minio`; для Yandex Object Storage — `ru-central1`)
 
 ### 2) Сборка и запуск
 

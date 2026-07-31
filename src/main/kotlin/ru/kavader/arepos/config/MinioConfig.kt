@@ -38,11 +38,27 @@ class MinioConfig(
                 "MinIO secret key must not use default value in prod profile"
             }
         }
-        val client = MinioClient.builder()
-            .endpoint(minioProperties.endpoint)
-            .credentials(minioProperties.accessKey, minioProperties.secretKey)
-            .build()
-        log.info("MinIO client configured: endpoint={}, bucket={}", minioProperties.endpoint, minioProperties.bucket)
+        val endpoint = minioProperties.endpoint.trim().trimEnd('/')
+        val accessKey = minioProperties.accessKey.trim()
+        val secretKey = minioProperties.secretKey.trim()
+        val region = minioProperties.region.trim()
+        val builder = MinioClient.builder()
+            .endpoint(endpoint)
+            .credentials(accessKey, secretKey)
+        if (region.isNotEmpty()) {
+            builder.region(region)
+        }
+        val client = builder.build()
+        // Yandex Object Storage is happiest with path-style URLs (host/bucket/key).
+        client.disableVirtualStyleEndpoint()
+        log.info(
+            "MinIO client configured: endpoint={}, bucket={}, region={}, accessKeyLen={}, accessKeyPrefix={}",
+            endpoint,
+            minioProperties.bucket,
+            region.ifEmpty { "<auto>" },
+            accessKey.length,
+            accessKey.take(4).ifEmpty { "<empty>" }
+        )
         return client
     }
 }

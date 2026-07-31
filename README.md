@@ -88,7 +88,7 @@ Important environment variables:
 - `CERBOS_CIRCUIT_FAILURE_THRESHOLD`, `CERBOS_CIRCUIT_OPEN_DURATION` (authz circuit breaker)
 - `HIBERNATE_DEFAULT_BATCH_FETCH_SIZE`, `HIBERNATE_JDBC_BATCH_SIZE` (JPA performance tuning)
 - `FILE_STORAGE` (`minio` by default; use `disabled` for local run without file storage)
-- `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET` (when `FILE_STORAGE=minio`)
+- `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`, `MINIO_REGION` (when `FILE_STORAGE=minio`; use `ru-central1` for Yandex Object Storage)
 
 ### 2) Build and run
 

@@ -73,30 +73,46 @@ class FileStorageService(
 
     @EventListener(ContextRefreshedEvent::class)
     fun ensureBucketExists() {
-        try {
-            val exists = minioClient.bucketExists(
-                BucketExistsArgs.builder().bucket(minioProperties.bucket).build()
-            )
-            if (!exists) {
-                minioClient.makeBucket(
-                    MakeBucketArgs.builder().bucket(minioProperties.bucket).build()
-                )
-                log.info("Created MinIO bucket: {}", minioProperties.bucket)
+        val bucketArgs = BucketExistsArgs.builder()
+            .bucket(minioProperties.bucket)
+            .apply {
+                val region = minioProperties.region.trim()
+                if (region.isNotEmpty()) region(region)
             }
-            // Enable versioning on bucket
-            enableVersioning()
-        } catch (e: MinioException) {
-            log.error("Failed to ensure MinIO bucket exists", e)
-            throw e
-        } catch (e: IOException) {
-            log.error("I/O failure while ensuring MinIO bucket exists", e)
-            throw e
-        } catch (e: GeneralSecurityException) {
-            log.error("Security failure while ensuring MinIO bucket exists", e)
-            throw e
-        } catch (e: RuntimeException) {
-            log.error("Unexpected failure while ensuring MinIO bucket exists", e)
-            throw e
+            .build()
+        try {
+            val exists = minioClient.bucketExists(bucketArgs)
+            if (exists) {
+                log.info("MinIO bucket already exists: {}", minioProperties.bucket)
+                enableVersioning()
+                return
+            }
+            if (minioProperties.endpoint.contains("localhost") || minioProperties.endpoint.contains("127.0.0.1")) {
+                val makeArgs = MakeBucketArgs.builder()
+                    .bucket(minioProperties.bucket)
+                    .apply {
+                        val region = minioProperties.region.trim()
+                        if (region.isNotEmpty()) region(region)
+                    }
+                    .build()
+                minioClient.makeBucket(makeArgs)
+                log.info("Created MinIO bucket: {}", minioProperties.bucket)
+                enableVersioning()
+            } else {
+                log.warn("Bucket '{}' not found on external S3-compatible endpoint ({}). Create it manually.", minioProperties.bucket, minioProperties.endpoint)
+            }
+        } catch (e: Exception) {
+            if (minioProperties.endpoint.contains("localhost") || minioProperties.endpoint.contains("127.0.0.1")) {
+                log.error("Failed to ensure MinIO bucket exists: {}", formatMinioFailure(e), e)
+                throw e
+            }
+            log.warn(
+                "MinIO bucket check failed on external endpoint ({}) — ensure bucket '{}' exists: {}",
+                minioProperties.endpoint,
+                minioProperties.bucket,
+                formatMinioFailure(e),
+                e
+            )
         }
     }
 
@@ -277,15 +293,19 @@ class FileStorageService(
         val storedType = if (isMarkdown) MARKDOWN_TYPE else normalizedType
 
         val result = try {
-            minioClient.putObject(
-                PutObjectArgs.builder()
-                    .bucket(minioProperties.bucket)
-                    .`object`(objectKey)
-                    .stream(ByteArrayInputStream(content), content.size.toLong(), -1)
-                    .contentType(storedType)
-                    .build()
-            )
+            val putArgs = PutObjectArgs.builder()
+                .bucket(minioProperties.bucket)
+                .`object`(objectKey)
+                .stream(ByteArrayInputStream(content), content.size.toLong(), -1)
+                .contentType(storedType)
+                .apply {
+                    val region = minioProperties.region.trim()
+                    if (region.isNotEmpty()) region(region)
+                }
+                .build()
+            minioClient.putObject(putArgs)
         } catch (ex: Exception) {
+            log.error("MinIO putObject failed for file {}: {}", id, formatMinioFailure(ex), ex)
             throw ResponseStatusException(
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "File storage failed while writing file $id",

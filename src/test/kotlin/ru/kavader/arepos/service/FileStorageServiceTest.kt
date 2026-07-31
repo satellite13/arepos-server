@@ -88,14 +88,14 @@ class FileStorageServiceTest {
         }
 
         assertEquals("minio unavailable", exception.message)
-        assertTrue(output.out.contains("Unexpected failure while ensuring MinIO bucket exists"))
+        assertTrue(output.out.contains("Failed to ensure MinIO bucket exists"))
         assertTrue(output.out.contains("minio unavailable"))
     }
 
     private fun service(): FileStorageService =
         FileStorageService(
             minioClient,
-            MinioProperties(bucket = "test-bucket"),
+            MinioProperties(bucket = "test-bucket", endpoint = "http://localhost:9000"),
             filesRepository,
             fileVersionsRepository
         )

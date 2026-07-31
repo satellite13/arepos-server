@@ -8,5 +8,7 @@ data class MinioProperties(
     val accessKey: String = "minioadmin",
     val secretKey: String = "minioadmin",
     val bucket: String = "arepos-files",
+    /** S3 region; required for Yandex Object Storage (`ru-central1`). Empty = MinIO default discovery. */
+    val region: String = "",
     val secure: Boolean = false
 )
