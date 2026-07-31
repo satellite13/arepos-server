@@ -10,6 +10,7 @@ import ru.kavader.arepos.config.AuditInterceptor
 import ru.kavader.arepos.dto.modelpackage.PackageImportJobErrorDto
 import ru.kavader.arepos.dto.modelpackage.PackageImportJobResultDto
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.service.formatMinioFailure
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
@@ -33,6 +34,13 @@ class ModelPackageImportJobRunner(
         }
 
         AuditInterceptor.setCurrentUserId(snapshot.ownerId)
+        logger.info(
+            "Package import job {} started (ownerId={}, tempPath={}, thread={})",
+            jobId,
+            snapshot.ownerId,
+            snapshot.tempPath,
+            Thread.currentThread().name
+        )
         try {
             progressWriter.markRunning(
                 jobId = jobId,
@@ -45,7 +53,15 @@ class ModelPackageImportJobRunner(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User ${snapshot.ownerId} not found")
             }
             val zipBytes = Files.readAllBytes(Path.of(snapshot.tempPath))
+            logger.info("Package import job {} loaded zip ({} bytes)", jobId, zipBytes.size)
             val listener = PackageImportProgressListener { stage, progress, message ->
+                logger.info(
+                    "Package import job {} progress: stage={}, progress={}, message={}",
+                    jobId,
+                    stage,
+                    progress,
+                    message
+                )
                 progressWriter.updateProgress(jobId, stage, progress, message)
             }
             val result = importService.importPackage(zipBytes, owner, listener)
@@ -58,6 +74,12 @@ class ModelPackageImportJobRunner(
                 )
             )
             progressWriter.markSucceeded(jobId, resultJson)
+            logger.info(
+                "Package import job {} succeeded (modelId={}, warnings={})",
+                jobId,
+                result.modelId,
+                result.warnings.size
+            )
         } catch (ex: ResponseStatusException) {
             val status = ex.statusCode.value()
             val message = ex.reason ?: ex.message ?: "Import failed"
@@ -67,6 +89,14 @@ class ModelPackageImportJobRunner(
                 HttpStatus.BAD_REQUEST.value() -> "BAD_REQUEST"
                 else -> null
             }
+            logger.error(
+                "Package import job {} failed with status {}: {} (cause={})",
+                jobId,
+                status,
+                message,
+                ex.cause?.let { formatMinioFailure(it) } ?: ex.message,
+                ex
+            )
             progressWriter.markFailed(
                 jobId,
                 objectMapper.writeValueAsString(
@@ -74,19 +104,28 @@ class ModelPackageImportJobRunner(
                 ),
                 message
             )
-        } catch (ex: Exception) {
+        } catch (ex: Throwable) {
+            // Catch Error too (OOM/StackOverflow): otherwise job stays RUNNING forever.
             logger.error("Package import job {} failed", jobId, ex)
-            val message = ex.message?.takeIf { it.isNotBlank() } ?: "Import failed"
-            progressWriter.markFailed(
-                jobId,
-                objectMapper.writeValueAsString(
-                    PackageImportJobErrorDto(status = 500, message = message)
-                ),
-                message
-            )
+            val message = ex.message?.takeIf { it.isNotBlank() } ?: ex.javaClass.simpleName
+            runCatching {
+                progressWriter.markFailed(
+                    jobId,
+                    objectMapper.writeValueAsString(
+                        PackageImportJobErrorDto(status = 500, message = message)
+                    ),
+                    message
+                )
+            }.onFailure { markEx ->
+                logger.error("Package import job {} could not mark failed after fatal error", jobId, markEx)
+            }
+            if (ex is Error && ex !is OutOfMemoryError) {
+                throw ex
+            }
         } finally {
             ModelPackageImportJobService.deleteTempQuietly(snapshot.tempPath)
             AuditInterceptor.clearCurrentUserId()
+            logger.info("Package import job {} finished cleanup", jobId)
         }
     }
 }

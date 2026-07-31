@@ -2,6 +2,7 @@ package ru.kavader.arepos.service.modelpackage
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -68,6 +69,7 @@ class ModelPackageImportService(
 ) {
     companion object {
         private const val SYSTEM_ROOT_NODE_NAME = "Root"
+        private val logger = LoggerFactory.getLogger(ModelPackageImportService::class.java)
     }
 
     private val mdFileLinkRewriter = MdFileLinkRewriter(objectMapper)
@@ -113,17 +115,31 @@ class ModelPackageImportService(
         }
         notationPaths.forEachIndexed { index, path ->
             val pct = 15 + ((index + 1) * 30) / notationPaths.size
-            progress?.onProgress(
-                PackageImportStages.IMPORTING_NOTATIONS,
-                pct,
-                "Importing notation ${index + 1}/${notationPaths.size}"
+            val label = "Importing notation ${index + 1}/${notationPaths.size}"
+            progress?.onProgress(PackageImportStages.IMPORTING_NOTATIONS, pct, label)
+            logger.info(
+                "ModelPackageImport: {} ({}, jsonBytes={})",
+                label,
+                path,
+                entries.getValue(path).size
             )
+            val startedAt = System.nanoTime()
             val request = try {
                 objectMapper.readValue<NotationImportRequest>(entries.getValue(path))
             } catch (ex: Exception) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid notation package: $path", ex)
             }
             val result = notationImportService.import(request, owner)
+            logger.info(
+                "ModelPackageImport: finished notation {}/{} ({}) in {} ms (components={}, relations={}, shapes={})",
+                index + 1,
+                notationPaths.size,
+                path,
+                (System.nanoTime() - startedAt) / 1_000_000,
+                result.componentIdMap.size,
+                result.relationIdMap.size,
+                result.shapeIdMap.size
+            )
             val sourceNotationId = parseSourceNotationId(path)
             notationIdMap[sourceNotationId] = result.notationId
             nodeTypeIdMap.putAll(result.nodeTypeIdMap)
