@@ -1,6 +1,8 @@
 package ru.kavader.arepos.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import jakarta.persistence.EntityManager
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -28,9 +30,11 @@ class NotationImportService(
     private val nodeShapesRepository: NodeShapesRepository,
     private val componentsRepository: ComponentsRepository,
     private val relationsRepository: RelationsRepository,
-    private val relationRulesRepository: RelationRulesRepository,
+    private val relationRulesBulkInserter: RelationRulesBulkInserter,
+    private val entityManager: EntityManager,
     private val objectMapper: ObjectMapper
 ) {
+    private val logger = LoggerFactory.getLogger(javaClass)
     @Transactional
     fun import(request: NotationImportRequest, owner: Users): NotationImportResponse {
         val now = Instant.now()
@@ -59,11 +63,14 @@ class NotationImportService(
         )
 
         val nodeTypeIdMap = mutableMapOf<String, UUID>()
+        val nodeTypesById = mutableMapOf<UUID, NodeTypes>()
         for (importedNodeType in request.nodeTypes) {
             val typeName = importedNodeType.name.trim()
             val existing = nodeTypesRepository.findByOwnerAndNameIgnoreCase(owner, typeName)
             if (existing != null) {
-                nodeTypeIdMap[importedNodeType.id] = existing.id!!
+                val id = existing.id!!
+                nodeTypeIdMap[importedNodeType.id] = id
+                nodeTypesById[id] = existing
             } else {
                 val saved = nodeTypesRepository.save(
                     NodeTypes(
@@ -74,16 +81,21 @@ class NotationImportService(
                         updatedAt = now
                     )
                 )
-                nodeTypeIdMap[importedNodeType.id] = saved.id!!
+                val id = saved.id!!
+                nodeTypeIdMap[importedNodeType.id] = id
+                nodeTypesById[id] = saved
             }
         }
 
         val linkTypeIdMap = mutableMapOf<String, UUID>()
+        val linkTypesById = mutableMapOf<UUID, LinkTypes>()
         for (importedLinkType in request.linkTypes) {
             val typeName = importedLinkType.name.trim()
             val existing = linkTypesRepository.findByOwnerAndNameIgnoreCase(owner, typeName)
             if (existing != null) {
-                linkTypeIdMap[importedLinkType.id] = existing.id!!
+                val id = existing.id!!
+                linkTypeIdMap[importedLinkType.id] = id
+                linkTypesById[id] = existing
             } else {
                 val saved = linkTypesRepository.save(
                     LinkTypes(
@@ -94,7 +106,9 @@ class NotationImportService(
                         updatedAt = now
                     )
                 )
-                linkTypeIdMap[importedLinkType.id] = saved.id!!
+                val id = saved.id!!
+                linkTypeIdMap[importedLinkType.id] = id
+                linkTypesById[id] = saved
             }
         }
 
@@ -125,8 +139,8 @@ class NotationImportService(
                     HttpStatus.BAD_REQUEST,
                     "Unknown nodeTypeId '${importedComponent.nodeTypeId}' in component '${importedComponent.name}'"
                 )
-            val nodeType = nodeTypesRepository.findById(nodeTypeId)
-                .orElseThrow { ResponseStatusException(HttpStatus.BAD_REQUEST, "NodeType $nodeTypeId not found") }
+            val nodeType = nodeTypesById[nodeTypeId]
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "NodeType $nodeTypeId not found")
 
             val saved = componentsRepository.save(
                 Components(
@@ -150,8 +164,8 @@ class NotationImportService(
                     HttpStatus.BAD_REQUEST,
                     "Unknown linkTypeId '${importedRelation.linkTypeId}' in relation '${importedRelation.name}'"
                 )
-            val linkType = linkTypesRepository.findById(linkTypeId)
-                .orElseThrow { ResponseStatusException(HttpStatus.BAD_REQUEST, "LinkType $linkTypeId not found") }
+            val linkType = linkTypesById[linkTypeId]
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "LinkType $linkTypeId not found")
 
             val saved = relationsRepository.save(
                 Relations(
@@ -168,34 +182,40 @@ class NotationImportService(
             relationIdMap[importedRelation.id] = saved.id!!
         }
 
+        val ownerId = owner.id
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Owner id is required")
+        val ruleRows = LinkedHashMap<String, RelationRulesBulkInserter.Row>()
         for (importedRule in request.relationRules) {
             val fromComponentId = componentIdMap[importedRule.fromComponentId] ?: continue
             val toComponentId = componentIdMap[importedRule.toComponentId] ?: continue
-            val allowedRelationIds = importedRule.allowedRelationIds.mapNotNull { relationIdMap[it] }
-            if (allowedRelationIds.isEmpty()) continue
-
-            for (relationUuid in allowedRelationIds) {
-                val relation = relationsRepository.findById(relationUuid).orElse(null) ?: continue
-                val fromComponent = componentsRepository.findById(fromComponentId).orElse(null) ?: continue
-                val toComponent = componentsRepository.findById(toComponentId).orElse(null) ?: continue
-                if (!relationRulesRepository.existsByRelationAndFromComponentAndToComponent(
-                        relation,
-                        fromComponent,
-                        toComponent
+            for (sourceRelationId in importedRule.allowedRelationIds) {
+                val relationId = relationIdMap[sourceRelationId] ?: continue
+                val key = "$relationId|$fromComponentId|$toComponentId"
+                ruleRows.putIfAbsent(
+                    key,
+                    RelationRulesBulkInserter.Row(
+                        relationId = relationId,
+                        fromComponentId = fromComponentId,
+                        toComponentId = toComponentId,
+                        ownerId = ownerId,
+                        createdAt = now,
+                        updatedAt = now
                     )
-                ) {
-                    relationRulesRepository.save(
-                        RelationRules(
-                            relation = relation,
-                            fromComponent = fromComponent,
-                            toComponent = toComponent,
-                            owner = owner,
-                            createdAt = now,
-                            updatedAt = now
-                        )
-                    )
-                }
+                )
             }
+        }
+        if (ruleRows.isNotEmpty()) {
+            // Flush JPA inserts so FK targets are visible to JDBC in this transaction.
+            entityManager.flush()
+            val startedAt = System.nanoTime()
+            val inserted = relationRulesBulkInserter.insertIgnoreConflicts(ruleRows.values)
+            logger.info(
+                "NotationImport: bulk-inserted {}/{} relation_rules for '{}' in {} ms",
+                inserted,
+                ruleRows.size,
+                notationName,
+                (System.nanoTime() - startedAt) / 1_000_000
+            )
         }
 
         return NotationImportResponse(
