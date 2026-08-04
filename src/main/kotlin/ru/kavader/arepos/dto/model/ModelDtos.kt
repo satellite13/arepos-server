@@ -74,6 +74,21 @@ data class NodeResponse(
     val updatedAt: Instant?
 )
 
+data class EnsureNodeResponse(
+    val node: NodeResponse,
+    val created: Boolean
+)
+
+data class AmbiguousNodeCandidate(
+    val id: UUID,
+    val name: String,
+    val parentNodeId: UUID?
+)
+
+class AmbiguousNodeException(
+    val candidates: List<AmbiguousNodeCandidate>
+) : RuntimeException("Ambiguous node (${candidates.size} matches)")
+
 data class LinkRequest(
     @field:NotNull val sourceId: UUID,
     @field:NotNull val targetId: UUID,
@@ -112,12 +127,17 @@ data class LinkResponse(
 
 data class DiagramRequest(
     @field:NotBlank val name: String,
-    @field:NotBlank val version: String,
+    @field:NotBlank val version: String = "1.0.0",
     val ownerId: UUID? = null,
     @field:NotNull var modelId: UUID,
     val nodeId: UUID? = null,
     @field:NotNull val notationId: UUID,
     val attrs: String? = null
+)
+
+data class EnsureDiagramResponse(
+    val diagram: DiagramResponse,
+    val created: Boolean
 )
 
 data class DiagramUpdateRequest(

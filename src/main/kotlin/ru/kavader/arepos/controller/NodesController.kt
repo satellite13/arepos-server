@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.model.EnsureNodeResponse
 import ru.kavader.arepos.dto.model.NodeRequest
 import ru.kavader.arepos.dto.model.NodeResponse
 import ru.kavader.arepos.dto.model.NodeUpdateRequest
@@ -27,6 +28,7 @@ import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.ModelSyncBroadcaster
+import ru.kavader.arepos.service.NodeEnsureService
 import java.time.Instant
 import java.util.*
 
@@ -46,7 +48,7 @@ class NodesController(
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val typeUsageAuthorization: TypeUsageAuthorization,
     private val modelMapper: ModelMapper,
-    private val notationBindingService: ru.kavader.arepos.service.NotationBindingService
+    private val nodeEnsureService: NodeEnsureService
 ) {
 
     @GetMapping
@@ -115,56 +117,13 @@ class NodesController(
     @PostMapping
     @Operation(summary = "Create node")
     @ResponseStatus(HttpStatus.CREATED)
-    fun createNode(@RequestBody @Valid request: NodeRequest): NodeResponse {
-        val model = modelsRepository.findById(request.modelId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
-            }
-        accessService.requireCanEditModel(model)
-        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
-        val binding = notationBindingService.resolveNodeCreate(
-            nodeTypeId = request.nodeTypeId,
-            notationId = request.notationId,
-            componentId = request.componentId,
-            componentName = request.componentName,
-            attrs = request.attrs
-        )
-        val nodeType = binding.nodeType
-        typeUsageAuthorization.requireCanUseNodeTypeForModel(nodeType, model)
-        val parentNode = request.parentNodeId?.let {
-            nodesRepository.findById(it).orElse(null)?.also { parent ->
-                accessService.requireCanEditNode(parent)
-            }
-        }
+    fun createNode(@RequestBody @Valid request: NodeRequest): NodeResponse =
+        nodeEnsureService.createNode(request)
 
-        mdFileLinkValidator.validate(binding.attrs)
-        val now = Instant.now()
-        val saved = nodesRepository.save(
-            Nodes(
-                stableId = request.stableId ?: UUID.randomUUID(),
-                name = request.name,
-                model = model,
-                owner = owner,
-                nodeType = nodeType,
-                parentNode = parentNode,
-                attrs = binding.attrs,
-                createdAt = now,
-                updatedAt = now
-            )
-        )
-        modelSyncBroadcaster.broadcastModelChanged(
-            requireNotNull(model.id),
-            ModelSyncChangeType.NODE_CREATE.wireValue,
-            listOf(
-                ModelSyncEntityEvent(
-                    ModelSyncEventType.NODE_CREATED.wireValue,
-                    ModelSyncEventType.NODE_CREATED.entity,
-                    requireNotNull(saved.id)
-                )
-            )
-        )
-        return modelMapper.toResponse(saved)
-    }
+    @PostMapping("/ensure")
+    @Operation(summary = "Find or create node by model/parent/name (case-insensitive)")
+    fun ensureNode(@RequestBody @Valid request: NodeRequest): EnsureNodeResponse =
+        nodeEnsureService.ensureNode(request)
 
     @PutMapping("/{id}")
     @Operation(summary = "Update node")

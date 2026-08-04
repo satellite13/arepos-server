@@ -12,6 +12,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.model.AmbiguousNodeCandidate
+import ru.kavader.arepos.dto.model.AmbiguousNodeException
 import ru.kavader.arepos.dto.model.AmbiguousNotationCandidate
 import ru.kavader.arepos.dto.model.AmbiguousNotationElementException
 import ru.kavader.arepos.dto.model.BatchConflictItem
@@ -60,6 +62,13 @@ class GlobalExceptionHandler {
         val notationId: UUID,
         val query: String,
         val candidates: List<AmbiguousNotationCandidate>
+    )
+
+    data class AmbiguousNodeErrorBody(
+        val error: String,
+        val message: String?,
+        val traceId: String,
+        val candidates: List<AmbiguousNodeCandidate>
     )
 
     data class DiagramConflictErrorBody(
@@ -195,6 +204,22 @@ class GlobalExceptionHandler {
                     kind = ex.kind,
                     notationId = ex.notationId,
                     query = ex.query,
+                    candidates = ex.candidates
+                )
+            )
+    }
+
+    @ExceptionHandler(AmbiguousNodeException::class)
+    fun handleAmbiguousNode(ex: AmbiguousNodeException): ResponseEntity<AmbiguousNodeErrorBody> {
+        val traceId = newTraceId()
+        log.warn("Ambiguous node [{}]: {}", traceId, ex.message)
+        return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(
+                AmbiguousNodeErrorBody(
+                    error = "AMBIGUOUS_NODE",
+                    message = ex.message,
+                    traceId = traceId,
                     candidates = ex.candidates
                 )
             )

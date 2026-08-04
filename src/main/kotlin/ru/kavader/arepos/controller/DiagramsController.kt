@@ -16,13 +16,11 @@ import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.dto.system.ModelSyncEventType
 import ru.kavader.arepos.mapper.ModelMapper
-import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ACCESS_DENIED
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.*
-import java.time.Instant
 import java.util.*
 
 @RestController
@@ -42,7 +40,8 @@ class DiagramsController(
     private val modelMapper: ModelMapper,
     private val diagramLifecycleService: DiagramLifecycleService,
     private val diagramShareLinkService: DiagramShareLinkService,
-    private val diagramInstancesMergeService: DiagramInstancesMergeService
+    private val diagramInstancesMergeService: DiagramInstancesMergeService,
+    private val diagramEnsureService: DiagramEnsureService
 ) {
     @GetMapping
     @Operation(summary = "List diagrams")
@@ -97,61 +96,13 @@ class DiagramsController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create diagram")
-    fun createDiagram(@RequestBody @Valid request: DiagramRequest): DiagramResponse {
-        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
-        val model = modelsRepository.findById(request.modelId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
-            }
-        accessService.requireCanEditModel(model)
-        val notation = notationsRepository.findById(request.notationId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Notation ${request.notationId} not found")
-            }
-        accessService.requireCanReferenceNotationForModelDiagram(notation, model)
-        val node = request.nodeId?.let {
-            nodesRepository.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Node $it not found")
-            }
-        }?.also { newNode ->
-            accessService.requireCanEditNode(newNode)
-        }
-        if (diagramsRepository.existsByModelAndNameAndVersion(model, request.name, request.version)) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Diagram with model '${request.modelId}', name '${request.name}' and version '${request.version}' already exists"
-            )
-        }
+    fun createDiagram(@RequestBody @Valid request: DiagramRequest): DiagramResponse =
+        diagramEnsureService.createDiagram(request)
 
-        mdFileLinkValidator.validate(request.attrs)
-        val now = Instant.now()
-        val saved = diagramsRepository.save(
-            Diagrams(
-                name = request.name,
-                createdAt = now,
-                updatedAt = now,
-                attrs = request.attrs,
-                version = request.version,
-                owner = owner,
-                deleted = false,
-                model = model,
-                notation = notation,
-                node = node
-            )
-        )
-        modelSyncBroadcaster.broadcastModelChanged(
-            requireNotNull(model.id),
-            ModelSyncChangeType.DIAGRAM_CREATE.wireValue,
-            listOf(
-                ModelSyncEntityEvent(
-                    ModelSyncEventType.DIAGRAM_CREATED.wireValue,
-                    ModelSyncEventType.DIAGRAM_CREATED.entity,
-                    requireNotNull(saved.id)
-                )
-            )
-        )
-        return modelMapper.toResponse(saved)
-    }
+    @PostMapping("/ensure")
+    @Operation(summary = "Find or create latest diagram by model and name")
+    fun ensureDiagram(@RequestBody @Valid request: DiagramRequest): EnsureDiagramResponse =
+        diagramEnsureService.ensureDiagram(request)
 
     @PostMapping("/{id}/instances:merge")
     @Operation(summary = "Merge/upsert diagram canvas instances by modelNodeId / modelLinkId")
