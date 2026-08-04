@@ -34,6 +34,11 @@ class CsrfFilter(
         ) {
             return true
         }
+        // API clients (MCP JWT, user Bearer) do not use cookie CSRF double-submit.
+        val authorization = request.getHeader("Authorization")?.trim().orEmpty()
+        if (authorization.startsWith("Bearer ", ignoreCase = true)) {
+            return true
+        }
         return false
     }
 
