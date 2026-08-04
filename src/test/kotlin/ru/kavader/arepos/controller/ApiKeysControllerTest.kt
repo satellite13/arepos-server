@@ -21,9 +21,13 @@ import ru.kavader.arepos.dto.apikey.ExchangeApiKeyRequest
 import ru.kavader.arepos.dto.apikey.ExchangeApiKeyResponse
 import ru.kavader.arepos.dto.apikey.UpdateApiKeyRequest
 import ru.kavader.arepos.dto.auth.RegisterRequest
+import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Models
+import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.Role
+import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
+import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.TokenType
 import java.time.Instant
@@ -44,6 +48,12 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var modelsRepository: ModelsRepository
+
+    @Autowired
+    lateinit var notationsRepository: NotationsRepository
+
+    @Autowired
+    lateinit var diagramsRepository: DiagramsRepository
 
     private fun registerAndGetUserId(email: String): UUID {
         mockMvc.perform(
@@ -198,5 +208,78 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
             get("/api/v1/models/${denied.id}")
                 .header("Authorization", "Bearer ${exchange.accessToken}")
         ).andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `mcp token allowlist blocks diagrams from other models`() {
+        val userId = registerAndGetUserId("apikey-diagram-allowlist@test.com")
+        val user = usersRepository.findById(userId).orElseThrow()
+        val allowed = modelsRepository.save(
+            Models(
+                name = "allowed-model",
+                version = "1.0.0",
+                createdAt = Instant.now(),
+                owner = user
+            )
+        )
+        val denied = modelsRepository.save(
+            Models(
+                name = "denied-model",
+                version = "1.0.0",
+                createdAt = Instant.now(),
+                owner = user
+            )
+        )
+        val notation = notationsRepository.save(
+            Notations(
+                name = "notation-${UUID.randomUUID()}",
+                version = "1.0.0",
+                createdAt = Instant.now(),
+                owner = user
+            )
+        )
+        val deniedDiagram = diagramsRepository.save(
+            Diagrams(
+                name = "secret-diagram",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = user,
+                model = denied,
+                notation = notation
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "allowed-diagram",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = user,
+                model = allowed,
+                notation = notation
+            )
+        )
+
+        val created = createKey(userId, listOf("models:read"), modelIds = listOf(allowed.id!!))
+        val exchangeResult = mockMvc.perform(
+            post("/api/v1/auth/api-keys/exchange")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ExchangeApiKeyRequest(created.key)))
+        ).andExpect(status().isOk).andReturn()
+        val exchange = objectMapper.readValue<ExchangeApiKeyResponse>(exchangeResult.response.contentAsString)
+        val mcpAuth = "Bearer ${exchange.accessToken}"
+
+        mockMvc.perform(get("/api/v1/diagrams/${deniedDiagram.id}").header("Authorization", mcpAuth))
+            .andExpect(status().isForbidden)
+
+        mockMvc.perform(
+            get("/api/v1/diagrams")
+                .param("modelId", denied.id.toString())
+                .header("Authorization", mcpAuth)
+        ).andExpect(status().isForbidden)
+
+        mockMvc.perform(get("/api/v1/diagrams").header("Authorization", mcpAuth))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.content[?(@.name=='secret-diagram')]").isEmpty)
+            .andExpect(jsonPath("$.content[?(@.name=='allowed-diagram')]").isNotEmpty)
     }
 }

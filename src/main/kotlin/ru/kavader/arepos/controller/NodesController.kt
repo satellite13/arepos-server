@@ -64,7 +64,9 @@ class NodesController(
                 name = normalizedName,
                 currentUserId = accessService.currentUserId(),
                 pageable = pageable
-            ).map { modelMapper.toResponse(it) }
+            )
+                .applyMcpModelAllowlist(accessService, modelId) { it.model.id }
+                .map { modelMapper.toResponse(it) }
         }
 
         val nodes = when {

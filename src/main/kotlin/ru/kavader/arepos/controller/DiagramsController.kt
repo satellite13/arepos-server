@@ -55,8 +55,7 @@ class DiagramsController(
         @RequestParam(required = false, defaultValue = "true") includeAttrs: Boolean
     ): Page<DiagramResponse> {
         val normalizedName = name.trimmedOrNull()
-        return accessService.listPageWithAdminBypass(
-            pageable = pageable,
+        val entities = accessService.listPageWithAdminBypass(
             adminQuery = {
                 diagramsRepository.findByFilters(
                     ownerId = ownerId,
@@ -77,9 +76,9 @@ class DiagramsController(
                     currentUserId = currentUserId,
                     pageable = pageable
                 )
-            },
-            map = { modelMapper.toResponse(it, includeAttrs) }
-        )
+            }
+        ).applyMcpModelAllowlist(accessService, modelId) { it.model.id }
+        return entities.map { modelMapper.toResponse(it, includeAttrs) }
     }
 
     @GetMapping("/{id}")

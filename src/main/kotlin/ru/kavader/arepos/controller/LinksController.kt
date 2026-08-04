@@ -64,7 +64,9 @@ class LinksController(
                 linkTypeId = linkTypeId,
                 currentUserId = currentUserId,
                 pageable = pageable
-            ).map { modelMapper.toResponse(it) }
+            )
+                .applyMcpModelAllowlist(accessService, modelId) { it.model.id }
+                .map { modelMapper.toResponse(it) }
         }
 
         val links = when {

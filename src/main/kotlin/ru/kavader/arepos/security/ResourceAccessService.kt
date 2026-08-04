@@ -32,12 +32,16 @@ class ResourceAccessService(
 ) {
     fun currentUserId(): UUID = ownerResolutionService.currentUserId()
 
-    fun canEditModel(model: Models): Boolean = topLevelAccess.canEditModel(model)
+    fun canEditModel(model: Models): Boolean =
+        isMcpModelAllowed(model.id) && topLevelAccess.canEditModel(model)
 
-    fun canViewModel(model: Models): Boolean = topLevelAccess.canViewModel(model)
+    fun canViewModel(model: Models): Boolean =
+        isMcpModelAllowed(model.id) && topLevelAccess.canViewModel(model)
 
-    fun canViewModels(models: Collection<Models>): Map<UUID, Boolean> =
-        topLevelAccess.canViewModels(models)
+    fun canViewModels(models: Collection<Models>): Map<UUID, Boolean> {
+        val base = topLevelAccess.canViewModels(models)
+        return base.mapValues { (id, allowed) -> allowed && isMcpModelAllowed(id) }
+    }
 
     fun canViewNotations(notations: Collection<Notations>): Map<UUID, Boolean> =
         topLevelAccess.canViewNotationsDirect(notations)
@@ -48,11 +52,18 @@ class ResourceAccessService(
     fun filterViewableNotations(notations: Collection<Notations>): List<Notations> =
         notationDiagramAccess.filterViewableNotations(notations)
 
-    fun canViewDiagrams(diagrams: Collection<Diagrams>): Map<UUID, Boolean> =
-        notationDiagramAccess.canViewDiagrams(diagrams)
+    fun canViewDiagrams(diagrams: Collection<Diagrams>): Map<UUID, Boolean> {
+        val base = notationDiagramAccess.canViewDiagrams(diagrams)
+        val byId = diagrams.associateBy { it.id }
+        return base.mapValues { (diagramId, allowed) ->
+            allowed && isMcpModelAllowed(byId[diagramId]?.model?.id)
+        }
+    }
 
-    fun filterViewableDiagrams(diagrams: Collection<Diagrams>): List<Diagrams> =
-        notationDiagramAccess.filterViewableDiagrams(diagrams)
+    fun filterViewableDiagrams(diagrams: Collection<Diagrams>): List<Diagrams> {
+        val decisions = canViewDiagrams(diagrams)
+        return diagrams.filter { diagram -> diagram.id?.let { decisions[it] } == true }
+    }
 
     fun canEditNotation(notation: Notations): Boolean = topLevelAccess.canEditNotation(notation)
 
@@ -166,13 +177,25 @@ class ResourceAccessService(
     fun requireCanViewValidationScript(script: ValidationScripts) =
         requireAllowed(canViewValidationScript(script))
 
-    fun requireCanEditNode(node: Nodes) = requireAllowed(canEditNode(node))
+    fun requireCanEditNode(node: Nodes) {
+        requireMcpModelAllowed(node.model.id)
+        requireAllowed(canEditNode(node))
+    }
 
-    fun requireCanViewNode(node: Nodes) = requireAllowed(canViewNode(node))
+    fun requireCanViewNode(node: Nodes) {
+        requireMcpModelAllowed(node.model.id)
+        requireAllowed(canViewNode(node))
+    }
 
-    fun requireCanEditLink(link: Links) = requireAllowed(canEditLink(link))
+    fun requireCanEditLink(link: Links) {
+        requireMcpModelAllowed(link.model.id)
+        requireAllowed(canEditLink(link))
+    }
 
-    fun requireCanViewLink(link: Links) = requireAllowed(canViewLink(link))
+    fun requireCanViewLink(link: Links) {
+        requireMcpModelAllowed(link.model.id)
+        requireAllowed(canViewLink(link))
+    }
 
     fun requireCanEditComponent(component: Components) = requireAllowed(canEditComponent(component))
 
@@ -188,9 +211,38 @@ class ResourceAccessService(
     fun requireCanViewRelationRule(relationRule: RelationRules) =
         requireAllowed(canViewRelationRule(relationRule))
 
-    fun requireCanEditDiagram(diagram: Diagrams) = requireAllowed(canEditDiagram(diagram))
+    fun requireCanEditDiagram(diagram: Diagrams) {
+        requireMcpModelAllowed(diagram.model.id)
+        requireAllowed(canEditDiagram(diagram))
+    }
 
-    fun requireCanViewDiagram(diagram: Diagrams) = requireAllowed(canViewDiagram(diagram))
+    fun requireCanViewDiagram(diagram: Diagrams) {
+        requireMcpModelAllowed(diagram.model.id)
+        requireAllowed(canViewDiagram(diagram))
+    }
+
+    /**
+     * MCP API-key allowlist of model UUIDs, or null when unrestricted
+     * (non-MCP token, or MCP token without modelIds claim).
+     */
+    fun mcpModelIdsAllowlist(): Set<UUID>? {
+        val details = CurrentUser.mcpAccessDetails() ?: return null
+        return details.modelIds
+    }
+
+    /** Rejects modelId outside the MCP allowlist when a key is restricted. */
+    fun requireMcpModelIdAllowed(modelId: UUID) {
+        requireMcpModelAllowed(modelId)
+    }
+
+    /**
+     * For list endpoints: when MCP allowlist is set, [modelId] must be allowed.
+     * Returns entities whose model id is in the allowlist (no-op when unrestricted).
+     */
+    fun <T> filterByMcpModelAllowlist(items: List<T>, modelIdOf: (T) -> UUID?): List<T> {
+        val allowlist = mcpModelIdsAllowlist() ?: return items
+        return items.filter { item -> modelIdOf(item)?.let { it in allowlist } == true }
+    }
 
     fun canManageShares(ownerId: UUID): Boolean {
         val userId = CurrentUser.getId()
