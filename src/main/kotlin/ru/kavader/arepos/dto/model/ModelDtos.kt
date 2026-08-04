@@ -127,12 +127,17 @@ data class LinkResponse(
 
 data class DiagramRequest(
     @field:NotBlank val name: String,
-    @field:NotBlank val version: String,
+    @field:NotBlank val version: String = "1.0.0",
     val ownerId: UUID? = null,
     @field:NotNull var modelId: UUID,
     val nodeId: UUID? = null,
     @field:NotNull val notationId: UUID,
     val attrs: String? = null
+)
+
+data class EnsureDiagramResponse(
+    val diagram: DiagramResponse,
+    val created: Boolean
 )
 
 data class DiagramUpdateRequest(
