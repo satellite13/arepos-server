@@ -94,6 +94,23 @@ interface LinksRepository : JpaRepository<Links, UUID> {
         nativeQuery = true
     )
     fun findDistinctLinkTypeIdsByModelId(@Param("modelId") modelId: UUID): List<UUID>
+
+    @Query(
+        """
+        SELECT l FROM Links l
+        WHERE l.model.id = :modelId
+          AND (
+            LOWER(l.source.name) LIKE LOWER(CONCAT('%', :q, '%'))
+            OR LOWER(l.target.name) LIKE LOWER(CONCAT('%', :q, '%'))
+          )
+        ORDER BY l.source.name ASC, l.target.name ASC, l.id ASC
+        """
+    )
+    fun searchByModelIdAndEndpointNames(
+        @Param("modelId") modelId: UUID,
+        @Param("q") q: String,
+        pageable: Pageable
+    ): Page<Links>
 }
 
 
