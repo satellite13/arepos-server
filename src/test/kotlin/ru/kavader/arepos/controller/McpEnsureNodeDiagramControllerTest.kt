@@ -102,6 +102,8 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.created").value(true))
             .andExpect(jsonPath("$.node.name").value("CRM"))
+            .andExpect(jsonPath("$.node.modelId").value(model.id.toString()))
+            .andExpect(jsonPath("$.node.nodeTypeId").value(nodeType.id.toString()))
             .andReturn()
 
         val nodeId = objectMapper.readTree(first.response.contentAsString).path("node").path("id").asText()
@@ -187,8 +189,8 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
     @Test
     fun `ensureNode ambiguous same parent and name returns AMBIGUOUS_NODE`() {
         val parent = persistNode("Parent")
-        persistNode("Dup", parentNode = parent)
-        persistNode("Dup", parentNode = parent)
+        val dup1 = persistNode("Dup", parentNode = parent)
+        val dup2 = persistNode("Dup", parentNode = parent)
 
         mockMvc.perform(
             post("/api/v1/nodes/ensure")
@@ -208,6 +210,11 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isConflict)
             .andExpect(jsonPath("$.error").value("AMBIGUOUS_NODE"))
             .andExpect(jsonPath("$.candidates.length()").value(2))
+            .andExpect(
+                jsonPath("$.candidates[*].id").value(
+                    org.hamcrest.Matchers.containsInAnyOrder(dup1.id.toString(), dup2.id.toString())
+                )
+            )
     }
 
     @Test
@@ -230,6 +237,8 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.created").value(true))
             .andExpect(jsonPath("$.diagram.name").value("Landscape"))
+            .andExpect(jsonPath("$.diagram.modelId").value(model.id.toString()))
+            .andExpect(jsonPath("$.diagram.notationId").value(notation.id.toString()))
             .andReturn()
 
         val firstBody = objectMapper.readTree(first.response.contentAsString)
