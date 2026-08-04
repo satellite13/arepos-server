@@ -19,6 +19,13 @@ interface LinksRepository : JpaRepository<Links, UUID> {
     fun findByModelAndOwnerOrderByIdAsc(model: Models, owner: Users, pageable: Pageable): Page<Links>
     fun existsByLinkTypeId(linkTypeId: UUID): Boolean
 
+    fun findByModel_IdAndSource_IdAndTarget_IdAndLinkType_Id(
+        modelId: UUID,
+        sourceId: UUID,
+        targetId: UUID,
+        linkTypeId: UUID
+    ): List<Links>
+
     @Query(
         value = """
             SELECT l.*

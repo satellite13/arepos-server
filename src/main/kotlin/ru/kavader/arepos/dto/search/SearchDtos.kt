@@ -36,3 +36,20 @@ data class ModelSearchHit(
     val targetName: String? = null,
     val notationName: String? = null
 )
+
+data class NotationSearchResponse(
+    val notationId: UUID,
+    val q: String,
+    val limit: Int,
+    val totalEstimate: Int,
+    val hits: List<NotationSearchHit>
+)
+
+data class NotationSearchHit(
+    val kind: String,
+    val id: UUID,
+    val name: String,
+    val version: String,
+    val nodeTypeId: UUID? = null,
+    val linkTypeId: UUID? = null
+)

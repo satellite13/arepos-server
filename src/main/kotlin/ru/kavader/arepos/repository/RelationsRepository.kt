@@ -18,6 +18,21 @@ interface RelationsRepository : JpaRepository<Relations, UUID> {
     fun findByNotation(notation: Notations, pageable: Pageable): Page<Relations>
     fun findByOwner(owner: Users, pageable: Pageable): Page<Relations>
     fun findByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<Relations>
+    fun findByNotation_IdAndNameIgnoreCase(notationId: UUID, name: String): List<Relations>
+
+    @Query(
+        """
+        SELECT r FROM Relations r
+        WHERE r.notation.id = :notationId
+          AND LOWER(r.name) LIKE LOWER(CONCAT('%', :q, '%'))
+        ORDER BY r.name ASC, r.version DESC, r.id ASC
+        """
+    )
+    fun searchByNotationIdAndName(
+        @Param("notationId") notationId: UUID,
+        @Param("q") q: String,
+        pageable: Pageable
+    ): Page<Relations>
 
     @Query(
         value = NotationBoundListSql.RELATIONS_FIND_BY_FILTERS,

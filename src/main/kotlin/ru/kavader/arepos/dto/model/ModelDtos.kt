@@ -42,10 +42,14 @@ data class NodeRequest(
     @field:NotBlank val name: String,
     @field:NotNull var modelId: UUID,
     val ownerId: UUID? = null,
-    @field:NotNull var nodeTypeId: UUID,
+    /** Required unless notation component binding is provided. */
+    var nodeTypeId: UUID? = null,
     val parentNodeId: UUID? = null,
     val attrs: String? = null,
-    val stableId: UUID? = null
+    val stableId: UUID? = null,
+    val notationId: UUID? = null,
+    val componentId: UUID? = null,
+    val componentName: String? = null
 )
 
 data class NodeUpdateRequest(
@@ -75,9 +79,13 @@ data class LinkRequest(
     @field:NotNull val targetId: UUID,
     @field:NotNull val modelId: UUID,
     val ownerId: UUID? = null,
-    @field:NotNull val linkTypeId: UUID,
+    /** Required unless notation relation binding is provided. */
+    val linkTypeId: UUID? = null,
     val attrs: String? = null,
-    val stableId: UUID? = null
+    val stableId: UUID? = null,
+    val notationId: UUID? = null,
+    val relationId: UUID? = null,
+    val relationName: String? = null
 )
 
 data class LinkUpdateRequest(

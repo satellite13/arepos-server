@@ -41,7 +41,8 @@ class DiagramsController(
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val modelMapper: ModelMapper,
     private val diagramLifecycleService: DiagramLifecycleService,
-    private val diagramShareLinkService: DiagramShareLinkService
+    private val diagramShareLinkService: DiagramShareLinkService,
+    private val diagramInstancesMergeService: DiagramInstancesMergeService
 ) {
     @GetMapping
     @Operation(summary = "List diagrams")
@@ -151,6 +152,13 @@ class DiagramsController(
         )
         return modelMapper.toResponse(saved)
     }
+
+    @PostMapping("/{id}/instances:merge")
+    @Operation(summary = "Merge/upsert diagram canvas instances by modelNodeId / modelLinkId")
+    fun mergeInstances(
+        @PathVariable id: UUID,
+        @RequestBody @Valid request: DiagramInstancesMergeRequest
+    ): DiagramInstancesMergeResponse = diagramInstancesMergeService.merge(id, request)
 
     @PutMapping("/{id}")
     @Operation(summary = "Update diagram")

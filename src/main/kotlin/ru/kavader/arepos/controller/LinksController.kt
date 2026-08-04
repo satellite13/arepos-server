@@ -41,7 +41,8 @@ class LinksController(
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val typeUsageAuthorization: TypeUsageAuthorization,
-    private val modelMapper: ModelMapper
+    private val modelMapper: ModelMapper,
+    private val linkEnsureService: ru.kavader.arepos.service.LinkEnsureService
 ) {
 
     @GetMapping
@@ -147,56 +148,13 @@ class LinksController(
     @PostMapping
     @Operation(summary = "Create link")
     @ResponseStatus(HttpStatus.CREATED)
-    fun createLink(@RequestBody @Valid request: LinkRequest): LinkResponse {
-        val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
-        val model = modelsRepository.findById(request.modelId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
-            }
-        accessService.requireCanEditModel(model)
-        val source = nodesRepository.findById(request.sourceId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Source node ${request.sourceId} not found")
-            }
-        accessService.requireCanEditNode(source)
-        val target = nodesRepository.findById(request.targetId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Target node ${request.targetId} not found")
-            }
-        accessService.requireCanEditNode(target)
-        val linkType = linkTypesRepository.findById(request.linkTypeId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "LinkType ${request.linkTypeId} not found")
-            }
-        typeUsageAuthorization.requireCanUseLinkTypeForModel(linkType, model)
-        mdFileLinkValidator.validate(request.attrs)
-        val now = Instant.now()
-        val saved = linksRepository.save(
-            Links(
-                stableId = request.stableId ?: UUID.randomUUID(),
-                source = source,
-                target = target,
-                createdAt = now,
-                updatedAt = now,
-                attrs = request.attrs,
-                owner = owner,
-                linkType = linkType,
-                model = model
-            )
-        )
-        modelSyncBroadcaster.broadcastModelChanged(
-            requireNotNull(model.id),
-            ModelSyncChangeType.LINK_CREATE.wireValue,
-            listOf(
-                ModelSyncEntityEvent(
-                    ModelSyncEventType.LINK_CREATED.wireValue,
-                    ModelSyncEventType.LINK_CREATED.entity,
-                    requireNotNull(saved.id)
-                )
-            )
-        )
-        return modelMapper.toResponse(saved)
-    }
+    fun createLink(@RequestBody @Valid request: LinkRequest): LinkResponse =
+        linkEnsureService.createLink(request)
+
+    @PostMapping("/ensure")
+    @Operation(summary = "Find or create link by model/source/target/linkType (after notation resolve)")
+    fun ensureLink(@RequestBody @Valid request: LinkRequest): ru.kavader.arepos.dto.model.EnsureLinkResponse =
+        linkEnsureService.ensureLink(request)
 
     @PutMapping("/{id}")
     @Operation(summary = "Update link")

@@ -9,11 +9,15 @@ import ru.kavader.arepos.dto.search.CatalogSearchHit
 import ru.kavader.arepos.dto.search.CatalogSearchResponse
 import ru.kavader.arepos.dto.search.ModelSearchHit
 import ru.kavader.arepos.dto.search.ModelSearchResponse
+import ru.kavader.arepos.dto.search.NotationSearchHit
+import ru.kavader.arepos.dto.search.NotationSearchResponse
+import ru.kavader.arepos.repository.ComponentsRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.LinksRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NotationsRepository
+import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import java.util.UUID
 
@@ -24,6 +28,8 @@ class SearchService(
     private val nodesRepository: NodesRepository,
     private val linksRepository: LinksRepository,
     private val diagramsRepository: DiagramsRepository,
+    private val componentsRepository: ComponentsRepository,
+    private val relationsRepository: RelationsRepository,
     private val accessService: ResourceAccessService
 ) {
     companion object {
@@ -31,6 +37,7 @@ class SearchService(
         const val MAX_LIMIT = 50
         val CATALOG_KINDS = setOf("models", "notations")
         val MODEL_KINDS = setOf("nodes", "links", "diagrams")
+        val NOTATION_KINDS = setOf("components", "relations")
     }
 
     @Transactional(readOnly = true)
@@ -154,6 +161,58 @@ class SearchService(
 
         return ModelSearchResponse(
             modelId = modelId,
+            q = q,
+            limit = limit,
+            totalEstimate = totalEstimate,
+            hits = hits.take(limit)
+        )
+    }
+
+    @Transactional(readOnly = true)
+    fun searchNotation(notationId: UUID, qRaw: String?, kindsRaw: String?, limitRaw: Int?): NotationSearchResponse {
+        val notation = notationsRepository.findById(notationId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $notationId not found")
+        }
+        accessService.requireCanViewNotation(notation)
+
+        val q = normalizeQuery(qRaw)
+        val limit = normalizeLimit(limitRaw)
+        val kinds = parseKinds(kindsRaw, NOTATION_KINDS)
+        val pageable = PageRequest.of(0, limit)
+
+        val hits = mutableListOf<NotationSearchHit>()
+        var totalEstimate = 0
+
+        if ("components" in kinds) {
+            val page = componentsRepository.searchByNotationIdAndName(notationId, q, pageable)
+            totalEstimate += page.totalElements.toInt()
+            hits += page.content.map { component ->
+                NotationSearchHit(
+                    kind = "component",
+                    id = component.id!!,
+                    name = component.name,
+                    version = component.version,
+                    nodeTypeId = component.nodeType.id
+                )
+            }
+        }
+
+        if ("relations" in kinds) {
+            val page = relationsRepository.searchByNotationIdAndName(notationId, q, pageable)
+            totalEstimate += page.totalElements.toInt()
+            hits += page.content.map { relation ->
+                NotationSearchHit(
+                    kind = "relation",
+                    id = relation.id!!,
+                    name = relation.name,
+                    version = relation.version,
+                    linkTypeId = relation.linkType.id
+                )
+            }
+        }
+
+        return NotationSearchResponse(
+            notationId = notationId,
             q = q,
             limit = limit,
             totalEstimate = totalEstimate,

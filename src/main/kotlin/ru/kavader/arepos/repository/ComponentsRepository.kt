@@ -18,6 +18,21 @@ interface ComponentsRepository : JpaRepository<Components, UUID> {
     fun findByNotation(notation: Notations, pageable: Pageable): Page<Components>
     fun findByOwner(owner: Users, pageable: Pageable): Page<Components>
     fun findByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<Components>
+    fun findByNotation_IdAndNameIgnoreCase(notationId: UUID, name: String): List<Components>
+
+    @Query(
+        """
+        SELECT c FROM Components c
+        WHERE c.notation.id = :notationId
+          AND LOWER(c.name) LIKE LOWER(CONCAT('%', :q, '%'))
+        ORDER BY c.name ASC, c.version DESC, c.id ASC
+        """
+    )
+    fun searchByNotationIdAndName(
+        @Param("notationId") notationId: UUID,
+        @Param("q") q: String,
+        pageable: Pageable
+    ): Page<Components>
 
     @Query(
         value = NotationBoundListSql.COMPONENTS_FIND_BY_FILTERS,
