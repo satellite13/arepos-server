@@ -183,6 +183,31 @@ class DocumentRefsService(
         relationId: UUID? = null,
         nodeShapeId: UUID? = null
     ): List<DocumentItem> {
+        modelId?.let {
+            val model = modelsRepository.findById(it).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Model not found")
+            }
+            accessService.requireCanViewModel(model)
+        }
+        diagramId?.let {
+            val diagram = diagramsRepository.findById(it).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram not found")
+            }
+            accessService.requireCanViewDiagram(diagram)
+        }
+        nodeId?.let {
+            val node = nodesRepository.findById(it).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Node not found")
+            }
+            accessService.requireCanViewNode(node)
+        }
+        componentId?.let {
+            val component = componentsRepository.findById(it).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Component not found")
+            }
+            accessService.requireCanViewComponent(component)
+        }
+
         val userId = accessService.currentUserId()
         val refs = documentRefsRepository.findByFilters(
             userId = userId,
@@ -195,7 +220,15 @@ class DocumentRefsService(
             diagramId = diagramId,
             relationId = relationId,
             nodeShapeId = nodeShapeId
-        )
+        ).let { list ->
+            val allowlist = accessService.mcpModelIdsAllowlist() ?: return@let list
+            list.filter { ref ->
+                val mid = ref.model?.id
+                    ?: ref.diagram?.model?.id
+                    ?: ref.node?.model?.id
+                mid == null || mid in allowlist
+            }
+        }
         val withContext = modelId == null && notationId == null && componentId == null &&
                 nodeId == null && nodeTypeId == null && linkTypeId == null &&
                 diagramId == null && relationId == null && nodeShapeId == null

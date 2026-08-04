@@ -171,11 +171,14 @@ class DocumentRefsServiceTest {
     fun `list for select removes duplicate file references for context`() {
         val user = user()
         val file = file(user)
-        val modelId = UUID.randomUUID()
+        val model = Models(id = UUID.randomUUID(), name = "Architecture", version = "1.0.0", owner = user)
+        val modelId = model.id!!
         val refs = listOf(
             DocumentRefs(file = file, createdBy = user),
             DocumentRefs(file = file, createdBy = user)
         )
+        `when`(modelsRepository.findById(modelId)).thenReturn(Optional.of(model))
+        `when`(accessService.mcpModelIdsAllowlist()).thenReturn(null)
         `when`(accessService.currentUserId()).thenReturn(user.id)
         `when`(
             documentRefsRepository.findByFilters(
@@ -195,6 +198,7 @@ class DocumentRefsServiceTest {
         val result = service.listForSelect(modelId = modelId)
 
         assertEquals(listOf(DocumentItem(fileId = file.id, label = file.filename)), result)
+        verify(accessService).requireCanViewModel(model)
     }
 
     @Test
