@@ -28,6 +28,7 @@ import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -229,10 +230,13 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.created").value(true))
             .andExpect(jsonPath("$.diagram.name").value("Landscape"))
-            .andExpect(jsonPath("$.diagram.attrs").value(org.hamcrest.Matchers.containsString("instances")))
             .andReturn()
 
-        val diagramId = objectMapper.readTree(first.response.contentAsString).path("diagram").path("id").asText()
+        val firstBody = objectMapper.readTree(first.response.contentAsString)
+        val diagramId = firstBody.path("diagram").path("id").asText()
+        val instances = objectMapper.readTree(firstBody.path("diagram").path("attrs").asText()).path("instances")
+        assertTrue(instances.path("nodes").isArray && instances.path("nodes").isEmpty)
+        assertTrue(instances.path("edges").isArray && instances.path("edges").isEmpty)
 
         mockMvc.perform(
             post("/api/v1/diagrams/ensure")
