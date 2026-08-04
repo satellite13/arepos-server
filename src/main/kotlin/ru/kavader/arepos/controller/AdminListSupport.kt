@@ -1,6 +1,7 @@
 package ru.kavader.arepos.controller
 
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.security.ResourceAccessService
@@ -43,6 +44,27 @@ fun <T, R> ResourceAccessService.listPageWithAdminBypass(
     map: (T) -> R
 ): Page<R> =
     listPageWithAdminBypass(adminQuery, userQuery).map(map)
+
+/**
+ * Restricts list results for MCP API keys with a model allowlist.
+ * When [modelIdParam] is set and not allowed → 403.
+ * When unrestricted (non-MCP / no claim) → page unchanged.
+ */
+fun <T> Page<T>.applyMcpModelAllowlist(
+    accessService: ResourceAccessService,
+    modelIdParam: UUID?,
+    modelIdOf: (T) -> UUID?
+): Page<T> {
+    val allowlist = accessService.mcpModelIdsAllowlist() ?: return this
+    if (modelIdParam != null) {
+        accessService.requireMcpModelIdAllowed(modelIdParam)
+    }
+    val filtered = content.filter { item -> modelIdOf(item)?.let { it in allowlist } == true }
+    if (filtered.size == content.size) {
+        return this
+    }
+    return PageImpl(filtered, pageable, filtered.size.toLong())
+}
 
 fun <T, K : Any, R> Page<T>.mapWithPermissions(
     loadPermissions: (List<T>) -> Map<K, String?>,

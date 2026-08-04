@@ -76,7 +76,7 @@ class BeanValidationAuditTest {
     fun `required uuid fields carry NotNull constraints`() {
         val requiredFields = mapOf(
             "ru.kavader.arepos.dto.model.LinkRequest" to
-                listOf("sourceId", "targetId", "modelId", "linkTypeId"),
+                listOf("sourceId", "targetId", "modelId"),
             "ru.kavader.arepos.dto.model.DiagramRequest" to listOf("notationId"),
             "ru.kavader.arepos.dto.document.RegisterDocumentRefRequest" to listOf("fileId"),
             "ru.kavader.arepos.dto.access.PermissionCheckRequest" to

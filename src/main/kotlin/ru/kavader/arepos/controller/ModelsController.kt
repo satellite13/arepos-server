@@ -54,7 +54,7 @@ class ModelsController(
                 name = name?.trim().orEmpty(),
                 viewPermissions = viewPermissions,
                 pageable = pageable
-            )
+            ).applyMcpModelAllowlist(accessService, null) { it.id }
             return mapModelsPage(page)
         }
 
@@ -112,7 +112,8 @@ class ModelsController(
             modelsRepository.findAll(Pageable.unpaged()).content
         }
 
-        val groups = allModels
+        val scopedModels = accessService.filterByMcpModelAllowlist(allModels) { it.id }
+        val groups = scopedModels
             .groupBy { it.name.trim().lowercase() }
             .map { (_, models) ->
                 val sorted = models.sortedWith(compareModelsByVersionDesc)

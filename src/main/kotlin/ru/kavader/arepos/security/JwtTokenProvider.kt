@@ -18,7 +18,8 @@ data class JwtProperties(
     val issuer: String = "arepos",
     val audience: String = "arepos-api",
     val accessExpiration: Duration = Duration.ofMinutes(30),
-    val refreshExpiration: Duration = Duration.ofDays(7)
+    val refreshExpiration: Duration = Duration.ofDays(7),
+    val mcpAccessExpiration: Duration = Duration.ofMinutes(20)
 )
 
 @Component
@@ -79,6 +80,53 @@ class JwtTokenProvider(private val jwtProperties: JwtProperties) {
             .compact()
     }
 
+    fun generateMcpAccessToken(
+        userId: UUID,
+        role: String,
+        scopes: Set<String>,
+        modelIds: Set<UUID>?
+    ): String {
+        val now = Date()
+        val expiry = Date(now.time + jwtProperties.mcpAccessExpiration.toMillis())
+        val builder = Jwts.builder()
+            .subject(userId.toString())
+            .issuer(jwtProperties.issuer)
+            .audience().add(jwtProperties.audience).and()
+            .claim("role", role)
+            .claim("type", TokenType.MCP_ACCESS.claimValue)
+            .claim("scopes", scopes.toList().sorted())
+            .issuedAt(now)
+            .expiration(expiry)
+            .signWith(key)
+        if (modelIds != null) {
+            builder.claim("modelIds", modelIds.map { it.toString() }.sorted())
+        }
+        return builder.compact()
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun getScopes(token: String): Set<String> {
+        val raw = parseClaims(token)["scopes"] ?: return emptySet()
+        return when (raw) {
+            is Collection<*> -> raw.mapNotNull { it?.toString() }.toSet()
+            else -> emptySet()
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun getModelIds(token: String): Set<UUID>? {
+        if (!parseClaims(token).containsKey("modelIds")) {
+            return null
+        }
+        val raw = parseClaims(token)["modelIds"] ?: return emptySet()
+        return when (raw) {
+            is Collection<*> -> raw.mapNotNull {
+                runCatching { UUID.fromString(it?.toString()) }.getOrNull()
+            }.toSet()
+            else -> emptySet()
+        }
+    }
+
     fun validateToken(token: String): Boolean {
         return try {
             parseClaims(token)
@@ -108,6 +156,8 @@ class JwtTokenProvider(private val jwtProperties: JwtProperties) {
     fun accessExpirationSeconds(): Long = jwtProperties.accessExpiration.seconds
 
     fun refreshExpirationSeconds(): Long = jwtProperties.refreshExpiration.seconds
+
+    fun mcpAccessExpirationSeconds(): Long = jwtProperties.mcpAccessExpiration.seconds
 
     private fun parseClaims(token: String): Claims {
         val claims = Jwts.parser()

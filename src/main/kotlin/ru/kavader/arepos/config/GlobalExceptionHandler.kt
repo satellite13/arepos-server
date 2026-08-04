@@ -12,11 +12,15 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.model.AmbiguousNotationCandidate
+import ru.kavader.arepos.dto.model.AmbiguousNotationElementException
 import ru.kavader.arepos.dto.model.BatchConflictItem
 import ru.kavader.arepos.dto.model.BatchSaveConflictException
+import ru.kavader.arepos.dto.model.DiagramConflictException
 import ru.kavader.arepos.dto.site.RoadmapConflictException
 import ru.kavader.arepos.dto.site.RoadmapConflictItem
 import ru.kavader.arepos.security.ACCESS_DENIED
+import java.time.Instant
 import java.util.*
 
 /**
@@ -46,6 +50,25 @@ class GlobalExceptionHandler {
         val message: String?,
         val traceId: String,
         val conflicts: List<BatchConflictItem>
+    )
+
+    data class AmbiguousNotationErrorBody(
+        val error: String,
+        val message: String?,
+        val traceId: String,
+        val kind: String,
+        val notationId: UUID,
+        val query: String,
+        val candidates: List<AmbiguousNotationCandidate>
+    )
+
+    data class DiagramConflictErrorBody(
+        val error: String,
+        val message: String?,
+        val traceId: String,
+        val diagramId: UUID,
+        val serverUpdatedAt: Instant?,
+        val clientBaseUpdatedAt: Instant?
     )
 
     data class RoadmapConflictErrorBody(
@@ -154,6 +177,43 @@ class GlobalExceptionHandler {
                     message = "Concurrent modification",
                     traceId = traceId,
                     conflicts = ex.conflicts
+                )
+            )
+    }
+
+    @ExceptionHandler(AmbiguousNotationElementException::class)
+    fun handleAmbiguousNotation(ex: AmbiguousNotationElementException): ResponseEntity<AmbiguousNotationErrorBody> {
+        val traceId = newTraceId()
+        log.warn("Ambiguous notation element [{}]: {}", traceId, ex.message)
+        return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(
+                AmbiguousNotationErrorBody(
+                    error = "AMBIGUOUS_NOTATION_ELEMENT",
+                    message = ex.message,
+                    traceId = traceId,
+                    kind = ex.kind,
+                    notationId = ex.notationId,
+                    query = ex.query,
+                    candidates = ex.candidates
+                )
+            )
+    }
+
+    @ExceptionHandler(DiagramConflictException::class)
+    fun handleDiagramConflict(ex: DiagramConflictException): ResponseEntity<DiagramConflictErrorBody> {
+        val traceId = newTraceId()
+        log.warn("Diagram conflict [{}]: {}", traceId, ex.message)
+        return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(
+                DiagramConflictErrorBody(
+                    error = "DIAGRAM_CONFLICT",
+                    message = ex.message,
+                    traceId = traceId,
+                    diagramId = ex.diagramId,
+                    serverUpdatedAt = ex.serverUpdatedAt,
+                    clientBaseUpdatedAt = ex.clientBaseUpdatedAt
                 )
             )
     }

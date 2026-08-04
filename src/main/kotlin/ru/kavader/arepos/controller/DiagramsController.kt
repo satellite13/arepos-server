@@ -41,7 +41,8 @@ class DiagramsController(
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val modelMapper: ModelMapper,
     private val diagramLifecycleService: DiagramLifecycleService,
-    private val diagramShareLinkService: DiagramShareLinkService
+    private val diagramShareLinkService: DiagramShareLinkService,
+    private val diagramInstancesMergeService: DiagramInstancesMergeService
 ) {
     @GetMapping
     @Operation(summary = "List diagrams")
@@ -55,8 +56,7 @@ class DiagramsController(
         @RequestParam(required = false, defaultValue = "true") includeAttrs: Boolean
     ): Page<DiagramResponse> {
         val normalizedName = name.trimmedOrNull()
-        return accessService.listPageWithAdminBypass(
-            pageable = pageable,
+        val entities = accessService.listPageWithAdminBypass(
             adminQuery = {
                 diagramsRepository.findByFilters(
                     ownerId = ownerId,
@@ -77,9 +77,9 @@ class DiagramsController(
                     currentUserId = currentUserId,
                     pageable = pageable
                 )
-            },
-            map = { modelMapper.toResponse(it, includeAttrs) }
-        )
+            }
+        ).applyMcpModelAllowlist(accessService, modelId) { it.model.id }
+        return entities.map { modelMapper.toResponse(it, includeAttrs) }
     }
 
     @GetMapping("/{id}")
@@ -152,6 +152,13 @@ class DiagramsController(
         )
         return modelMapper.toResponse(saved)
     }
+
+    @PostMapping("/{id}/instances:merge")
+    @Operation(summary = "Merge/upsert diagram canvas instances by modelNodeId / modelLinkId")
+    fun mergeInstances(
+        @PathVariable id: UUID,
+        @RequestBody @Valid request: DiagramInstancesMergeRequest
+    ): DiagramInstancesMergeResponse = diagramInstancesMergeService.merge(id, request)
 
     @PutMapping("/{id}")
     @Operation(summary = "Update diagram")

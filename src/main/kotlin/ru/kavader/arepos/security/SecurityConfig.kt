@@ -34,6 +34,7 @@ import ru.kavader.arepos.config.AreposSwaggerProperties
 )
 class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter,
+    private val mcpScopeFilter: McpScopeFilter,
     private val csrfFilter: CsrfFilter,
     private val authProperties: AreposAuthProperties
 ) {
@@ -103,6 +104,7 @@ class SecurityConfig(
             }
             .addFilterBefore(csrfFilter, UsernamePasswordAuthenticationFilter::class.java)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
+            .addFilterAfter(mcpScopeFilter, JwtAuthenticationFilter::class.java)
 
         return http.build()
     }

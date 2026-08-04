@@ -111,6 +111,20 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
     fun findDistinctNodeTypeIdsByModelId(@Param("modelId") modelId: UUID): List<UUID>
 
     fun findByModelIdAndStableIdIn(modelId: UUID, stableIds: Collection<UUID>): List<Nodes>
+
+    @Query(
+        """
+        SELECT n FROM Nodes n
+        WHERE n.model.id = :modelId
+          AND LOWER(n.name) LIKE LOWER(CONCAT('%', :q, '%'))
+        ORDER BY n.name ASC, n.id ASC
+        """
+    )
+    fun searchByModelIdAndName(
+        @Param("modelId") modelId: UUID,
+        @Param("q") q: String,
+        pageable: Pageable
+    ): Page<Nodes>
 }
 
 

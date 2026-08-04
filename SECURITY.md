@@ -21,12 +21,6 @@ Instead:
 
 If no private channel is available yet, create one before public release and update this file.
 
-## Response Targets (Best Effort)
-
-- Initial acknowledgment: within 5 business days
-- Triage and impact assessment: within 10 business days
-- Fix timeline: depends on severity and complexity
-
 ## Security Best Practices for Deployments
 
 - Always provide a strong `JWT_SECRET` (minimum 32 bytes); startup fails when blank/weak

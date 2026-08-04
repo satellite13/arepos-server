@@ -29,6 +29,7 @@ abstract class ControllerIntegrationTest : PostgresContainerTest() {
                 public.document_refs,
                 public.file_versions,
                 public.diagram_edit_locks,
+                public.api_keys,
                 public.refresh_tokens,
                 public.shedlock,
                 public.roadmap_milestone_items,

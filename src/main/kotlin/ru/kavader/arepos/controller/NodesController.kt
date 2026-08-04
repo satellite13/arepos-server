@@ -45,7 +45,8 @@ class NodesController(
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val typeUsageAuthorization: TypeUsageAuthorization,
-    private val modelMapper: ModelMapper
+    private val modelMapper: ModelMapper,
+    private val notationBindingService: ru.kavader.arepos.service.NotationBindingService
 ) {
 
     @GetMapping
@@ -64,7 +65,9 @@ class NodesController(
                 name = normalizedName,
                 currentUserId = accessService.currentUserId(),
                 pageable = pageable
-            ).map { modelMapper.toResponse(it) }
+            )
+                .applyMcpModelAllowlist(accessService, modelId) { it.model.id }
+                .map { modelMapper.toResponse(it) }
         }
 
         val nodes = when {
@@ -119,10 +122,14 @@ class NodesController(
             }
         accessService.requireCanEditModel(model)
         val owner = ownerResolutionService.resolveOwnerForCreate(request.ownerId)
-        val nodeType = nodeTypesRepository.findById(request.nodeTypeId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType ${request.nodeTypeId} not found")
-            }
+        val binding = notationBindingService.resolveNodeCreate(
+            nodeTypeId = request.nodeTypeId,
+            notationId = request.notationId,
+            componentId = request.componentId,
+            componentName = request.componentName,
+            attrs = request.attrs
+        )
+        val nodeType = binding.nodeType
         typeUsageAuthorization.requireCanUseNodeTypeForModel(nodeType, model)
         val parentNode = request.parentNodeId?.let {
             nodesRepository.findById(it).orElse(null)?.also { parent ->
@@ -130,7 +137,7 @@ class NodesController(
             }
         }
 
-        mdFileLinkValidator.validate(request.attrs)
+        mdFileLinkValidator.validate(binding.attrs)
         val now = Instant.now()
         val saved = nodesRepository.save(
             Nodes(
@@ -140,7 +147,7 @@ class NodesController(
                 owner = owner,
                 nodeType = nodeType,
                 parentNode = parentNode,
-                attrs = request.attrs,
+                attrs = binding.attrs,
                 createdAt = now,
                 updatedAt = now
             )

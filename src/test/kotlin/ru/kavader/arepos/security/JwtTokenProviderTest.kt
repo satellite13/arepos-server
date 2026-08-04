@@ -42,6 +42,24 @@ class JwtTokenProviderTest {
     }
 
     @Test
+    fun `generates and validates mcp access token with scopes and model allowlist`() {
+        val userId = UUID.randomUUID()
+        val modelId = UUID.randomUUID()
+        val token = provider.generateMcpAccessToken(
+            userId = userId,
+            role = "USER",
+            scopes = setOf("models:read", "models:write"),
+            modelIds = setOf(modelId)
+        )
+
+        assertTrue(provider.validateToken(token))
+        assertEquals(userId, provider.getUserId(token))
+        assertEquals(TokenType.MCP_ACCESS, provider.getTokenType(token))
+        assertEquals(setOf("models:read", "models:write"), provider.getScopes(token))
+        assertEquals(setOf(modelId), provider.getModelIds(token))
+    }
+
+    @Test
     fun `returns false for invalid token`() {
         assertFalse(provider.validateToken("invalid.token.here"))
     }
