@@ -187,6 +187,29 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `ensureNode with unknown parentNodeId returns 404`() {
+        val missingParentId = UUID.randomUUID()
+        mockMvc.perform(
+            post("/api/v1/nodes/ensure")
+                .withAuth(owner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "name": "Orphan",
+                      "modelId": "${model.id}",
+                      "nodeTypeId": "${nodeType.id}",
+                      "parentNodeId": "$missingParentId"
+                    }
+                    """.trimIndent()
+                )
+        )
+            .andExpect(status().isNotFound)
+
+        assertEquals(0, nodesRepository.count())
+    }
+
+    @Test
     fun `ensureNode ambiguous same parent and name returns AMBIGUOUS_NODE`() {
         val parent = persistNode("Parent")
         val dup1 = persistNode("Dup", parentNode = parent)

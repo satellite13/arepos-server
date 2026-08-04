@@ -94,10 +94,18 @@ class NodeEnsureService(
         )
         val nodeType = binding.nodeType
         typeUsageAuthorization.requireCanUseNodeTypeForModel(nodeType, model)
-        val parentNode = request.parentNodeId?.let {
-            nodesRepository.findById(it).orElse(null)?.also { parent ->
-                accessService.requireCanEditNode(parent)
+        val parentNode = request.parentNodeId?.let { parentId ->
+            val parent = nodesRepository.findById(parentId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Parent node $parentId not found")
             }
+            if (parent.model.id != request.modelId) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Parent node $parentId does not belong to model ${request.modelId}"
+                )
+            }
+            accessService.requireCanEditNode(parent)
+            parent
         }
 
         mdFileLinkValidator.validate(binding.attrs)
