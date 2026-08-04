@@ -29,7 +29,8 @@ class CsrfFilter(
             path.startsWith("/api/v1/auth/register") ||
             path.startsWith("/api/v1/auth/refresh") ||
             path.startsWith("/api/v1/auth/register-admin") ||
-            path.startsWith("/api/v1/auth/sso")
+            path.startsWith("/api/v1/auth/sso") ||
+            path.startsWith("/api/v1/auth/api-keys/exchange")
         ) {
             return true
         }

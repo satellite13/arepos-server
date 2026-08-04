@@ -41,47 +41,16 @@ class JwtAuthenticationFilter(
                     log.warn("JWT filter: token validation failed, path={} {}", request.method, request.requestURI)
                 } else {
                     val tokenType = jwtTokenProvider.getTokenType(token)
-                    if (tokenType == TokenType.ACCESS) {
-                        val userId = jwtTokenProvider.getUserId(token)
-                        val user = usersRepository.findById(userId).orElse(null)
-                        if (user == null) {
+                    when (tokenType) {
+                        TokenType.ACCESS, TokenType.MCP_ACCESS -> authenticateAccessToken(token, tokenType, request)
+                        else -> {
                             log.warn(
-                                "JWT filter: user not found for token subject={}, path={} {}",
-                                userId,
+                                "JWT filter: non-access token type={} used for path={} {}",
+                                tokenType,
                                 request.method,
                                 request.requestURI
                             )
-                        } else if (!user.isActive) {
-                            log.warn(
-                                "JWT filter: inactive userId={} blocked, path={} {}",
-                                userId,
-                                request.method,
-                                request.requestURI
-                            )
-                        } else {
-                            val role = user.role.name
-
-                            log.debug(
-                                "JWT filter: authenticated userId={}, role={}, path={} {}",
-                                userId,
-                                role,
-                                request.method,
-                                request.requestURI
-                            )
-
-                            val authorities = listOf(SimpleGrantedAuthority("ROLE_$role"))
-                            val authentication = UsernamePasswordAuthenticationToken(userId, null, authorities)
-                            SecurityContextHolder.getContext().authentication = authentication
-
-                            AuditInterceptor.setCurrentUserId(userId)
                         }
-                    } else {
-                        log.warn(
-                            "JWT filter: non-access token type={} used for path={} {}",
-                            tokenType,
-                            request.method,
-                            request.requestURI
-                        )
                     }
                 }
             }
@@ -89,6 +58,50 @@ class JwtAuthenticationFilter(
         } finally {
             AuditInterceptor.clearCurrentUserId()
         }
+    }
+
+    private fun authenticateAccessToken(token: String, tokenType: TokenType, request: HttpServletRequest) {
+        val userId = jwtTokenProvider.getUserId(token)
+        val user = usersRepository.findById(userId).orElse(null)
+        if (user == null) {
+            log.warn(
+                "JWT filter: user not found for token subject={}, path={} {}",
+                userId,
+                request.method,
+                request.requestURI
+            )
+            return
+        }
+        if (!user.isActive) {
+            log.warn(
+                "JWT filter: inactive userId={} blocked, path={} {}",
+                userId,
+                request.method,
+                request.requestURI
+            )
+            return
+        }
+
+        val role = user.role.name
+        log.debug(
+            "JWT filter: authenticated userId={}, role={}, tokenType={}, path={} {}",
+            userId,
+            role,
+            tokenType,
+            request.method,
+            request.requestURI
+        )
+
+        val authorities = listOf(SimpleGrantedAuthority("ROLE_$role"))
+        val authentication = UsernamePasswordAuthenticationToken(userId, null, authorities)
+        if (tokenType == TokenType.MCP_ACCESS) {
+            authentication.details = McpAccessDetails(
+                scopes = jwtTokenProvider.getScopes(token),
+                modelIds = jwtTokenProvider.getModelIds(token)
+            )
+        }
+        SecurityContextHolder.getContext().authentication = authentication
+        AuditInterceptor.setCurrentUserId(userId)
     }
 
     private fun extractToken(request: HttpServletRequest): String? {

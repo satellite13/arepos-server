@@ -465,3 +465,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 050-api-keys
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/050-api-keys.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

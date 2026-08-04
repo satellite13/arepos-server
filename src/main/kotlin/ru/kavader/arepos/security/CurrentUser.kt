@@ -14,4 +14,9 @@ object CurrentUser {
             ?.firstOrNull()?.authority?.removePrefix("ROLE_")
     }
 
+    fun mcpAccessDetails(): McpAccessDetails? {
+        return SecurityContextHolder.getContext().authentication?.details as? McpAccessDetails
+    }
+
+    fun isMcpAccess(): Boolean = mcpAccessDetails() != null
 }

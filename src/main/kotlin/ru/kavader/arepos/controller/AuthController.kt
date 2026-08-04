@@ -11,6 +11,8 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.config.AreposAuthProperties
+import ru.kavader.arepos.dto.apikey.ExchangeApiKeyRequest
+import ru.kavader.arepos.dto.apikey.ExchangeApiKeyResponse
 import ru.kavader.arepos.dto.auth.*
 import ru.kavader.arepos.mapper.UserMapper
 import ru.kavader.arepos.metrics.CustomMetricsService
@@ -20,6 +22,7 @@ import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.AuthCookieService
 import ru.kavader.arepos.security.AuthCookies
 import ru.kavader.arepos.security.PasswordPolicyValidator
+import ru.kavader.arepos.service.ApiKeyService
 import ru.kavader.arepos.service.AuthTokenService
 import ru.kavader.arepos.service.UserProfileAttrsService
 import java.security.MessageDigest
@@ -38,6 +41,7 @@ class AuthController(
     private val metrics: CustomMetricsService,
     private val authCookieService: AuthCookieService,
     private val authTokenService: AuthTokenService,
+    private val apiKeyService: ApiKeyService,
     private val authProperties: AreposAuthProperties,
     private val passwordPolicyValidator: PasswordPolicyValidator,
     @param:Value($$"${arepos.admin-secret:}") private val adminSecret: String
@@ -183,6 +187,11 @@ class AuthController(
 
         return userMapper.toUserInfoResponse(user)
     }
+
+    @PostMapping("/api-keys/exchange")
+    @Operation(summary = "Exchange API key for short-lived MCP access JWT")
+    fun exchangeApiKey(@RequestBody @Valid request: ExchangeApiKeyRequest): ExchangeApiKeyResponse =
+        apiKeyService.exchange(request)
 
     private fun ensureRegistrationEnabled() {
         if (!authProperties.registrationEnabled) {

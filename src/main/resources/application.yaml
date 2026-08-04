@@ -101,6 +101,7 @@ arepos:
     audience: ${JWT_AUDIENCE:arepos-api}
     access-expiration: ${JWT_ACCESS_EXPIRATION:PT30M}
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:P7D}
+    mcp-access-expiration: ${JWT_MCP_ACCESS_EXPIRATION:PT20M}
   admin-secret: ${ADMIN_SECRET:}
   authz:
     cerbos:

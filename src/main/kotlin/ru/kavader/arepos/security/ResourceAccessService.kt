@@ -43,7 +43,7 @@ class ResourceAccessService(
         topLevelAccess.canViewNotationsDirect(notations)
 
     fun filterViewableModels(models: Collection<Models>): List<Models> =
-        topLevelAccess.filterViewableModels(models)
+        topLevelAccess.filterViewableModels(models).filter { isMcpModelAllowed(it.id) }
 
     fun filterViewableNotations(notations: Collection<Notations>): List<Notations> =
         notationDiagramAccess.filterViewableNotations(notations)
@@ -126,9 +126,15 @@ class ResourceAccessService(
 
     fun requireCanViewFile(file: Files) = requireAllowed(canViewFile(file))
 
-    fun requireCanEditModel(model: Models) = requireAllowed(canEditModel(model))
+    fun requireCanEditModel(model: Models) {
+        requireMcpModelAllowed(model.id)
+        requireAllowed(canEditModel(model))
+    }
 
-    fun requireCanViewModel(model: Models) = requireAllowed(canViewModel(model))
+    fun requireCanViewModel(model: Models) {
+        requireMcpModelAllowed(model.id)
+        requireAllowed(canViewModel(model))
+    }
 
     fun requireCanEditNotation(notation: Notations) = requireAllowed(canEditNotation(notation))
 
@@ -391,6 +397,19 @@ class ResourceAccessService(
     private fun requireAllowed(allowed: Boolean) {
         if (!allowed) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
+        }
+    }
+
+    private fun isMcpModelAllowed(modelId: UUID?): Boolean {
+        if (modelId == null) return false
+        val details = CurrentUser.mcpAccessDetails() ?: return true
+        val allowed = details.modelIds ?: return true
+        return modelId in allowed
+    }
+
+    private fun requireMcpModelAllowed(modelId: UUID?) {
+        if (!isMcpModelAllowed(modelId)) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "model_not_allowed")
         }
     }
 }
