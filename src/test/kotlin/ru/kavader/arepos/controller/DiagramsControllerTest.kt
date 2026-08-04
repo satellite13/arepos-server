@@ -742,4 +742,73 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(head("/api/v1/diagrams/svg/public/${UUID.randomUUID()}"))
             .andExpect(status().isNotFound)
     }
+
+    @Test
+    fun `public latest-by-name share link resolves diagram without auth`() {
+        val owner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "share-latest-owner-${UUID.randomUUID()}@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "share-latest-model-${UUID.randomUUID()}",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val notation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "share-latest-notation-${UUID.randomUUID()}",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val diagramName = "share-latest-diagram-${UUID.randomUUID()}"
+        diagramsRepository.save(
+            ru.kavader.arepos.model.Diagrams(
+                name = diagramName,
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                createdAt = Instant.now()
+            )
+        )
+
+        val token = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/v1/diagrams/share-link")
+                    .withAuth(owner.id!!)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            mapOf(
+                                "modelId" to model.id,
+                                "diagramName" to diagramName,
+                                "latest" to true
+                            )
+                        )
+                    )
+            )
+                .andExpect(status().isOk)
+                .andReturn()
+                .response
+                .contentAsString
+        ).path("token").asText()
+
+        // Anonymous public resolve must not fail with "No diagram named..." due to access filtering.
+        // With FILE_STORAGE=disabled in tests, preview bytes are absent → Preview not found.
+        mockMvc.perform(get("/api/v1/diagrams/svg/public/$token"))
+            .andExpect(status().isNotFound)
+            .andExpect(
+                jsonPath("$.message").value(
+                    "Preview not found. The diagram owner can upload it in the editor."
+                )
+            )
+    }
 }

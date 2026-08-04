@@ -72,7 +72,7 @@ class DiagramShareLinkService(
                         ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
                     }
                 accessService.requireCanViewModel(model)
-                val latest = resolveLatestDiagram(model, request.diagramName)
+                val latest = resolveLatestDiagram(model, request.diagramName, enforceViewAccess = true)
                 val existing = diagramPreviewLinksRepository.findByModelAndDiagramName(model, request.diagramName)
                 val link = if (existing.isPresent) {
                     existing.get()
@@ -142,9 +142,19 @@ class DiagramShareLinkService(
         return if (normalizedBase.isBlank()) path else "$normalizedBase$path"
     }
 
-    private fun resolveLatestDiagram(model: Models, diagramName: String): Diagrams {
-        val allByName = diagramsRepository.findByModelIdAndNameAndDeletedFalse(model.id!!, diagramName)
-            .let { accessService.filterViewableDiagrams(it) }
+    private fun resolveLatestDiagram(
+        model: Models,
+        diagramName: String,
+        enforceViewAccess: Boolean
+    ): Diagrams {
+        val candidates = diagramsRepository.findByModelIdAndNameAndDeletedFalse(model.id!!, diagramName)
+        // Public SVG resolve is anonymous: the share token is the authorization.
+        // Filtering by current-user view access would always empty the list for unauthenticated requests.
+        val allByName = if (enforceViewAccess) {
+            accessService.filterViewableDiagrams(candidates)
+        } else {
+            candidates
+        }
         return allByName.maxWithOrNull(diagramLifecycleService::compareDiagramVersions)
             ?: throw ResponseStatusException(
                 HttpStatus.NOT_FOUND,
@@ -160,7 +170,7 @@ class DiagramShareLinkService(
         val linkedModel = link.model
         val linkedDiagramName = link.diagramName
         if (linkedModel != null && linkedDiagramName != null) {
-            return resolveLatestDiagram(linkedModel, linkedDiagramName).id!!
+            return resolveLatestDiagram(linkedModel, linkedDiagramName, enforceViewAccess = false).id!!
         }
         throw ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid share link")
     }
