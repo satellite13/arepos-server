@@ -74,6 +74,21 @@ data class NodeResponse(
     val updatedAt: Instant?
 )
 
+data class EnsureNodeResponse(
+    val node: NodeResponse,
+    val created: Boolean
+)
+
+data class AmbiguousNodeCandidate(
+    val id: UUID,
+    val name: String,
+    val parentNodeId: UUID?
+)
+
+class AmbiguousNodeException(
+    val candidates: List<AmbiguousNodeCandidate>
+) : RuntimeException("Ambiguous node (${candidates.size} matches)")
+
 data class LinkRequest(
     @field:NotNull val sourceId: UUID,
     @field:NotNull val targetId: UUID,

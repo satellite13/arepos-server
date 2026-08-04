@@ -112,6 +112,25 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
 
     fun findByModelIdAndStableIdIn(modelId: UUID, stableIds: Collection<UUID>): List<Nodes>
 
+    fun findByModel_IdAndParentNode_IdAndNameIgnoreCase(
+        modelId: UUID,
+        parentNodeId: UUID,
+        name: String
+    ): List<Nodes>
+
+    @Query(
+        """
+        SELECT n FROM Nodes n
+        WHERE n.model.id = :modelId
+          AND n.parentNode IS NULL
+          AND LOWER(n.name) = LOWER(:name)
+        """
+    )
+    fun findRootByModelIdAndNameIgnoreCase(
+        @Param("modelId") modelId: UUID,
+        @Param("name") name: String
+    ): List<Nodes>
+
     @Query(
         """
         SELECT n FROM Nodes n
