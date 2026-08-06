@@ -6,6 +6,8 @@ import io.jsonwebtoken.security.Keys
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.stereotype.Component
+import ru.kavader.arepos.dto.apikey.ApiKeyGrantDto
+import ru.kavader.arepos.dto.apikey.ApiKeyModes
 import java.time.Duration
 import java.time.Instant
 import java.util.*
@@ -83,8 +85,9 @@ class JwtTokenProvider(private val jwtProperties: JwtProperties) {
     fun generateMcpAccessToken(
         userId: UUID,
         role: String,
-        scopes: Set<String>,
-        modelIds: Set<UUID>?
+        mode: String,
+        scopes: Set<String>?,
+        grants: List<ApiKeyGrantDto>?
     ): String {
         val now = Date()
         val expiry = Date(now.time + jwtProperties.mcpAccessExpiration.toMillis())
@@ -94,12 +97,24 @@ class JwtTokenProvider(private val jwtProperties: JwtProperties) {
             .audience().add(jwtProperties.audience).and()
             .claim("role", role)
             .claim("type", TokenType.MCP_ACCESS.claimValue)
-            .claim("scopes", scopes.toList().sorted())
+            .claim("mode", mode)
             .issuedAt(now)
             .expiration(expiry)
             .signWith(key)
-        if (modelIds != null) {
-            builder.claim("modelIds", modelIds.map { it.toString() }.sorted())
+        when (mode) {
+            ApiKeyModes.ALL -> {
+                builder.claim("scopes", (scopes ?: emptySet()).toList().sorted())
+            }
+            ApiKeyModes.GRANTS -> {
+                val grantClaims = (grants ?: emptyList()).map { grant ->
+                    mapOf(
+                        "modelId" to grant.modelId.toString(),
+                        "scopes" to grant.scopes.toList()
+                    )
+                }
+                builder.claim("grants", grantClaims)
+            }
+            else -> throw IllegalArgumentException("Unsupported MCP token mode: $mode")
         }
         return builder.compact()
     }
@@ -110,6 +125,32 @@ class JwtTokenProvider(private val jwtProperties: JwtProperties) {
         return when (raw) {
             is Collection<*> -> raw.mapNotNull { it?.toString() }.toSet()
             else -> emptySet()
+        }
+    }
+
+    fun getMcpMode(token: String): String? {
+        return parseClaims(token)["mode"]?.toString()
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun getMcpGrants(token: String): List<ApiKeyGrantDto>? {
+        if (!parseClaims(token).containsKey("grants")) {
+            return null
+        }
+        val raw = parseClaims(token)["grants"] ?: return emptyList()
+        if (raw !is Collection<*>) {
+            return emptyList()
+        }
+        return raw.mapNotNull { item ->
+            val map = item as? Map<*, *> ?: return@mapNotNull null
+            val modelId = runCatching { UUID.fromString(map["modelId"]?.toString()) }.getOrNull()
+                ?: return@mapNotNull null
+            val scopesRaw = map["scopes"]
+            val scopes = when (scopesRaw) {
+                is Collection<*> -> scopesRaw.mapNotNull { it?.toString() }
+                else -> emptyList()
+            }
+            ApiKeyGrantDto(modelId = modelId, scopes = scopes)
         }
     }
 

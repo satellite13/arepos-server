@@ -15,6 +15,8 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.dto.apikey.ApiKeyGrantDto
+import ru.kavader.arepos.dto.apikey.ApiKeyModes
 import ru.kavader.arepos.dto.apikey.CreateApiKeyRequest
 import ru.kavader.arepos.dto.apikey.CreateApiKeyResponse
 import ru.kavader.arepos.dto.apikey.ExchangeApiKeyRequest
@@ -77,8 +79,9 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
     private fun createKey(
         userId: UUID,
         scopes: List<String> = listOf("models:read"),
-        modelIds: List<UUID>? = null
+        grants: List<ApiKeyGrantDto>? = null
     ): CreateApiKeyResponse {
+        val mode = if (grants != null) ApiKeyModes.GRANTS else ApiKeyModes.ALL
         val result = mockMvc.perform(
             post("/api/v1/api-keys")
                 .withAuth(userId, Role.USER)
@@ -87,8 +90,9 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
                     objectMapper.writeValueAsString(
                         CreateApiKeyRequest(
                             name = "mcp-key",
-                            scopes = scopes,
-                            modelIds = modelIds
+                            mode = mode,
+                            scopes = if (mode == ApiKeyModes.ALL) scopes else null,
+                            grants = grants
                         )
                     )
                 )
@@ -191,7 +195,10 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
                 owner = user
             )
         )
-        val created = createKey(userId, listOf("models:read"), modelIds = listOf(allowed.id!!))
+        val created = createKey(
+            userId,
+            grants = listOf(ApiKeyGrantDto(modelId = allowed.id!!, scopes = listOf("models:read")))
+        )
         val exchangeResult = mockMvc.perform(
             post("/api/v1/auth/api-keys/exchange")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -259,7 +266,10 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        val created = createKey(userId, listOf("models:read"), modelIds = listOf(allowed.id!!))
+        val created = createKey(
+            userId,
+            grants = listOf(ApiKeyGrantDto(modelId = allowed.id!!, scopes = listOf("models:read")))
+        )
         val exchangeResult = mockMvc.perform(
             post("/api/v1/auth/api-keys/exchange")
                 .contentType(MediaType.APPLICATION_JSON)

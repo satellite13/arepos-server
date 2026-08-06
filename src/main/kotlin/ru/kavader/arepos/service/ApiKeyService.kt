@@ -8,9 +8,11 @@ import ru.kavader.arepos.dto.apikey.*
 import ru.kavader.arepos.model.ApiKeys
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.ApiKeysRepository
+import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.JwtTokenProvider
+import ru.kavader.arepos.security.ResourceAccessService
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Instant
@@ -20,13 +22,22 @@ import java.util.*
 class ApiKeyService(
     private val apiKeysRepository: ApiKeysRepository,
     private val usersRepository: UsersRepository,
+    private val modelsRepository: ModelsRepository,
+    private val accessService: ResourceAccessService,
     private val jwtTokenProvider: JwtTokenProvider
 ) {
     companion object {
         const val KEY_PREFIX = "warchi_ak_"
+        const val MAX_GRANTS = 50
         private const val RANDOM_BYTES = 32
         private val secureRandom = SecureRandom()
     }
+
+    private data class NormalizedCreate(
+        val mode: String,
+        val scopes: List<String>?,
+        val grants: List<ApiKeyGrantDto>?
+    )
 
     fun listMine(): List<ApiKeyResponse> {
         val user = currentUser()
@@ -36,8 +47,7 @@ class ApiKeyService(
     @Transactional
     fun create(request: CreateApiKeyRequest): CreateApiKeyResponse {
         val user = currentUser()
-        val scopes = normalizeScopes(request.scopes)
-        val modelIds = normalizeModelIds(request.modelIds)
+        val normalized = normalizeCreate(request)
         if (request.expiresAt != null && !request.expiresAt.isAfter(Instant.now())) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "expiresAt must be in the future")
         }
@@ -50,8 +60,9 @@ class ApiKeyService(
                 name = request.name.trim(),
                 tokenPrefix = plaintext.removePrefix(KEY_PREFIX).take(8),
                 tokenHash = hashToken(plaintext),
-                scopes = scopes.toMutableList(),
-                modelIds = modelIds?.map { it.toString() }?.toMutableList(),
+                mode = normalized.mode,
+                scopes = normalized.scopes?.toMutableList(),
+                grants = serializeGrants(normalized.grants),
                 expiresAt = request.expiresAt,
                 createdAt = now,
                 updatedAt = now
@@ -70,13 +81,6 @@ class ApiKeyService(
         }
 
         request.name?.trim()?.takeIf { it.isNotEmpty() }?.let { entity.name = it }
-        request.scopes?.let { entity.scopes = normalizeScopes(it).toMutableList() }
-        when {
-            request.clearModelIds -> entity.modelIds = null
-            request.modelIds != null -> entity.modelIds = normalizeModelIds(request.modelIds)
-                ?.map { it.toString() }
-                ?.toMutableList()
-        }
         when {
             request.clearExpiresAt -> entity.expiresAt = null
             request.expiresAt != null -> {
@@ -129,23 +133,24 @@ class ApiKeyService(
         entity.updatedAt = now
         apiKeysRepository.save(entity)
 
-        val scopes = entity.scopes.toSet()
-        val modelIds = entity.modelIds?.mapNotNull {
-            runCatching { UUID.fromString(it) }.getOrNull()
-        }?.toSet()
+        val mode = entity.mode
+        val scopes = entity.scopes?.toSet()
+        val grants = deserializeGrants(entity.grants)
 
         val accessToken = jwtTokenProvider.generateMcpAccessToken(
             userId = owner.id!!,
             role = owner.role.name,
+            mode = mode,
             scopes = scopes,
-            modelIds = modelIds
+            grants = grants
         )
 
         return ExchangeApiKeyResponse(
             accessToken = accessToken,
             expiresIn = jwtTokenProvider.mcpAccessExpirationSeconds(),
-            scopes = scopes.toList().sorted(),
-            modelIds = modelIds?.toList()?.sortedBy { it.toString() }
+            mode = mode,
+            scopes = scopes?.toList()?.sorted(),
+            grants = grants
         )
     }
 
@@ -154,6 +159,69 @@ class ApiKeyService(
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized")
         return usersRepository.findById(userId).orElseThrow {
             ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized")
+        }
+    }
+
+    private fun normalizeCreate(request: CreateApiKeyRequest): NormalizedCreate {
+        val mode = request.mode.trim().lowercase()
+        if (mode !in ApiKeyModes.ALL_VALUES) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "mode must be one of: ${ApiKeyModes.ALL_VALUES.sorted().joinToString(", ")}"
+            )
+        }
+        return when (mode) {
+            ApiKeyModes.ALL -> {
+                if (request.grants != null) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "grants must be null when mode=all")
+                }
+                val scopes = request.scopes
+                    ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "scopes are required when mode=all")
+                NormalizedCreate(
+                    mode = ApiKeyModes.ALL,
+                    scopes = normalizeScopes(scopes),
+                    grants = null
+                )
+            }
+
+            ApiKeyModes.GRANTS -> {
+                if (request.scopes != null) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "scopes must be null when mode=grants")
+                }
+                val grants = request.grants
+                if (grants.isNullOrEmpty()) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "grants are required when mode=grants")
+                }
+                if (grants.size > MAX_GRANTS) {
+                    throw ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "At most $MAX_GRANTS grants are allowed"
+                    )
+                }
+                val modelIds = grants.map { it.modelId }
+                if (modelIds.size != modelIds.toSet().size) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "grants must have distinct modelIds")
+                }
+                val normalizedGrants = grants.map { grant ->
+                    ApiKeyGrantDto(
+                        modelId = grant.modelId,
+                        scopes = normalizeScopes(grant.scopes)
+                    )
+                }.sortedBy { it.modelId.toString() }
+                for (grant in normalizedGrants) {
+                    val model = modelsRepository.findById(grant.modelId).orElseThrow {
+                        ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${grant.modelId} not found")
+                    }
+                    accessService.requireCanViewModel(model)
+                }
+                NormalizedCreate(
+                    mode = ApiKeyModes.GRANTS,
+                    scopes = null,
+                    grants = normalizedGrants
+                )
+            }
+
+            else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported mode: $mode")
         }
     }
 
@@ -169,8 +237,6 @@ class ApiKeyService(
                 "Unknown scopes: ${unknown.sorted().joinToString(", ")}"
             )
         }
-        // write implies read for practical use, but we store exactly what was requested
-        // and enforce write/read separately; if only write is given, also grant read.
         val effective = normalized.toMutableSet()
         if (ApiKeyScopes.MODELS_WRITE in effective) {
             effective += ApiKeyScopes.MODELS_READ
@@ -178,11 +244,27 @@ class ApiKeyService(
         return effective.sorted()
     }
 
-    private fun normalizeModelIds(modelIds: List<UUID>?): List<UUID>? {
-        if (modelIds == null) return null
-        val distinct = modelIds.distinct()
-        if (distinct.isEmpty()) return null
-        return distinct
+    private fun serializeGrants(grants: List<ApiKeyGrantDto>?): MutableList<MutableMap<String, Any>>? {
+        if (grants == null) return null
+        return grants.map { grant ->
+            mutableMapOf<String, Any>(
+                "modelId" to grant.modelId.toString(),
+                "scopes" to grant.scopes.toList()
+            )
+        }.toMutableList()
+    }
+
+    private fun deserializeGrants(raw: MutableList<MutableMap<String, Any>>?): List<ApiKeyGrantDto>? {
+        if (raw == null) return null
+        return raw.map { map ->
+            val modelId = UUID.fromString(map["modelId"].toString())
+            val scopesRaw = map["scopes"]
+            val scopes = when (scopesRaw) {
+                is Collection<*> -> scopesRaw.mapNotNull { it?.toString() }
+                else -> emptyList()
+            }
+            ApiKeyGrantDto(modelId = modelId, scopes = scopes)
+        }
     }
 
     private fun generatePlaintext(): String {
@@ -201,8 +283,9 @@ class ApiKeyService(
         id = id!!,
         name = name,
         tokenPrefix = tokenPrefix,
-        scopes = scopes.toList(),
-        modelIds = modelIds?.mapNotNull { runCatching { UUID.fromString(it) }.getOrNull() },
+        mode = mode,
+        scopes = scopes?.toList(),
+        grants = deserializeGrants(grants),
         expiresAt = expiresAt,
         revokedAt = revokedAt,
         lastUsedAt = lastUsedAt,

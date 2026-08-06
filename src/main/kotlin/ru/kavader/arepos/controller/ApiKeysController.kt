@@ -32,7 +32,7 @@ class ApiKeysController(
         apiKeyService.create(request)
 
     @PatchMapping("/{id}")
-    @Operation(summary = "Update API key metadata/scopes (does not rotate secret)")
+    @Operation(summary = "Update API key name/expiry (does not rotate secret)")
     fun update(
         @PathVariable id: UUID,
         @RequestBody @Valid request: UpdateApiKeyRequest

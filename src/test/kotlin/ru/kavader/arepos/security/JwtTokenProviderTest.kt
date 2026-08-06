@@ -1,10 +1,13 @@
 package ru.kavader.arepos.security
 
 import org.junit.jupiter.api.Test
+import ru.kavader.arepos.dto.apikey.ApiKeyGrantDto
+import ru.kavader.arepos.dto.apikey.ApiKeyModes
 import java.time.Duration
 import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class JwtTokenProviderTest {
@@ -42,21 +45,41 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    fun `generates and validates mcp access token with scopes and model allowlist`() {
+    fun `generates and validates mcp access token in all mode`() {
         val userId = UUID.randomUUID()
-        val modelId = UUID.randomUUID()
         val token = provider.generateMcpAccessToken(
             userId = userId,
             role = "USER",
+            mode = ApiKeyModes.ALL,
             scopes = setOf("models:read", "models:write"),
-            modelIds = setOf(modelId)
+            grants = null
         )
 
         assertTrue(provider.validateToken(token))
         assertEquals(userId, provider.getUserId(token))
         assertEquals(TokenType.MCP_ACCESS, provider.getTokenType(token))
+        assertEquals(ApiKeyModes.ALL, provider.getMcpMode(token))
         assertEquals(setOf("models:read", "models:write"), provider.getScopes(token))
-        assertEquals(setOf(modelId), provider.getModelIds(token))
+        assertNull(provider.getMcpGrants(token))
+    }
+
+    @Test
+    fun `generates and validates mcp access token in grants mode`() {
+        val userId = UUID.randomUUID()
+        val modelId = UUID.randomUUID()
+        val grants = listOf(ApiKeyGrantDto(modelId = modelId, scopes = listOf("models:read")))
+        val token = provider.generateMcpAccessToken(
+            userId = userId,
+            role = "USER",
+            mode = ApiKeyModes.GRANTS,
+            scopes = null,
+            grants = grants
+        )
+
+        assertTrue(provider.validateToken(token))
+        assertEquals(ApiKeyModes.GRANTS, provider.getMcpMode(token))
+        assertTrue(provider.getScopes(token).isEmpty())
+        assertEquals(grants, provider.getMcpGrants(token))
     }
 
     @Test
