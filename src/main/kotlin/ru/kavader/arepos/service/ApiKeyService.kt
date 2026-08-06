@@ -10,6 +10,7 @@ import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.ApiKeysRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.security.ACCESS_DENIED
 import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.JwtTokenProvider
 import ru.kavader.arepos.security.ResourceAccessService
@@ -42,6 +43,14 @@ class ApiKeyService(
     fun listMine(): List<ApiKeyResponse> {
         val user = currentUser()
         return apiKeysRepository.findByOwnerOrderByCreatedAtDesc(user).map { it.toResponse() }
+    }
+
+    fun listForUser(userId: UUID): List<ApiKeyResponse> {
+        requireAdminPanel()
+        val owner = usersRepository.findById(userId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "User $userId not found")
+        }
+        return apiKeysRepository.findByOwnerOrderByCreatedAtDesc(owner).map { it.toResponse() }
     }
 
     @Transactional
@@ -108,6 +117,22 @@ class ApiKeyService(
     }
 
     @Transactional
+    fun revokeForUser(userId: UUID, keyId: UUID) {
+        requireAdminPanel()
+        val owner = usersRepository.findById(userId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "User $userId not found")
+        }
+        val entity = apiKeysRepository.findByIdAndOwner(keyId, owner)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "API key $keyId not found")
+        if (entity.revokedAt == null) {
+            val now = Instant.now()
+            entity.revokedAt = now
+            entity.updatedAt = now
+            apiKeysRepository.save(entity)
+        }
+    }
+
+    @Transactional
     fun exchange(request: ExchangeApiKeyRequest): ExchangeApiKeyResponse {
         val plaintext = request.apiKey.trim()
         if (!plaintext.startsWith(KEY_PREFIX) || plaintext.length < KEY_PREFIX.length + 16) {
@@ -163,6 +188,12 @@ class ApiKeyService(
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized")
         return usersRepository.findById(userId).orElseThrow {
             ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized")
+        }
+    }
+
+    private fun requireAdminPanel() {
+        if (!accessService.canViewAdminPanel()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
         }
     }
 
