@@ -46,7 +46,7 @@ class McpScopeFilter : OncePerRequestFilter() {
             else -> ApiKeyScopes.MODELS_WRITE
         }
 
-        if (requiredScope !in details.scopes) {
+        if (!details.hasScopeSomewhere(requiredScope)) {
             writeForbidden(response, "missing_scope", "Missing required scope: $requiredScope")
             return
         }

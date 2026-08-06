@@ -10,6 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import ru.kavader.arepos.config.AuditInterceptor
+import ru.kavader.arepos.dto.apikey.ApiKeyModes
 import ru.kavader.arepos.repository.UsersRepository
 
 @Component
@@ -95,9 +96,17 @@ class JwtAuthenticationFilter(
         val authorities = listOf(SimpleGrantedAuthority("ROLE_$role"))
         val authentication = UsernamePasswordAuthenticationToken(userId, null, authorities)
         if (tokenType == TokenType.MCP_ACCESS) {
+            val mode = jwtTokenProvider.getMcpMode(token).orEmpty()
             authentication.details = McpAccessDetails(
-                scopes = jwtTokenProvider.getScopes(token),
-                modelIds = jwtTokenProvider.getModelIds(token)
+                mode = mode,
+                scopes = if (mode == ApiKeyModes.ALL) jwtTokenProvider.getScopes(token) else null,
+                grants = if (mode == ApiKeyModes.GRANTS) {
+                    jwtTokenProvider.getMcpGrants(token)
+                        ?.associate { it.modelId to it.scopes.toSet() }
+                        ?: emptyMap()
+                } else {
+                    null
+                }
             )
         }
         SecurityContextHolder.getContext().authentication = authentication

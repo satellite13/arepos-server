@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.apikey.ApiKeyModes
 import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Files
@@ -223,11 +224,15 @@ class ResourceAccessService(
 
     /**
      * MCP API-key allowlist of model UUIDs, or null when unrestricted
-     * (non-MCP token, or MCP token without modelIds claim).
+     * (non-MCP token, or MCP token in mode=all).
      */
     fun mcpModelIdsAllowlist(): Set<UUID>? {
         val details = CurrentUser.mcpAccessDetails() ?: return null
-        return details.modelIds
+        return when (details.mode) {
+            ApiKeyModes.ALL -> null
+            ApiKeyModes.GRANTS -> details.grants?.keys
+            else -> emptySet()
+        }
     }
 
     /** Rejects modelId outside the MCP allowlist when a key is restricted. */
@@ -454,9 +459,8 @@ class ResourceAccessService(
 
     private fun isMcpModelAllowed(modelId: UUID?): Boolean {
         if (modelId == null) return false
-        val details = CurrentUser.mcpAccessDetails() ?: return true
-        val allowed = details.modelIds ?: return true
-        return modelId in allowed
+        val allowlist = mcpModelIdsAllowlist() ?: return true
+        return modelId in allowlist
     }
 
     private fun requireMcpModelAllowed(modelId: UUID?) {
