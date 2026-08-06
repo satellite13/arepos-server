@@ -129,13 +129,17 @@ class ApiKeyService(
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "User is inactive")
         }
 
+        val mode = entity.mode
+        val scopes = entity.scopes?.toSet()
+        val grants = resolveGrantsForMode(
+            mode = mode,
+            raw = entity.grants,
+            status = HttpStatus.UNAUTHORIZED
+        )
+
         entity.lastUsedAt = now
         entity.updatedAt = now
         apiKeysRepository.save(entity)
-
-        val mode = entity.mode
-        val scopes = entity.scopes?.toSet()
-        val grants = deserializeGrants(entity.grants)
 
         val accessToken = jwtTokenProvider.generateMcpAccessToken(
             userId = owner.id!!,
@@ -263,8 +267,9 @@ class ApiKeyService(
 
     private fun deserializeGrants(raw: MutableList<MutableMap<String, Any>>?): List<ApiKeyGrantDto>? {
         if (raw == null) return null
-        return raw.map { map ->
-            val modelId = UUID.fromString(map["modelId"].toString())
+        return raw.mapNotNull { map ->
+            val modelId = runCatching { UUID.fromString(map["modelId"]?.toString()) }.getOrNull()
+                ?: return@mapNotNull null
             val scopesRaw = map["scopes"]
             val scopes = when (scopesRaw) {
                 is Collection<*> -> scopesRaw.mapNotNull { it?.toString() }
@@ -272,6 +277,18 @@ class ApiKeyService(
             }
             ApiKeyGrantDto(modelId = modelId, scopes = scopes)
         }
+    }
+
+    private fun resolveGrantsForMode(
+        mode: String,
+        raw: MutableList<MutableMap<String, Any>>?,
+        status: HttpStatus
+    ): List<ApiKeyGrantDto>? {
+        val grants = deserializeGrants(raw)
+        if (mode == ApiKeyModes.GRANTS && grants.isNullOrEmpty()) {
+            throw ResponseStatusException(status, "Invalid API key configuration")
+        }
+        return grants
     }
 
     private fun generatePlaintext(): String {
@@ -292,7 +309,11 @@ class ApiKeyService(
         tokenPrefix = tokenPrefix,
         mode = mode,
         scopes = scopes?.toList(),
-        grants = deserializeGrants(grants),
+        grants = resolveGrantsForMode(
+            mode = mode,
+            raw = grants,
+            status = HttpStatus.BAD_REQUEST
+        ),
         expiresAt = expiresAt,
         revokedAt = revokedAt,
         lastUsedAt = lastUsedAt,
