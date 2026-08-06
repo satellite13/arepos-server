@@ -164,6 +164,77 @@ class DiagramCopyMatcherTest {
         assertFalse(result.canCommit)
     }
 
+    @Test
+    fun `link SKIP on referenced edge creates blocker and canCommit false`() {
+        val sourceNode = node("source")
+        val targetNode = node("target")
+        val sourceLink = link(
+            "source-link",
+            sourceNodeId = sourceNode.id,
+            targetNodeId = targetNode.id
+        )
+
+        val result = matcher.buildPreview(
+            sourceNodes = listOf(sourceNode, targetNode),
+            sourceLinks = listOf(sourceLink),
+            targetNodes = emptyList(),
+            targetLinks = emptyList(),
+            edges = listOf(edge("edge", modelLinkId = sourceLink.id)),
+            resolutions = listOf(
+                resolution(sourceNode.id, DiagramCopyEntityKind.NODE, DiagramCopyResolutionAction.CREATE),
+                resolution(targetNode.id, DiagramCopyEntityKind.NODE, DiagramCopyResolutionAction.CREATE),
+                resolution(sourceLink.id, DiagramCopyEntityKind.LINK, DiagramCopyResolutionAction.SKIP)
+            )
+        )
+
+        assertEquals(listOf("edge"), result.blockers.map { it.edgeInstanceId })
+        assertFalse(result.canCommit)
+    }
+
+    @Test
+    fun `unresolved endpoint produces blocker`() {
+        val sourceNode = node("source")
+
+        val result = matcher.buildPreview(
+            sourceNodes = listOf(sourceNode),
+            sourceLinks = emptyList(),
+            targetNodes = emptyList(),
+            targetLinks = emptyList(),
+            edges = listOf(edge("edge", sourceNodeId = sourceNode.id)),
+            resolutions = emptyList()
+        )
+
+        assertEquals(listOf("edge"), result.blockers.map { it.edgeInstanceId })
+        assertFalse(result.canCommit)
+    }
+
+    @Test
+    fun `canCommit true when edge link and endpoints are created`() {
+        val sourceNode = node("source")
+        val targetNode = node("target")
+        val sourceLink = link(
+            "source-link",
+            sourceNodeId = sourceNode.id,
+            targetNodeId = targetNode.id
+        )
+
+        val result = matcher.buildPreview(
+            sourceNodes = listOf(sourceNode, targetNode),
+            sourceLinks = listOf(sourceLink),
+            targetNodes = emptyList(),
+            targetLinks = emptyList(),
+            edges = listOf(edge("edge", modelLinkId = sourceLink.id)),
+            resolutions = listOf(
+                resolution(sourceNode.id, DiagramCopyEntityKind.NODE, DiagramCopyResolutionAction.CREATE),
+                resolution(targetNode.id, DiagramCopyEntityKind.NODE, DiagramCopyResolutionAction.CREATE),
+                resolution(sourceLink.id, DiagramCopyEntityKind.LINK, DiagramCopyResolutionAction.CREATE)
+            )
+        )
+
+        assertTrue(result.blockers.isEmpty())
+        assertTrue(result.canCommit)
+    }
+
     private fun node(
         value: String,
         id: UUID = id("$value-id"),

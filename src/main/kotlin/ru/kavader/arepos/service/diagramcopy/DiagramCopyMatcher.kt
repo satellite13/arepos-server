@@ -257,19 +257,25 @@ class DiagramCopyMatcher {
         sourceLinksById: Map<UUID, MatchableLink>,
         previewsByEntity: Map<Pair<DiagramCopyEntityKind, UUID>, DiagramCopyEntityPreview>
     ): List<DiagramCopyEdgeBlocker> = edges.mapNotNull { edge ->
-        val endpointIds = edgeEndpointIds(listOf(edge), sourceLinksById)
-        val hasSkippedEndpoint = endpointIds.any { nodeId ->
-            previewsByEntity[DiagramCopyEntityKind.NODE to nodeId]?.effectiveAction ==
-                DiagramCopyResolutionAction.SKIP
+        val requiredEntities = buildSet {
+            edgeEndpointIds(listOf(edge), sourceLinksById).forEach { nodeId ->
+                add(DiagramCopyEntityKind.NODE to nodeId)
+            }
+            edge.modelLinkId?.let { linkId ->
+                add(DiagramCopyEntityKind.LINK to linkId)
+            }
+        }
+        val hasUnresolvedEntity = requiredEntities.any { entity ->
+            previewsByEntity[entity]?.isReadyForEdge() != true
         }
 
-        if (hasSkippedEndpoint) {
+        if (hasUnresolvedEntity) {
             DiagramCopyEdgeBlocker(
                 edgeInstanceId = edge.edgeInstanceId,
                 modelLinkId = edge.modelLinkId,
                 sourceModelNodeId = edge.sourceModelNodeId,
                 targetModelNodeId = edge.targetModelNodeId,
-                reason = "An edge endpoint is skipped"
+                reason = "An edge endpoint or link is unresolved"
             )
         } else {
             null
@@ -302,6 +308,10 @@ class DiagramCopyMatcher {
     private fun DiagramCopyEntityPreview.hasEffectiveAction(): Boolean =
         effectiveAction != null &&
             (effectiveAction != DiagramCopyResolutionAction.MATCH || effectiveTargetId != null)
+
+    private fun DiagramCopyEntityPreview.isReadyForEdge(): Boolean =
+        effectiveAction == DiagramCopyResolutionAction.CREATE ||
+            (effectiveAction == DiagramCopyResolutionAction.MATCH && effectiveTargetId != null)
 
     private data class AutoMatch<T>(
         val target: T?,
