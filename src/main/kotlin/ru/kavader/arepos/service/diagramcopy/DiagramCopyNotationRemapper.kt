@@ -22,6 +22,8 @@ class DiagramCopyNotationRemapper(
 
     fun remapDiagramAttrs(
         attrs: String?,
+        sourceNotationId: UUID,
+        targetNotationId: UUID,
         componentIdMap: Map<UUID, UUID>,
         relationIdMap: Map<UUID, UUID>
     ): RemapAttrsResult {
@@ -32,8 +34,24 @@ class DiagramCopyNotationRemapper(
             warnings.add("DOCUMENT_NOT_COPIED", "Document attachment was not copied")
         }
 
-        remapDiagramInstances(root, componentIdMap, relationIdMap, warnings)
-        root.get("instances")?.let { remapDiagramInstances(it as? ObjectNode, componentIdMap, relationIdMap, warnings) }
+        remapDiagramInstances(
+            parent = root,
+            sourceNotationId = sourceNotationId,
+            targetNotationId = targetNotationId,
+            componentIdMap = componentIdMap,
+            relationIdMap = relationIdMap,
+            warnings = warnings
+        )
+        root.get("instances")?.let {
+            remapDiagramInstances(
+                parent = it as? ObjectNode,
+                sourceNotationId = sourceNotationId,
+                targetNotationId = targetNotationId,
+                componentIdMap = componentIdMap,
+                relationIdMap = relationIdMap,
+                warnings = warnings
+            )
+        }
 
         return RemapAttrsResult(objectMapper.writeValueAsString(root), warnings.warnings)
     }
@@ -96,11 +114,15 @@ class DiagramCopyNotationRemapper(
 
     private fun remapDiagramInstances(
         parent: ObjectNode?,
+        sourceNotationId: UUID,
+        targetNotationId: UUID,
         componentIdMap: Map<UUID, UUID>,
         relationIdMap: Map<UUID, UUID>,
         warnings: WarningCollector
     ) {
         parent ?: return
+        val sourceKey = sourceNotationId.toString()
+        val targetKey = targetNotationId.toString()
         (parent.get("nodes") as? ArrayNode)?.forEach { instance ->
             val instanceObject = instance as? ObjectNode ?: return@forEach
             val binding = (instanceObject.get("attrs") as? ObjectNode) ?: instanceObject
@@ -111,6 +133,16 @@ class DiagramCopyNotationRemapper(
                 "NOTATION_COMPONENT_NOT_MAPPED",
                 "component",
                 warnings
+            )
+            remapScopedProperties(
+                root = binding,
+                fieldName = "componentProperties",
+                sourceKey = sourceKey,
+                targetKey = targetKey,
+                idMap = componentIdMap,
+                warningCode = "NOTATION_COMPONENT_NOT_MAPPED",
+                warningLabel = "component",
+                warnings = warnings
             )
         }
         (parent.get("edges") as? ArrayNode)?.forEach { instance ->
@@ -123,6 +155,16 @@ class DiagramCopyNotationRemapper(
                 "NOTATION_RELATION_NOT_MAPPED",
                 "relation",
                 warnings
+            )
+            remapScopedProperties(
+                root = binding,
+                fieldName = "relationProperties",
+                sourceKey = sourceKey,
+                targetKey = targetKey,
+                idMap = relationIdMap,
+                warningCode = "NOTATION_RELATION_NOT_MAPPED",
+                warningLabel = "relation",
+                warnings = warnings
             )
         }
     }
