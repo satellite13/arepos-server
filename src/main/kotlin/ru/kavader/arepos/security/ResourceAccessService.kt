@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.apikey.ApiKeyModes
+import ru.kavader.arepos.dto.apikey.ApiKeyScopes
 import ru.kavader.arepos.model.Components
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Files
@@ -34,21 +35,24 @@ class ResourceAccessService(
     fun currentUserId(): UUID = ownerResolutionService.currentUserId()
 
     fun canEditModel(model: Models): Boolean =
-        isMcpModelAllowed(model.id) && topLevelAccess.canEditModel(model)
+        hasMcpModelScope(model.id, ApiKeyScopes.MODELS_WRITE) && topLevelAccess.canEditModel(model)
 
     fun canViewModel(model: Models): Boolean =
-        isMcpModelAllowed(model.id) && topLevelAccess.canViewModel(model)
+        hasMcpModelScope(model.id, ApiKeyScopes.MODELS_READ) && topLevelAccess.canViewModel(model)
 
     fun canViewModels(models: Collection<Models>): Map<UUID, Boolean> {
         val base = topLevelAccess.canViewModels(models)
-        return base.mapValues { (id, allowed) -> allowed && isMcpModelAllowed(id) }
+        return base.mapValues { (id, allowed) ->
+            allowed && hasMcpModelScope(id, ApiKeyScopes.MODELS_READ)
+        }
     }
 
     fun canViewNotations(notations: Collection<Notations>): Map<UUID, Boolean> =
         topLevelAccess.canViewNotationsDirect(notations)
 
     fun filterViewableModels(models: Collection<Models>): List<Models> =
-        topLevelAccess.filterViewableModels(models).filter { isMcpModelAllowed(it.id) }
+        topLevelAccess.filterViewableModels(models)
+            .filter { hasMcpModelScope(it.id, ApiKeyScopes.MODELS_READ) }
 
     fun filterViewableNotations(notations: Collection<Notations>): List<Notations> =
         notationDiagramAccess.filterViewableNotations(notations)
@@ -57,7 +61,7 @@ class ResourceAccessService(
         val base = notationDiagramAccess.canViewDiagrams(diagrams)
         val byId = diagrams.associateBy { it.id }
         return base.mapValues { (diagramId, allowed) ->
-            allowed && isMcpModelAllowed(byId[diagramId]?.model?.id)
+            allowed && hasMcpModelScope(byId[diagramId]?.model?.id, ApiKeyScopes.MODELS_READ)
         }
     }
 
@@ -139,12 +143,12 @@ class ResourceAccessService(
     fun requireCanViewFile(file: Files) = requireAllowed(canViewFile(file))
 
     fun requireCanEditModel(model: Models) {
-        requireMcpModelAllowed(model.id)
+        requireMcpModelScope(model.id, ApiKeyScopes.MODELS_WRITE)
         requireAllowed(canEditModel(model))
     }
 
     fun requireCanViewModel(model: Models) {
-        requireMcpModelAllowed(model.id)
+        requireMcpModelScope(model.id, ApiKeyScopes.MODELS_READ)
         requireAllowed(canViewModel(model))
     }
 
@@ -179,22 +183,22 @@ class ResourceAccessService(
         requireAllowed(canViewValidationScript(script))
 
     fun requireCanEditNode(node: Nodes) {
-        requireMcpModelAllowed(node.model.id)
+        requireMcpModelScope(node.model.id, ApiKeyScopes.MODELS_WRITE)
         requireAllowed(canEditNode(node))
     }
 
     fun requireCanViewNode(node: Nodes) {
-        requireMcpModelAllowed(node.model.id)
+        requireMcpModelScope(node.model.id, ApiKeyScopes.MODELS_READ)
         requireAllowed(canViewNode(node))
     }
 
     fun requireCanEditLink(link: Links) {
-        requireMcpModelAllowed(link.model.id)
+        requireMcpModelScope(link.model.id, ApiKeyScopes.MODELS_WRITE)
         requireAllowed(canEditLink(link))
     }
 
     fun requireCanViewLink(link: Links) {
-        requireMcpModelAllowed(link.model.id)
+        requireMcpModelScope(link.model.id, ApiKeyScopes.MODELS_READ)
         requireAllowed(canViewLink(link))
     }
 
@@ -213,40 +217,57 @@ class ResourceAccessService(
         requireAllowed(canViewRelationRule(relationRule))
 
     fun requireCanEditDiagram(diagram: Diagrams) {
-        requireMcpModelAllowed(diagram.model.id)
+        requireMcpModelScope(diagram.model.id, ApiKeyScopes.MODELS_WRITE)
         requireAllowed(canEditDiagram(diagram))
     }
 
     fun requireCanViewDiagram(diagram: Diagrams) {
-        requireMcpModelAllowed(diagram.model.id)
+        requireMcpModelScope(diagram.model.id, ApiKeyScopes.MODELS_READ)
         requireAllowed(canViewDiagram(diagram))
     }
 
     /**
-     * MCP API-key allowlist of model UUIDs, or null when unrestricted
+     * Model IDs readable by the current MCP token, or null when unrestricted
      * (non-MCP token, or MCP token in mode=all).
+     * For mode=grants returns only models that include [ApiKeyScopes.MODELS_READ].
      */
-    fun mcpModelIdsAllowlist(): Set<UUID>? {
+    fun mcpReadableModelIds(): Set<UUID>? {
         val details = CurrentUser.mcpAccessDetails() ?: return null
         return when (details.mode) {
             ApiKeyModes.ALL -> null
-            ApiKeyModes.GRANTS -> details.grants?.keys
+            ApiKeyModes.GRANTS ->
+                details.grants
+                    ?.filterValues { ApiKeyScopes.MODELS_READ in it }
+                    ?.keys
+                    ?: emptySet()
             else -> emptySet()
         }
     }
 
-    /** Rejects modelId outside the MCP allowlist when a key is restricted. */
+    /** Rejects modelId without MCP read scope when a key is restricted. */
     fun requireMcpModelIdAllowed(modelId: UUID) {
-        requireMcpModelAllowed(modelId)
+        requireMcpModelScope(modelId, ApiKeyScopes.MODELS_READ)
     }
 
     /**
-     * For list endpoints: when MCP allowlist is set, [modelId] must be allowed.
-     * Returns entities whose model id is in the allowlist (no-op when unrestricted).
+     * For list endpoints: when MCP readable set is present, [modelId] must be readable.
+     * Returns entities whose model id is readable (no-op when unrestricted).
      */
     fun <T> filterByMcpModelAllowlist(items: List<T>, modelIdOf: (T) -> UUID?): List<T> {
-        val allowlist = mcpModelIdsAllowlist() ?: return items
+        val allowlist = mcpReadableModelIds() ?: return items
         return items.filter { item -> modelIdOf(item)?.let { it in allowlist } == true }
+    }
+
+    fun requireMcpModelScope(modelId: UUID?, required: String) {
+        val details = CurrentUser.mcpAccessDetails() ?: return
+        if (modelId == null) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "model_not_allowed")
+        }
+        val scopes = details.scopesForModel(modelId)
+            ?: throw ResponseStatusException(HttpStatus.FORBIDDEN, "model_not_allowed")
+        if (required !in scopes) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "missing_scope")
+        }
     }
 
     fun canManageShares(ownerId: UUID): Boolean {
@@ -457,15 +478,10 @@ class ResourceAccessService(
         }
     }
 
-    private fun isMcpModelAllowed(modelId: UUID?): Boolean {
+    private fun hasMcpModelScope(modelId: UUID?, required: String): Boolean {
+        val details = CurrentUser.mcpAccessDetails() ?: return true
         if (modelId == null) return false
-        val allowlist = mcpModelIdsAllowlist() ?: return true
-        return modelId in allowlist
-    }
-
-    private fun requireMcpModelAllowed(modelId: UUID?) {
-        if (!isMcpModelAllowed(modelId)) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "model_not_allowed")
-        }
+        val scopes = details.scopesForModel(modelId) ?: return false
+        return required in scopes
     }
 }

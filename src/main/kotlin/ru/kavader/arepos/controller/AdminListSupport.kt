@@ -46,16 +46,16 @@ fun <T, R> ResourceAccessService.listPageWithAdminBypass(
     listPageWithAdminBypass(adminQuery, userQuery).map(map)
 
 /**
- * Restricts list results for MCP API keys with a model allowlist.
- * When [modelIdParam] is set and not allowed → 403.
- * When unrestricted (non-MCP / no claim) → page unchanged.
+ * Restricts list results for MCP API keys to models with read scope.
+ * When [modelIdParam] is set and not readable → 403.
+ * When unrestricted (non-MCP / mode=all) → page unchanged.
  */
 fun <T> Page<T>.applyMcpModelAllowlist(
     accessService: ResourceAccessService,
     modelIdParam: UUID?,
     modelIdOf: (T) -> UUID?
 ): Page<T> {
-    val allowlist = accessService.mcpModelIdsAllowlist() ?: return this
+    val allowlist = accessService.mcpReadableModelIds() ?: return this
     if (modelIdParam != null) {
         accessService.requireMcpModelIdAllowed(modelIdParam)
     }

@@ -53,8 +53,10 @@ class SearchService(
         if ("models" in kinds) {
             val page = modelsRepository.findByNameContainingIgnoreCase(q, pageable)
             val access = accessService.canViewModels(page.content)
+            val readableIds = accessService.mcpReadableModelIds()
             hits += page.content
                 .filter { model -> access[model.id] == true }
+                .filter { model -> readableIds == null || model.id in readableIds }
                 .map { model ->
                     CatalogSearchHit(
                         kind = "model",

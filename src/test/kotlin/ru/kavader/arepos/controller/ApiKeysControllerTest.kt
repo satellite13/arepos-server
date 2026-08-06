@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delet
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.dto.apikey.ApiKeyGrantDto
@@ -103,6 +104,28 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
             .andReturn()
 
         return objectMapper.readValue(result.response.contentAsString)
+    }
+
+    private fun exchangeToken(key: String): String {
+        val exchangeResult = mockMvc.perform(
+            post("/api/v1/auth/api-keys/exchange")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ExchangeApiKeyRequest(key)))
+        ).andExpect(status().isOk).andReturn()
+        val exchange = objectMapper.readValue<ExchangeApiKeyResponse>(exchangeResult.response.contentAsString)
+        return exchange.accessToken
+    }
+
+    private fun persistModel(userId: UUID, name: String): Models {
+        val user = usersRepository.findById(userId).orElseThrow()
+        return modelsRepository.save(
+            Models(
+                name = name,
+                version = "1.0.0",
+                createdAt = Instant.now(),
+                owner = user
+            )
+        )
     }
 
     @Test
@@ -291,5 +314,97 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content[?(@.name=='secret-diagram')]").isEmpty)
             .andExpect(jsonPath("$.content[?(@.name=='allowed-diagram')]").isNotEmpty)
+    }
+
+    @Test
+    fun `grants mode enforces per-model read and write scopes`() {
+        val userId = registerAndGetUserId("apikey-grants-scopes@test.com")
+        val modelA = persistModel(userId, "grants-scope-a")
+        val modelB = persistModel(userId, "grants-scope-b")
+        val modelOther = persistModel(userId, "grants-scope-other")
+
+        val created = createKey(
+            userId,
+            grants = listOf(
+                ApiKeyGrantDto(modelId = modelA.id!!, scopes = listOf("models:read")),
+                ApiKeyGrantDto(modelId = modelB.id!!, scopes = listOf("models:read", "models:write"))
+            )
+        )
+        val mcpAuth = "Bearer ${exchangeToken(created.key)}"
+
+        mockMvc.perform(
+            put("/api/v1/models/${modelA.id}")
+                .header("Authorization", mcpAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"grants-scope-a-mutated"}""")
+        )
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.message").value("missing_scope"))
+
+        mockMvc.perform(
+            put("/api/v1/models/${modelB.id}")
+                .header("Authorization", mcpAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"grants-scope-b-mutated"}""")
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(
+            get("/api/v1/models/${modelOther.id}")
+                .header("Authorization", mcpAuth)
+        )
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.message").value("model_not_allowed"))
+    }
+
+    @Test
+    fun `grants mode forbids creating models even with write scope`() {
+        val userId = registerAndGetUserId("apikey-grants-create@test.com")
+        val model = persistModel(userId, "grants-create-existing")
+        val created = createKey(
+            userId,
+            grants = listOf(
+                ApiKeyGrantDto(modelId = model.id!!, scopes = listOf("models:read", "models:write"))
+            )
+        )
+        val mcpAuth = "Bearer ${exchangeToken(created.key)}"
+
+        mockMvc.perform(
+            post("/api/v1/models")
+                .header("Authorization", mcpAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"grants-create-new","version":"1.0.0"}""")
+        )
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.message").value("missing_scope"))
+    }
+
+    @Test
+    fun `grants mode search catalog omits non-granted models`() {
+        val suffix = UUID.randomUUID().toString().take(8)
+        val userId = registerAndGetUserId("apikey-grants-search-$suffix@test.com")
+        val grantedName = "grants-search-granted-$suffix"
+        val deniedName = "grants-search-denied-$suffix"
+        val granted = persistModel(userId, grantedName)
+        persistModel(userId, deniedName)
+
+        val created = createKey(
+            userId,
+            grants = listOf(
+                ApiKeyGrantDto(modelId = granted.id!!, scopes = listOf("models:read"))
+            )
+        )
+        val mcpAuth = "Bearer ${exchangeToken(created.key)}"
+
+        mockMvc.perform(
+            get("/api/v1/search/catalog")
+                .param("q", suffix)
+                .param("kinds", "models")
+                .header("Authorization", mcpAuth)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.hits.length()").value(1))
+            .andExpect(jsonPath("$.hits[0].id").value(granted.id.toString()))
+            .andExpect(jsonPath("$.hits[0].name").value(grantedName))
+            .andExpect(jsonPath("$.hits[?(@.name=='$deniedName')]").isEmpty)
     }
 }

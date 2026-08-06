@@ -178,7 +178,7 @@ class DocumentRefsServiceTest {
             DocumentRefs(file = file, createdBy = user)
         )
         `when`(modelsRepository.findById(modelId)).thenReturn(Optional.of(model))
-        `when`(accessService.mcpModelIdsAllowlist()).thenReturn(null)
+        `when`(accessService.mcpReadableModelIds()).thenReturn(null)
         `when`(accessService.currentUserId()).thenReturn(user.id)
         `when`(
             documentRefsRepository.findByFilters(

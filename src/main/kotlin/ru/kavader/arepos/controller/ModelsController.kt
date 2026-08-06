@@ -17,7 +17,9 @@ import ru.kavader.arepos.mapper.ModelMapper
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.ModelsRepository
+import ru.kavader.arepos.dto.apikey.ApiKeyModes
 import ru.kavader.arepos.security.ADMIN_ONLY
+import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.*
@@ -180,6 +182,10 @@ class ModelsController(
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create model with system root node")
     fun createModel(@RequestBody @Valid request: ModelRequest): ModelResponse {
+        val mcpDetails = CurrentUser.mcpAccessDetails()
+        if (mcpDetails != null && mcpDetails.mode == ApiKeyModes.GRANTS) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "missing_scope")
+        }
         if (modelsRepository.existsByNameAndVersion(request.name, request.version)) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,

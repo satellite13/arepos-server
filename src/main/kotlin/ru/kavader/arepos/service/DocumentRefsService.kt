@@ -221,7 +221,7 @@ class DocumentRefsService(
             relationId = relationId,
             nodeShapeId = nodeShapeId
         ).let { list ->
-            val allowlist = accessService.mcpModelIdsAllowlist() ?: return@let list
+            val allowlist = accessService.mcpReadableModelIds() ?: return@let list
             list.filter { ref ->
                 val mid = ref.model?.id
                     ?: ref.diagram?.model?.id
