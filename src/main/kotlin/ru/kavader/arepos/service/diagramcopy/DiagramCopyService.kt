@@ -31,6 +31,7 @@ import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.modelbatch.DiagramAttrsRemapper
 import java.time.Instant
@@ -47,6 +48,7 @@ class DiagramCopyService(
     private val relationsRepository: RelationsRepository,
     private val accessService: ResourceAccessService,
     private val ownerResolutionService: OwnerResolutionService,
+    private val typeUsageAuthorization: TypeUsageAuthorization,
     private val matcher: DiagramCopyMatcher,
     private val notationRemapper: DiagramCopyNotationRemapper,
     private val diagramAttrsRemapper: DiagramAttrsRemapper,
@@ -125,16 +127,30 @@ class DiagramCopyService(
         val nodeActions = result.nodes.associateBy { it.sourceId }
         val linkActions = result.links.associateBy { it.sourceId }
 
-        val matchedNodes = resolveMatches(
+        val matchedNodes = resolveNodeMatches(
             previews = result.nodes,
-            targetIds = targetNodesById.keys,
-            kind = DiagramCopyEntityKind.NODE
+            sourceNodesById = sourceNodesById,
+            targetNodesById = targetNodesById
         )
-        val matchedLinks = resolveMatches(
+        val matchedLinks = resolveLinkMatches(
             previews = result.links,
-            targetIds = targetLinksById.keys,
-            kind = DiagramCopyEntityKind.LINK
+            sourceLinksById = sourceLinksById,
+            targetLinksById = targetLinksById
         )
+        val nodesToCreate = result.nodes
+            .filter { it.effectiveAction == DiagramCopyResolutionAction.CREATE }
+            .sortedBy { it.sourceId.toString() }
+        val linksToCreate = result.links
+            .filter { it.effectiveAction == DiagramCopyResolutionAction.CREATE }
+            .sortedBy { it.sourceId.toString() }
+        nodesToCreate
+            .map { sourceNodesById.getValue(it.sourceId).nodeType }
+            .distinctBy { it.id }
+            .forEach { typeUsageAuthorization.requireCanUseNodeTypeForModel(it, context.targetModel) }
+        linksToCreate
+            .map { sourceLinksById.getValue(it.sourceId).linkType }
+            .distinctBy { it.id }
+            .forEach { typeUsageAuthorization.requireCanUseLinkTypeForModel(it, context.targetModel) }
         val notationMapping = notationMapping(context)
         val owner = ownerResolutionService.resolveOwnerForCreate(null)
         val now = Instant.now()
@@ -146,10 +162,7 @@ class DiagramCopyService(
         val nodeIdMap = matchedNodes.toMutableMap()
         val createdNodes = mutableListOf<Nodes>()
         val occupiedNodeStableIds = context.targetNodes.mapTo(mutableSetOf()) { it.stableId }
-        result.nodes
-            .filter { it.effectiveAction == DiagramCopyResolutionAction.CREATE }
-            .sortedBy { it.sourceId.toString() }
-            .forEach { preview ->
+        nodesToCreate.forEach { preview ->
                 val source = sourceNodesById[preview.sourceId]
                     ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Source node ${preview.sourceId} is unavailable")
                 val stableId = source.stableId.takeUnless { it in occupiedNodeStableIds } ?: UUID.randomUUID()
@@ -179,13 +192,16 @@ class DiagramCopyService(
 
         val nodesByTargetId = targetNodesById.toMutableMap()
         createdNodes.forEach { nodesByTargetId[requireNotNull(it.id)] = it }
+        validateMatchedLinkEndpoints(
+            matchedLinks = matchedLinks,
+            sourceLinksById = sourceLinksById,
+            targetLinksById = targetLinksById,
+            nodeIdMap = nodeIdMap
+        )
         val linkIdMap = matchedLinks.toMutableMap()
         val createdLinks = mutableListOf<Links>()
         val occupiedLinkStableIds = context.targetLinks.mapTo(mutableSetOf()) { it.stableId }
-        result.links
-            .filter { it.effectiveAction == DiagramCopyResolutionAction.CREATE }
-            .sortedBy { it.sourceId.toString() }
-            .forEach { preview ->
+        linksToCreate.forEach { preview ->
                 val source = sourceLinksById[preview.sourceId]
                     ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Source link ${preview.sourceId} is unavailable")
                 val sourceId = requireNotNull(source.source.id)
@@ -366,24 +382,76 @@ class DiagramCopyService(
             )
     }
 
-    private fun resolveMatches(
+    private fun resolveNodeMatches(
         previews: List<ru.kavader.arepos.dto.model.DiagramCopyEntityPreview>,
-        targetIds: Set<UUID>,
-        kind: DiagramCopyEntityKind
+        sourceNodesById: Map<UUID, Nodes>,
+        targetNodesById: Map<UUID, Nodes>
     ): Map<UUID, UUID> {
         val matches = previews.filter { it.effectiveAction == DiagramCopyResolutionAction.MATCH }
         val targetIdsBySource = matches.associate { preview ->
             val targetId = preview.effectiveTargetId
-                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "$kind ${preview.sourceId} has no match target")
-            if (targetId !in targetIds) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "$kind ${preview.sourceId} has an invalid match target")
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Node ${preview.sourceId} has no match target")
+            val source = sourceNodesById[preview.sourceId]
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Source node ${preview.sourceId} is unavailable")
+            val target = targetNodesById[targetId]
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Node ${preview.sourceId} has an invalid match target")
+            if (source.nodeType.id != target.nodeType.id) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Node ${preview.sourceId} match has a different node type")
             }
             preview.sourceId to targetId
         }
         if (targetIdsBySource.size != matches.size || targetIdsBySource.values.toSet().size != targetIdsBySource.size) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "$kind matches must be one-to-one")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Node matches must be one-to-one")
         }
         return targetIdsBySource
+    }
+
+    private fun resolveLinkMatches(
+        previews: List<ru.kavader.arepos.dto.model.DiagramCopyEntityPreview>,
+        sourceLinksById: Map<UUID, Links>,
+        targetLinksById: Map<UUID, Links>
+    ): Map<UUID, UUID> {
+        val matches = previews.filter { it.effectiveAction == DiagramCopyResolutionAction.MATCH }
+        val targetIdsBySource = matches.associate { preview ->
+            val targetId = preview.effectiveTargetId
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Link ${preview.sourceId} has no match target")
+            val source = sourceLinksById[preview.sourceId]
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Source link ${preview.sourceId} is unavailable")
+            val target = targetLinksById[targetId]
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Link ${preview.sourceId} has an invalid match target")
+            if (source.linkType.id != target.linkType.id) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Link ${preview.sourceId} match has a different link type")
+            }
+            preview.sourceId to targetId
+        }
+        if (targetIdsBySource.size != matches.size || targetIdsBySource.values.toSet().size != targetIdsBySource.size) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Link matches must be one-to-one")
+        }
+        return targetIdsBySource
+    }
+
+    private fun validateMatchedLinkEndpoints(
+        matchedLinks: Map<UUID, UUID>,
+        sourceLinksById: Map<UUID, Links>,
+        targetLinksById: Map<UUID, Links>,
+        nodeIdMap: Map<UUID, UUID>
+    ) {
+        matchedLinks.forEach { (sourceLinkId, targetLinkId) ->
+            val sourceLink = sourceLinksById.getValue(sourceLinkId)
+            val targetLink = targetLinksById.getValue(targetLinkId)
+            val expectedSourceId = nodeIdMap[requireNotNull(sourceLink.source.id)]
+            val expectedTargetId = nodeIdMap[requireNotNull(sourceLink.target.id)]
+            if (
+                expectedSourceId != null &&
+                expectedTargetId != null &&
+                (targetLink.source.id != expectedSourceId || targetLink.target.id != expectedTargetId)
+            ) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Link $sourceLinkId match endpoints are inconsistent with resolved nodes"
+                )
+            }
+        }
     }
 
     private fun collectReferences(attrs: String?): DiagramReferences {

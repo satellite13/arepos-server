@@ -92,7 +92,11 @@ class DiagramCopyMatcher {
 
         val previewsByEntity = (nodePreviews + linkPreviews).associateBy { it.kind to it.sourceId }
         val blockers = edgeBlockers(edges, sourceLinksById, previewsByEntity)
-        val referencedEntities = referencedEntities(edges, sourceLinksById)
+        val referencedEntities = sourceNodes.mapTo(mutableSetOf()) {
+            DiagramCopyEntityKind.NODE to it.id
+        }.apply {
+            sourceLinks.forEach { add(DiagramCopyEntityKind.LINK to it.id) }
+        }
         val everyReferencedEntityResolved = referencedEntities.all { entity ->
             previewsByEntity[entity]?.hasEffectiveAction() == true
         }
@@ -233,21 +237,6 @@ class DiagramCopyMatcher {
             sourceLinksById[edge.modelLinkId]?.let { link ->
                 add(link.sourceNodeId)
                 add(link.targetNodeId)
-            }
-        }
-    }
-
-    private fun referencedEntities(
-        edges: List<DiagramEdgeRef>,
-        sourceLinksById: Map<UUID, MatchableLink>
-    ): Set<Pair<DiagramCopyEntityKind, UUID>> = buildSet {
-        edges.forEach { edge ->
-            edge.modelLinkId?.let { add(DiagramCopyEntityKind.LINK to it) }
-            edge.sourceModelNodeId?.let { add(DiagramCopyEntityKind.NODE to it) }
-            edge.targetModelNodeId?.let { add(DiagramCopyEntityKind.NODE to it) }
-            sourceLinksById[edge.modelLinkId]?.let { link ->
-                add(DiagramCopyEntityKind.NODE to link.sourceNodeId)
-                add(DiagramCopyEntityKind.NODE to link.targetNodeId)
             }
         }
     }

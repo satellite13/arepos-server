@@ -165,6 +165,35 @@ class DiagramCopyMatcherTest {
     }
 
     @Test
+    fun `lone unresolved node prevents commit`() {
+        val result = matcher.buildPreview(
+            sourceNodes = listOf(node("source")),
+            sourceLinks = emptyList(),
+            targetNodes = emptyList(),
+            targetLinks = emptyList(),
+            edges = emptyList(),
+            resolutions = emptyList()
+        )
+
+        assertFalse(result.canCommit)
+    }
+
+    @Test
+    fun `lone node can be created without edges`() {
+        val source = node("source")
+        val result = matcher.buildPreview(
+            sourceNodes = listOf(source),
+            sourceLinks = emptyList(),
+            targetNodes = emptyList(),
+            targetLinks = emptyList(),
+            edges = emptyList(),
+            resolutions = listOf(resolution(source.id, DiagramCopyEntityKind.NODE, DiagramCopyResolutionAction.CREATE))
+        )
+
+        assertTrue(result.canCommit)
+    }
+
+    @Test
     fun `link SKIP on referenced edge creates blocker and canCommit false`() {
         val sourceNode = node("source")
         val targetNode = node("target")
