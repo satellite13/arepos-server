@@ -26,6 +26,8 @@ interface LinksRepository : JpaRepository<Links, UUID> {
         linkTypeId: UUID
     ): List<Links>
 
+    fun findByModelIdAndStableIdIn(modelId: UUID, stableIds: Collection<UUID>): List<Links>
+
     @Query(
         value = """
             SELECT l.*
