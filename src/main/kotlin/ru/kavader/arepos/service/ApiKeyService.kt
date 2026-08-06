@@ -209,10 +209,17 @@ class ApiKeyService(
                     )
                 }.sortedBy { it.modelId.toString() }
                 for (grant in normalizedGrants) {
-                    val model = modelsRepository.findById(grant.modelId).orElseThrow {
-                        ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${grant.modelId} not found")
+                    val model = modelsRepository.findById(grant.modelId).orElse(null)
+                        ?: throw ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Model ${grant.modelId} not found or not accessible"
+                        )
+                    if (!accessService.canViewModel(model)) {
+                        throw ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Model ${grant.modelId} not found or not accessible"
+                        )
                     }
-                    accessService.requireCanViewModel(model)
                 }
                 NormalizedCreate(
                     mode = ApiKeyModes.GRANTS,
