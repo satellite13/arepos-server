@@ -75,7 +75,10 @@ class DiagramCopyMatcher {
         val linkMatches = autoMatchLinks(
             sourceLinks = sourceLinks,
             targetLinks = targetLinksById.values.toList(),
-            nodeMatches = nodeMatches
+            nodeMatches = nodeMatches,
+            nodeResolutions = resolutionsByEntity
+                .filterKeys { (kind, _) -> kind == DiagramCopyEntityKind.NODE }
+                .mapKeys { (key, _) -> key.second }
         )
         val linkPreviews = sourceLinks
             .sortedBy { it.id.toString() }
@@ -138,7 +141,8 @@ class DiagramCopyMatcher {
     private fun autoMatchLinks(
         sourceLinks: List<MatchableLink>,
         targetLinks: List<MatchableLink>,
-        nodeMatches: Map<UUID, AutoMatch<MatchableNode>>
+        nodeMatches: Map<UUID, AutoMatch<MatchableNode>>,
+        nodeResolutions: Map<UUID, DiagramCopyResolution>
     ): Map<UUID, AutoMatch<MatchableLink>> {
         val claimedTargetIds = mutableSetOf<UUID>()
 
@@ -149,13 +153,25 @@ class DiagramCopyMatcher {
                 val candidates = if (stableIdCandidates.isNotEmpty()) {
                     stableIdCandidates to DiagramCopyMatchReason.STABLE_ID
                 } else {
-                    val matchedSourceId = nodeMatches[source.sourceNodeId]?.target?.id
-                    val matchedTargetId = nodeMatches[source.targetNodeId]?.target?.id
-                    targetLinks.filter {
-                        it.linkTypeId == source.linkTypeId &&
-                            it.sourceNodeId == matchedSourceId &&
-                            it.targetNodeId == matchedTargetId
-                    } to DiagramCopyMatchReason.ENDPOINTS_AND_TYPE
+                    val matchedSourceId = effectiveNodeTargetId(
+                        source.sourceNodeId,
+                        nodeMatches,
+                        nodeResolutions
+                    )
+                    val matchedTargetId = effectiveNodeTargetId(
+                        source.targetNodeId,
+                        nodeMatches,
+                        nodeResolutions
+                    )
+                    if (matchedSourceId != null && matchedTargetId != null) {
+                        targetLinks.filter {
+                            it.linkTypeId == source.linkTypeId &&
+                                it.sourceNodeId == matchedSourceId &&
+                                it.targetNodeId == matchedTargetId
+                        } to DiagramCopyMatchReason.ENDPOINTS_AND_TYPE
+                    } else {
+                        emptyList<MatchableLink>() to DiagramCopyMatchReason.ENDPOINTS_AND_TYPE
+                    }
                 }
                 val target = candidates.first.singleOrNull()
                 if (target != null && claimedTargetIds.add(target.id)) {
@@ -164,6 +180,19 @@ class DiagramCopyMatcher {
                     source.id to AutoMatch(null, candidates.second, candidates.first)
                 }
             }
+    }
+
+    private fun effectiveNodeTargetId(
+        sourceNodeId: UUID,
+        nodeMatches: Map<UUID, AutoMatch<MatchableNode>>,
+        nodeResolutions: Map<UUID, DiagramCopyResolution>
+    ): UUID? {
+        val resolution = nodeResolutions[sourceNodeId]
+        return if (resolution?.action == DiagramCopyResolutionAction.MATCH) {
+            resolution.targetId
+        } else {
+            nodeMatches[sourceNodeId]?.target?.id
+        }
     }
 
     private fun previewForNode(

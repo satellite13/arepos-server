@@ -131,6 +131,60 @@ class DiagramCopyMatcherTest {
     }
 
     @Test
+    fun `link matches by type and manually matched ambiguous endpoints`() {
+        val sourceFrom = node("source-from", name = "From")
+        val sourceTo = node("source-to", name = "To")
+        val targetFrom = node("target-from", name = sourceFrom.name)
+        val alternateTargetFrom = node("alternate-target-from", name = sourceFrom.name)
+        val targetTo = node("target-to", name = sourceTo.name)
+        val alternateTargetTo = node("alternate-target-to", name = sourceTo.name)
+        val sourceLink = link(
+            "source-link",
+            sourceNodeId = sourceFrom.id,
+            targetNodeId = sourceTo.id
+        )
+        val targetLink = link(
+            "target-link",
+            linkTypeId = sourceLink.linkTypeId,
+            sourceNodeId = targetFrom.id,
+            targetNodeId = targetTo.id
+        )
+
+        val result = matcher.buildPreview(
+            sourceNodes = listOf(sourceFrom, sourceTo),
+            sourceLinks = listOf(sourceLink),
+            targetNodes = listOf(
+                targetFrom,
+                alternateTargetFrom,
+                targetTo,
+                alternateTargetTo
+            ),
+            targetLinks = listOf(targetLink),
+            edges = listOf(edge("edge", modelLinkId = sourceLink.id)),
+            resolutions = listOf(
+                resolution(
+                    sourceFrom.id,
+                    DiagramCopyEntityKind.NODE,
+                    DiagramCopyResolutionAction.MATCH,
+                    targetFrom.id
+                ),
+                resolution(
+                    sourceTo.id,
+                    DiagramCopyEntityKind.NODE,
+                    DiagramCopyResolutionAction.MATCH,
+                    targetTo.id
+                )
+            )
+        )
+
+        val preview = result.links.single()
+        assertEquals(targetLink.id, preview.autoMatchTargetId)
+        assertEquals(DiagramCopyMatchReason.ENDPOINTS_AND_TYPE, preview.autoMatchReason)
+        assertEquals(DiagramCopyResolutionAction.MATCH, preview.effectiveAction)
+        assertEquals(targetLink.id, preview.effectiveTargetId)
+    }
+
+    @Test
     fun `edge blocker when endpoint skipped`() {
         val sourceNode = node("source")
         val edge = edge("edge", sourceNodeId = sourceNode.id)
@@ -291,8 +345,9 @@ class DiagramCopyMatcherTest {
     private fun resolution(
         sourceId: UUID,
         kind: DiagramCopyEntityKind,
-        action: DiagramCopyResolutionAction
-    ): DiagramCopyResolution = DiagramCopyResolution(sourceId, action, kind = kind)
+        action: DiagramCopyResolutionAction,
+        targetId: UUID? = null
+    ): DiagramCopyResolution = DiagramCopyResolution(sourceId, action, targetId, kind)
 
     private fun id(value: String): UUID = UUID.nameUUIDFromBytes(value.toByteArray())
 }
