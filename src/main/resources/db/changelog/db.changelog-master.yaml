@@ -475,3 +475,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 051-api-keys-mode-grants
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/051-api-keys-mode-grants.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+
