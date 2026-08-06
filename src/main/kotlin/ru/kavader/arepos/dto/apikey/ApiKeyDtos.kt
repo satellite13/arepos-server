@@ -1,5 +1,6 @@
 package ru.kavader.arepos.dto.apikey
 
+import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.Size
@@ -27,7 +28,7 @@ data class CreateApiKeyRequest(
     @field:NotBlank @field:Size(max = 200) val name: String,
     @field:NotBlank val mode: String,
     val scopes: List<String>? = null,
-    val grants: List<ApiKeyGrantDto>? = null,
+    @field:Valid val grants: List<ApiKeyGrantDto>? = null,
     val expiresAt: Instant? = null
 )
 
