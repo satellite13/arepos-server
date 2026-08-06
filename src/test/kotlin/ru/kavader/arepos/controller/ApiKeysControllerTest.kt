@@ -28,6 +28,7 @@ import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Notations
 import ru.kavader.arepos.model.Role
+import ru.kavader.arepos.repository.ApiKeysRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NotationsRepository
@@ -48,6 +49,9 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var usersRepository: UsersRepository
+
+    @Autowired
+    lateinit var apiKeysRepository: ApiKeysRepository
 
     @Autowired
     lateinit var modelsRepository: ModelsRepository
@@ -406,5 +410,189 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.hits[0].id").value(granted.id.toString()))
             .andExpect(jsonPath("$.hits[0].name").value(grantedName))
             .andExpect(jsonPath("$.hits[?(@.name=='$deniedName')]").isEmpty)
+    }
+
+    @Test
+    fun `grants mode normalizes write-only scopes to include read`() {
+        val userId = registerAndGetUserId("apikey-grants-write-only@test.com")
+        val model = persistModel(userId, "grants-write-only")
+
+        val result = mockMvc.perform(
+            post("/api/v1/api-keys")
+                .withAuth(userId, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        CreateApiKeyRequest(
+                            name = "write-only-grant",
+                            mode = ApiKeyModes.GRANTS,
+                            grants = listOf(
+                                ApiKeyGrantDto(modelId = model.id!!, scopes = listOf("models:write"))
+                            )
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.apiKey.mode").value(ApiKeyModes.GRANTS))
+            .andExpect(jsonPath("$.apiKey.grants.length()").value(1))
+            .andExpect(jsonPath("$.apiKey.grants[0].scopes.length()").value(2))
+            .andExpect(jsonPath("$.apiKey.grants[0].scopes[?(@=='models:read')]").isNotEmpty)
+            .andExpect(jsonPath("$.apiKey.grants[0].scopes[?(@=='models:write')]").isNotEmpty)
+            .andReturn()
+
+        val created = objectMapper.readValue<CreateApiKeyResponse>(result.response.contentAsString)
+        val exchangeResult = mockMvc.perform(
+            post("/api/v1/auth/api-keys/exchange")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ExchangeApiKeyRequest(created.key)))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.grants[0].scopes[?(@=='models:read')]").isNotEmpty)
+            .andExpect(jsonPath("$.grants[0].scopes[?(@=='models:write')]").isNotEmpty)
+            .andReturn()
+
+        val exchange = objectMapper.readValue<ExchangeApiKeyResponse>(exchangeResult.response.contentAsString)
+        assertTrue(exchange.grants!!.single().scopes.contains("models:read"))
+        assertTrue(exchange.grants.single().scopes.contains("models:write"))
+    }
+
+    @Test
+    fun `grants mode rejects duplicate modelId`() {
+        val userId = registerAndGetUserId("apikey-grants-duplicate@test.com")
+        val model = persistModel(userId, "grants-duplicate")
+
+        mockMvc.perform(
+            post("/api/v1/api-keys")
+                .withAuth(userId, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        CreateApiKeyRequest(
+                            name = "duplicate-grants",
+                            mode = ApiKeyModes.GRANTS,
+                            grants = listOf(
+                                ApiKeyGrantDto(modelId = model.id!!, scopes = listOf("models:read")),
+                                ApiKeyGrantDto(modelId = model.id!!, scopes = listOf("models:write"))
+                            )
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.message").value("grants must have distinct modelIds"))
+    }
+
+    @Test
+    fun `grants mode rejects more than 50 grants`() {
+        val userId = registerAndGetUserId("apikey-grants-limit@test.com")
+        val grants = (1..51).map { index ->
+            val model = persistModel(userId, "grants-limit-$index")
+            ApiKeyGrantDto(modelId = model.id!!, scopes = listOf("models:read"))
+        }
+
+        mockMvc.perform(
+            post("/api/v1/api-keys")
+                .withAuth(userId, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        CreateApiKeyRequest(
+                            name = "too-many-grants",
+                            mode = ApiKeyModes.GRANTS,
+                            grants = grants
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.message").value("At most 50 grants are allowed"))
+    }
+
+    @Test
+    fun `grants mode rejects unknown modelId`() {
+        val userId = registerAndGetUserId("apikey-grants-unknown-model@test.com")
+        val unknownModelId = UUID.randomUUID()
+
+        mockMvc.perform(
+            post("/api/v1/api-keys")
+                .withAuth(userId, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        CreateApiKeyRequest(
+                            name = "unknown-model-grant",
+                            mode = ApiKeyModes.GRANTS,
+                            grants = listOf(
+                                ApiKeyGrantDto(modelId = unknownModelId, scopes = listOf("models:read"))
+                            )
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.message").value("Model $unknownModelId not found or not accessible"))
+    }
+
+    @Test
+    fun `patch renames api key without changing mode or grants`() {
+        val userId = registerAndGetUserId("apikey-patch-immutable@test.com")
+        val model = persistModel(userId, "patch-immutable")
+        val created = createKey(
+            userId,
+            grants = listOf(
+                ApiKeyGrantDto(modelId = model.id!!, scopes = listOf("models:read"))
+            )
+        )
+
+        mockMvc.perform(
+            patch("/api/v1/api-keys/${created.apiKey.id}")
+                .withAuth(userId, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(UpdateApiKeyRequest(name = "renamed-grants-key")))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.name").value("renamed-grants-key"))
+            .andExpect(jsonPath("$.mode").value(ApiKeyModes.GRANTS))
+            .andExpect(jsonPath("$.grants.length()").value(1))
+            .andExpect(jsonPath("$.grants[0].modelId").value(model.id.toString()))
+            .andExpect(jsonPath("$.grants[0].scopes[0]").value("models:read"))
+
+        mockMvc.perform(get("/api/v1/api-keys").withAuth(userId, Role.USER))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items[0].name").value("renamed-grants-key"))
+            .andExpect(jsonPath("$.items[0].mode").value(ApiKeyModes.GRANTS))
+    }
+
+    @Test
+    fun `deactivated user cannot exchange but key stays active until reactivation`() {
+        val userId = registerAndGetUserId("apikey-deactivated-user@test.com")
+        val created = createKey(userId, listOf("models:read"))
+
+        val user = usersRepository.findById(userId).orElseThrow()
+        user.isActive = false
+        usersRepository.save(user)
+
+        mockMvc.perform(
+            post("/api/v1/auth/api-keys/exchange")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ExchangeApiKeyRequest(created.key)))
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.message").value("User is inactive"))
+
+        val storedKey = apiKeysRepository.findById(created.apiKey.id).orElseThrow()
+        assertTrue(storedKey.revokedAt == null)
+
+        user.isActive = true
+        usersRepository.save(user)
+
+        mockMvc.perform(
+            post("/api/v1/auth/api-keys/exchange")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ExchangeApiKeyRequest(created.key)))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.accessToken").isNotEmpty)
     }
 }
