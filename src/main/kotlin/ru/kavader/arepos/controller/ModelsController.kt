@@ -21,6 +21,7 @@ import ru.kavader.arepos.security.ADMIN_ONLY
 import ru.kavader.arepos.security.OwnerResolutionService
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.service.*
+import ru.kavader.arepos.service.diagramcopy.DiagramCopyService
 import ru.kavader.arepos.util.VersionUtils
 import java.util.*
 
@@ -33,6 +34,7 @@ class ModelsController(
     private val ownerResolutionService: OwnerResolutionService,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val modelCopyService: ModelCopyService,
+    private val diagramCopyService: DiagramCopyService,
     private val modelLifecycleService: ModelLifecycleService,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val modelMapper: ModelMapper
@@ -272,6 +274,19 @@ class ModelsController(
         )
         return modelMapper.toResponse(copied)
     }
+
+    @PostMapping("/{targetModelId}/diagram-copies/preview")
+    fun previewDiagramCopy(
+        @PathVariable targetModelId: UUID,
+        @RequestBody @Valid request: DiagramCopyPreviewRequest
+    ): DiagramCopyPreviewResponse = diagramCopyService.preview(targetModelId, request)
+
+    @PostMapping("/{targetModelId}/diagram-copies/commit")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun commitDiagramCopy(
+        @PathVariable targetModelId: UUID,
+        @RequestBody @Valid request: DiagramCopyCommitRequest
+    ): DiagramCopyCommitResponse = diagramCopyService.commit(targetModelId, request)
 
     private fun mapModelsPage(page: org.springframework.data.domain.Page<Models>): ListResponse<ModelResponse> {
         return page.mapWithPermissions(
