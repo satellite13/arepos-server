@@ -36,13 +36,16 @@ class ApiKeys(
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     var tokenHash: String,
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "scopes", columnDefinition = "jsonb", nullable = false)
-    var scopes: MutableList<String> = mutableListOf(),
+    @Column(name = "mode", nullable = false, length = 16)
+    var mode: String = "all",
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "model_ids", columnDefinition = "jsonb")
-    var modelIds: MutableList<String>? = null,
+    @Column(name = "scopes", columnDefinition = "jsonb")
+    var scopes: MutableList<String>? = null,
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "grants", columnDefinition = "jsonb")
+    var grants: MutableList<MutableMap<String, Any>>? = null,
 
     @Column(name = "expires_at")
     var expiresAt: Instant? = null,
