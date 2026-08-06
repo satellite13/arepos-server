@@ -383,6 +383,28 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `grants mode forbids copying models even with write scope`() {
+        val userId = registerAndGetUserId("apikey-grants-copy@test.com")
+        val model = persistModel(userId, "grants-copy-existing")
+        val created = createKey(
+            userId,
+            grants = listOf(
+                ApiKeyGrantDto(modelId = model.id!!, scopes = listOf("models:read", "models:write"))
+            )
+        )
+        val mcpAuth = "Bearer ${exchangeToken(created.key)}"
+
+        mockMvc.perform(
+            post("/api/v1/models/${model.id}/copy")
+                .header("Authorization", mcpAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"grants-copy-new","version":"1.0.0"}""")
+        )
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.message").value("missing_scope"))
+    }
+
+    @Test
     fun `grants mode search catalog omits non-granted models`() {
         val suffix = UUID.randomUUID().toString().take(8)
         val userId = registerAndGetUserId("apikey-grants-search-$suffix@test.com")

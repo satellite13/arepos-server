@@ -258,6 +258,10 @@ class ModelsController(
         @PathVariable sourceId: UUID,
         @RequestBody @Valid request: ModelRequest
     ): ModelResponse {
+        val mcpDetails = CurrentUser.mcpAccessDetails()
+        if (mcpDetails != null && mcpDetails.mode == ApiKeyModes.GRANTS) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "missing_scope")
+        }
         val source = modelsRepository.findById(sourceId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Source model $sourceId not found")
