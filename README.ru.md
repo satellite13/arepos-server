@@ -13,6 +13,7 @@ English version: `README.md`
 - Аудит изменений данных
 - JWT-аутентификация с rotation refresh-токенов (одноразовые refresh-токены хранятся на сервере)
 - Cookie-сессия для браузера (`warchi_access` / `warchi_refresh`) + CSRF (`warchi_csrf` / `X-CSRF-Token`); Bearer-заголовок поддерживается для API-клиентов
+- Опциональный Keycloak-совместимый OIDC SSO и хешированные API-ключи (`mode=all` или per-model `grants`) для MCP и non-browser клиентов
 - Авторизация через Cerbos в enforce-only режиме
 - Model live-sync через STOMP/WebSocket с опциональным transactional outbox
 - Встроенные health-индикаторы для Cerbos, MinIO и model-sync outbox

@@ -239,6 +239,8 @@ See `docs/api-collaboration.md` for:
 
 - `POST /api/v1/diagram-locks/{id}/acquire` → **200** + `reason=LOCKED_BY_OTHER` when held by another user
 - `POST /api/v1/models/{id}/batch-save` → **409** `BATCH_SAVE_CONFLICT` + `conflicts[]`
+- model ZIP package, OEF normalize, and diagram-copy preview/commit
+- API keys (`mode=all` / `grants`) and OIDC (`docs/oidc.md`)
 
 ### Environment Variables for Security
 
@@ -429,9 +431,13 @@ Main endpoints:
 - `POST /api/v1/auth/refresh` - Refresh (cookie and/or body refresh token)
 - `POST /api/v1/auth/logout` - Clear auth cookies
 - `GET /api/v1/auth/me` - Current user info
+- `GET /api/v1/auth/sso/config` - OIDC SSO flag + display name (see `docs/oidc.md`)
+- `POST /api/v1/auth/api-keys/exchange` - API key → short-lived JWT (MCP / non-browser)
 - `GET /api/v1/models` - List models
 - `POST /api/v1/models/{id}/batch-save` - Atomic node/link/diagram save (see `docs/api-collaboration.md`)
+- `GET /api/v1/models/{id}/package` / `POST /api/v1/models/package` - Model ZIP export / async import
 - `POST /api/v1/models/{id}/oef/normalize` - Multipart OEF XML → compact JSON for client import wizard (edit permission; up to ~100 MB)
+- `POST /api/v1/models/{id}/diagram-copies/preview|commit` - Copy a diagram into another model
 - `POST /api/v1/diagram-locks/{id}/acquire` - Diagram edit lock (see `docs/api-collaboration.md`)
 - `GET /api/v1/nodes` - List nodes
 - `GET /api/v1/notations` - List notations

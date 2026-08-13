@@ -13,6 +13,7 @@ The project is built with Kotlin + Spring Boot, stores flexible entity attribute
 - Audit logging for data changes
 - JWT-based authentication with refresh token rotation (single-use refresh tokens stored server-side)
 - Browser cookie session (`warchi_access` / `warchi_refresh`) + CSRF (`warchi_csrf` / `X-CSRF-Token`); Bearer header remains supported for API clients
+- Optional Keycloak-compatible OIDC SSO and hashed API keys (`mode=all` or per-model `grants`) for MCP / non-browser clients
 - Cerbos-backed authorization in enforce-only mode
 - Model live-sync over STOMP/WebSocket with optional transactional outbox publishing
 - Built-in health indicators for Cerbos, MinIO, and model-sync outbox
