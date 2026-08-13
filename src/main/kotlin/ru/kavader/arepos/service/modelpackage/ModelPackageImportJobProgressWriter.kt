@@ -55,6 +55,7 @@ class ModelPackageImportJobProgressWriter(
         job.message = null
         job.resultJson = resultJson
         job.errorJson = null
+        job.overridesJson = null
         job.tempPath = null
         job.updatedAt = now
         job.finishedAt = now
@@ -62,14 +63,16 @@ class ModelPackageImportJobProgressWriter(
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    fun markFailed(jobId: UUID, errorJson: String, message: String?) {
+    fun markFailed(jobId: UUID, errorJson: String, message: String?, keepTemp: Boolean = false) {
         val job = jobsRepository.findById(jobId).orElse(null) ?: return
         val now = Instant.now()
         job.status = PackageImportStages.STATUS_FAILED
         job.message = message
         job.errorJson = errorJson
         job.resultJson = null
-        job.tempPath = null
+        if (!keepTemp) {
+            job.tempPath = null
+        }
         job.updatedAt = now
         job.finishedAt = now
         jobsRepository.save(job)
@@ -88,8 +91,27 @@ class ModelPackageImportJobProgressWriter(
         job.message = "Import job timed out"
         job.errorJson = errorJson
         job.tempPath = null
+        job.overridesJson = null
         job.updatedAt = now
         job.finishedAt = now
         jobsRepository.save(job)
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    fun requeueForRetry(jobId: UUID, overridesJson: String?): Boolean {
+        val job = jobsRepository.findById(jobId).orElse(null) ?: return false
+        if (job.status != PackageImportStages.STATUS_FAILED) return false
+        if (job.tempPath.isNullOrBlank()) return false
+        job.status = PackageImportStages.STATUS_QUEUED
+        job.stage = PackageImportStages.QUEUED
+        job.progress = 0
+        job.message = "Queued"
+        job.errorJson = null
+        job.resultJson = null
+        job.overridesJson = overridesJson
+        job.finishedAt = null
+        job.updatedAt = Instant.now()
+        jobsRepository.save(job)
+        return true
     }
 }

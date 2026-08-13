@@ -33,6 +33,7 @@ import ru.kavader.arepos.dto.modelpackage.PackagedDiagram
 import ru.kavader.arepos.dto.modelpackage.PackagedModel
 import ru.kavader.arepos.dto.modelpackage.PackagedNode
 import ru.kavader.arepos.service.FileStorageService
+import ru.kavader.arepos.service.SystemRootNodeTypeService
 import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.util.UUID
@@ -65,6 +66,9 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
 
     @Autowired
     lateinit var objectMapper: ObjectMapper
+
+    @Autowired
+    lateinit var systemRootNodeTypeService: SystemRootNodeTypeService
 
     @AfterEach
     fun clearSecurity() {
@@ -283,29 +287,120 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     }
 
     @Test
-    fun `import conflicts on existing notation name and version`() {
-        val owner = persistUser(email = "package-import-notation-conflict@test.com")
+    fun `import reuses existing compatible notation`() {
+        val owner = persistUser(email = "package-import-notation-reuse@test.com")
         authAs(owner.id!!, Role.USER)
 
-        val notation = persistNotation(owner = owner, name = "Conflict Notation", version = "3.0.0")
-        val nodeType = persistNodeType(owner = owner, name = "Conflict Type")
-        persistComponent(notation = notation, nodeType = nodeType, owner = owner)
+        val notation = persistNotation(owner = owner, name = "Reuse Notation", version = "3.0.0")
+        val nodeType = persistNodeType(owner = owner, name = "Reuse Type")
+        persistComponent(notation = notation, nodeType = nodeType, owner = owner, name = "Reuse Component")
 
-        val model = persistModel(owner = owner, name = "Conflict Notation Model", version = "1.0.0")
+        val model = persistModel(owner = owner, name = "Reuse Notation Model", version = "1.0.0")
         val node = persistNode(model = model, owner = owner, nodeType = nodeType, name = "Root")
         persistDiagram(model = model, notation = notation, owner = owner, node = node, name = "D")
 
         val zipBytes = exportService.export(model.id!!)
-        model.name = "Conflict Notation Model Renamed"
+        model.name = "Reuse Notation Model Renamed"
         modelsRepository.save(model)
 
-        val beforeModels = modelsRepository.count()
-        val ex = assertThrows<ResponseStatusException> {
+        val beforeNotations = notationsRepository.count()
+        val response = importService.importPackage(zipBytes, owner)
+        assertEquals(notation.id, response.notationIdMap[notation.id])
+        assertEquals(beforeNotations, notationsRepository.count())
+        assertTrue(response.warnings.any { it.contains("Reused notation 'Reuse Notation' v3.0.0") })
+        assertEquals("Reuse Notation Model", response.modelName)
+    }
+
+    @Test
+    fun `import forbids reuse when existing notation is not viewable`() {
+        val ownerA = persistUser(email = "package-import-notation-forbidden-a@test.com")
+        authAs(ownerA.id!!, Role.USER)
+
+        val notation = persistNotation(owner = ownerA, name = "Forbidden Notation", version = "1.0.0")
+        val nodeType = persistNodeType(owner = ownerA, name = "Forbidden Type")
+        persistComponent(notation = notation, nodeType = nodeType, owner = ownerA, name = "Forbidden Component")
+
+        val model = persistModel(owner = ownerA, name = "Forbidden Notation Model", version = "1.0.0")
+        val node = persistNode(model = model, owner = ownerA, nodeType = nodeType, name = "Root")
+        persistDiagram(model = model, notation = notation, owner = ownerA, node = node, name = "D")
+
+        val zipBytes = exportService.export(model.id!!)
+        model.name = "Forbidden Notation Model Archived"
+        modelsRepository.save(model)
+
+        val ownerB = persistUser(email = "package-import-notation-forbidden-b@test.com")
+        authAs(ownerB.id!!, Role.USER)
+
+        val ex = assertThrows<PackageImportConflictException> {
+            importService.importPackage(zipBytes, ownerB)
+        }
+        assertEquals("NOTATION_EXISTS_FORBIDDEN", ex.code)
+        assertEquals("notation", ex.conflict.entity)
+        assertEquals("Forbidden Notation", ex.conflict.name)
+    }
+
+    @Test
+    fun `import fails when existing notation is incompatible`() {
+        val owner = persistUser(email = "package-import-notation-incompatible@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val notation = persistNotation(owner = owner, name = "Incompat Notation", version = "1.0.0")
+        val nodeType = persistNodeType(owner = owner, name = "Incompat Type")
+        persistComponent(notation = notation, nodeType = nodeType, owner = owner, name = "Packaged Component")
+
+        val model = persistModel(owner = owner, name = "Incompat Notation Model", version = "1.0.0")
+        val node = persistNode(model = model, owner = owner, nodeType = nodeType, name = "Root")
+        persistDiagram(model = model, notation = notation, owner = owner, node = node, name = "D")
+
+        val zipBytes = exportService.export(model.id!!)
+        model.name = "Incompat Notation Model Archived"
+        modelsRepository.save(model)
+
+        // Break compatibility: same notation name+version, different component name.
+        val components = componentsRepository.findByNotation(notation, org.springframework.data.domain.Pageable.unpaged()).content
+        val component = components.first()
+        component.name = "Different Component"
+        componentsRepository.save(component)
+
+        val ex = assertThrows<PackageImportConflictException> {
             importService.importPackage(zipBytes, owner)
         }
-        assertEquals(HttpStatus.CONFLICT, ex.statusCode)
-        assertTrue(ex.reason!!.contains("Notation"))
-        assertEquals(beforeModels, modelsRepository.count())
+        assertEquals("NOTATION_INCOMPATIBLE", ex.code)
+        assertTrue(ex.conflict.details.any { it.contains("Packaged Component") })
+    }
+
+    @Test
+    fun `import applies model name override when model name version exists`() {
+        val owner = persistUser(email = "package-import-model-override@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val notation = persistNotation(owner = owner, name = "Override Model Notation", version = "1.0.0")
+        val nodeType = persistNodeType(owner = owner, name = "Override Model Type")
+        persistComponent(notation = notation, nodeType = nodeType, owner = owner)
+
+        val model = persistModel(owner = owner, name = "Override Package Model", version = "2.0.0")
+        val node = persistNode(model = model, owner = owner, nodeType = nodeType, name = "Root")
+        persistDiagram(model = model, notation = notation, owner = owner, node = node, name = "D")
+
+        val zipBytes = exportService.export(model.id!!)
+        notation.name = "Override Model Notation Archived"
+        notationsRepository.save(notation)
+
+        val ex = assertThrows<PackageImportConflictException> {
+            importService.importPackage(zipBytes, owner)
+        }
+        assertEquals("MODEL_EXISTS", ex.code)
+        assertEquals("2.1.0", ex.conflict.suggestedVersion)
+
+        val response = importService.importPackage(
+            zipBytes,
+            owner,
+            overrides = ru.kavader.arepos.dto.modelpackage.ModelPackageImportOverrides(
+                targetModelName = "Override Package Model Copy"
+            )
+        )
+        assertEquals("Override Package Model Copy", response.modelName)
+        assertEquals("2.0.0", response.modelVersion)
     }
 
     @Test
@@ -328,10 +423,11 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         notationsRepository.save(notation)
 
         val beforeModels = modelsRepository.count()
-        val ex = assertThrows<ResponseStatusException> {
+        val ex = assertThrows<PackageImportConflictException> {
             importService.importPackage(zipBytes, owner)
         }
         assertEquals(HttpStatus.CONFLICT, ex.statusCode)
+        assertEquals("MODEL_EXISTS", ex.code)
         assertTrue(ex.reason!!.contains("Model"))
         assertEquals(beforeModels, modelsRepository.count())
         assertTrue(notationsRepository.findAll().none { it.name == "Model Conflict Notation" && it.version == "1.0.0" })
@@ -413,11 +509,12 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         val ownerB = persistUser(email = "package-import-folder-b@test.com")
         authAs(ownerB.id!!, Role.USER)
 
-        val systemDirectory = nodeTypesRepository.findByOwnerEmailIgnoreCaseAndNameIgnoreCase(
-            ownerEmail = "system@arepos.local",
-            name = "Directory"
-        )
-        assertNotNull(systemDirectory)
+        // Shared Testcontainers DB across Spring contexts can miss the liquibase seed; ensure it exists.
+        val systemOwner = usersRepository.findByEmailIgnoreCase(SystemRootNodeTypeService.SYSTEM_OWNER_EMAIL)
+            ?: persistUser(email = SystemRootNodeTypeService.SYSTEM_OWNER_EMAIL)
+        val systemDirectory = systemRootNodeTypeService.getOrCreate(systemOwner, Instant.now())
+        assertNotNull(systemDirectory.id)
+        assertEquals("Directory", systemDirectory.name)
 
         val response = importService.importPackage(zipBytes, ownerB)
 

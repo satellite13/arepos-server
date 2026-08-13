@@ -418,7 +418,35 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("FAILED"))
             .andExpect(jsonPath("$.error.status").value(409))
-            .andExpect(jsonPath("$.error.code").value("CONFLICT"))
+            .andExpect(jsonPath("$.error.code").value("MODEL_EXISTS"))
+            .andExpect(jsonPath("$.error.conflict.entity").value("model"))
+            .andExpect(jsonPath("$.error.conflict.name").value("Conflict Package Model"))
+            .andExpect(jsonPath("$.error.conflict.version").value("1.0.0"))
+            .andExpect(jsonPath("$.error.conflict.suggestedVersion").value("1.1.0"))
+
+        val retryBody = """{"targetModelName":"Conflict Package Model Copy","targetModelVersion":"1.0.0"}"""
+        mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                "/api/v1/models/package/jobs/$jobId/retry"
+            )
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(retryBody)
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isAccepted)
+            .andExpect(jsonPath("$.jobId").value(jobId))
+            .andExpect(jsonPath("$.status").value("QUEUED"))
+
+        val retried = awaitImportJob(owner.id!!, jobId)
+        kotlin.test.assertEquals("SUCCEEDED", retried.status)
+        mockMvc.perform(
+            get("/api/v1/models/package/jobs/$jobId")
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("SUCCEEDED"))
+            .andExpect(jsonPath("$.result.modelName").value("Conflict Package Model Copy"))
+            .andExpect(jsonPath("$.result.modelVersion").value("1.0.0"))
     }
 
     @Test

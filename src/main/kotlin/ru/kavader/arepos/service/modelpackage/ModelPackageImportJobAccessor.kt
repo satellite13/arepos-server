@@ -14,6 +14,10 @@ class ModelPackageImportJobAccessor(
         val job = jobsRepository.findById(jobId).orElse(null) ?: return null
         val ownerId = job.owner.id ?: return null
         val path = job.tempPath ?: return null
-        return PackageImportJobSnapshot(ownerId = ownerId, tempPath = path)
+        return PackageImportJobSnapshot(
+            ownerId = ownerId,
+            tempPath = path,
+            overridesJson = job.overridesJson
+        )
     }
 }

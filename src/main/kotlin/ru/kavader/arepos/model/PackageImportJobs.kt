@@ -46,6 +46,10 @@ class PackageImportJobs(
     @Column(name = "error_json", columnDefinition = "jsonb")
     var errorJson: String? = null,
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "overrides_json", columnDefinition = "jsonb")
+    var overridesJson: String? = null,
+
     @Column(name = "temp_path", columnDefinition = "text")
     var tempPath: String? = null,
 

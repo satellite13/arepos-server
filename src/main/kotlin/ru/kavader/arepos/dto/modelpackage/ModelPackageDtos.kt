@@ -99,7 +99,26 @@ data class PackageImportJobResultDto(
 data class PackageImportJobErrorDto(
     val status: Int,
     val message: String,
-    val code: String? = null
+    val code: String? = null,
+    val conflict: PackageImportConflictDto? = null
+)
+
+data class PackageImportConflictDto(
+    val entity: String,
+    val name: String,
+    val version: String,
+    val suggestedVersion: String? = null,
+    val details: List<String> = emptyList()
+)
+
+data class ModelPackageImportOverrides(
+    val targetModelName: String? = null,
+    val targetModelVersion: String? = null
+)
+
+data class PackageImportJobRetryRequest(
+    val targetModelName: String? = null,
+    val targetModelVersion: String? = null
 )
 
 data class PackageImportJobStatusResponse(
@@ -111,3 +130,13 @@ data class PackageImportJobStatusResponse(
     val result: PackageImportJobResultDto? = null,
     val error: PackageImportJobErrorDto? = null
 )
+
+object PackageImportErrorCodes {
+    const val CONFLICT = "CONFLICT"
+    const val MODEL_EXISTS = "MODEL_EXISTS"
+    const val NOTATION_EXISTS_FORBIDDEN = "NOTATION_EXISTS_FORBIDDEN"
+    const val NOTATION_INCOMPATIBLE = "NOTATION_INCOMPATIBLE"
+    const val PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
+    const val BAD_REQUEST = "BAD_REQUEST"
+    const val TIMEOUT = "TIMEOUT"
+}
