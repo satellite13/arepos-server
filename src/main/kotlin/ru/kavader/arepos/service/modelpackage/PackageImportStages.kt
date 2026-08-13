@@ -23,5 +23,6 @@ fun interface PackageImportProgressListener {
 
 data class PackageImportJobSnapshot(
     val ownerId: UUID,
-    val tempPath: String
+    val tempPath: String,
+    val overridesJson: String? = null
 )

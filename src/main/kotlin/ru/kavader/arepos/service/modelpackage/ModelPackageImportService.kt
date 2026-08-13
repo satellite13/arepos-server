@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.import.NotationImportRequest
+import ru.kavader.arepos.dto.modelpackage.ModelPackageImportOverrides
 import ru.kavader.arepos.dto.modelpackage.ModelPackageImportResponse
 import ru.kavader.arepos.dto.modelpackage.ModelPackageManifest
 import ru.kavader.arepos.dto.modelpackage.PackagedDocumentRef
@@ -48,6 +49,7 @@ import java.util.zip.ZipInputStream
 @Service
 class ModelPackageImportService(
     private val notationImportService: NotationImportService,
+    private val notationPackageReuseResolver: NotationPackageReuseResolver,
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
     private val linksRepository: LinksRepository,
@@ -70,6 +72,14 @@ class ModelPackageImportService(
     companion object {
         private const val SYSTEM_ROOT_NODE_NAME = "Root"
         private val logger = LoggerFactory.getLogger(ModelPackageImportService::class.java)
+
+        fun bumpMinorVersion(version: String): String? {
+            val parts = version.trim().split(".")
+            if (parts.size < 2) return null
+            val major = parts[0].toIntOrNull() ?: return null
+            val minor = parts.getOrNull(1)?.toIntOrNull() ?: return null
+            return "$major.${minor + 1}.0"
+        }
     }
 
     private val mdFileLinkRewriter = MdFileLinkRewriter(objectMapper)
@@ -78,7 +88,8 @@ class ModelPackageImportService(
     fun importPackage(
         zipBytes: ByteArray,
         owner: Users,
-        progress: PackageImportProgressListener? = null
+        progress: PackageImportProgressListener? = null,
+        overrides: ModelPackageImportOverrides? = null
     ): ModelPackageImportResponse {
         if (zipBytes.size > ModelPackageLimits.MAX_ZIP_BYTES) {
             throw ResponseStatusException(
@@ -90,7 +101,7 @@ class ModelPackageImportService(
         progress?.onProgress(PackageImportStages.VALIDATING, 5, "Validating package")
         val entries = readZipEntries(zipBytes)
         val manifest = parseManifest(entries)
-        val packagedModel = parseModel(entries)
+        val packagedModel = applyModelOverrides(parseModel(entries), overrides)
         enforceCountLimits(packagedModel, entries)
 
         val notationIdMap = linkedMapOf<UUID, UUID>()
@@ -99,6 +110,7 @@ class ModelPackageImportService(
         val componentIdMap = linkedMapOf<String, UUID>()
         val relationIdMap = linkedMapOf<String, UUID>()
         val shapeIdMap = linkedMapOf<String, UUID>()
+        val reuseWarnings = mutableListOf<String>()
 
         val notationPaths = entries.keys
             .filter { it.startsWith("notations/") && it.endsWith(".json") && !it.contains("..") }
@@ -129,16 +141,23 @@ class ModelPackageImportService(
             } catch (ex: Exception) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid notation package: $path", ex)
             }
-            val result = notationImportService.import(request, owner)
+            val reused = notationPackageReuseResolver.tryReuse(request, owner)
+            val result = if (reused != null) {
+                reuseWarnings += reused.warning
+                reused.response
+            } else {
+                notationImportService.import(request, owner)
+            }
             logger.info(
-                "ModelPackageImport: finished notation {}/{} ({}) in {} ms (components={}, relations={}, shapes={})",
+                "ModelPackageImport: finished notation {}/{} ({}) in {} ms (components={}, relations={}, shapes={}, reused={})",
                 index + 1,
                 notationPaths.size,
                 path,
                 (System.nanoTime() - startedAt) / 1_000_000,
                 result.componentIdMap.size,
                 result.relationIdMap.size,
-                result.shapeIdMap.size
+                result.shapeIdMap.size,
+                reused != null
             )
             val sourceNotationId = parseSourceNotationId(path)
             notationIdMap[sourceNotationId] = result.notationId
@@ -162,9 +181,10 @@ class ModelPackageImportService(
             )
 
             if (modelsRepository.existsByNameAndVersion(packagedModel.name, packagedModel.version)) {
-                throw ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Model with name '${packagedModel.name}' and version '${packagedModel.version}' already exists"
+                throw PackageImportConflictException.modelExists(
+                    name = packagedModel.name,
+                    version = packagedModel.version,
+                    suggestedVersion = bumpMinorVersion(packagedModel.version)
                 )
             }
 
@@ -186,7 +206,7 @@ class ModelPackageImportService(
             )
 
             progress?.onProgress(PackageImportStages.DOCUMENT_REFS, 90, "Restoring document references")
-            val warnings = recreateDocumentRefs(
+            val warnings = reuseWarnings + recreateDocumentRefs(
                 entries = entries,
                 owner = owner,
                 now = now,
@@ -217,6 +237,17 @@ class ModelPackageImportService(
             cleanupUploadedObjects(uploadedObjectKeys)
             throw ex
         }
+    }
+
+    private fun applyModelOverrides(
+        packaged: PackagedModel,
+        overrides: ModelPackageImportOverrides?
+    ): PackagedModel {
+        if (overrides == null) return packaged
+        val name = overrides.targetModelName?.trim()?.takeIf { it.isNotEmpty() } ?: packaged.name
+        val version = overrides.targetModelVersion?.trim()?.takeIf { it.isNotEmpty() } ?: packaged.version
+        if (name == packaged.name && version == packaged.version) return packaged
+        return packaged.copy(name = name, version = version)
     }
 
     private fun parseManifest(entries: Map<String, ByteArray>): ModelPackageManifest {

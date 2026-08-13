@@ -10,9 +10,12 @@ import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.modelpackage.ModelPackageImportOverrides
+import ru.kavader.arepos.dto.modelpackage.PackageImportErrorCodes
 import ru.kavader.arepos.dto.modelpackage.PackageImportJobAcceptedResponse
 import ru.kavader.arepos.dto.modelpackage.PackageImportJobErrorDto
 import ru.kavader.arepos.dto.modelpackage.PackageImportJobResultDto
+import ru.kavader.arepos.dto.modelpackage.PackageImportJobRetryRequest
 import ru.kavader.arepos.dto.modelpackage.PackageImportJobStatusResponse
 import ru.kavader.arepos.model.PackageImportJobs
 import ru.kavader.arepos.model.Users
@@ -93,6 +96,77 @@ class ModelPackageImportJobService(
             ResponseStatusException(HttpStatus.NOT_FOUND, "Import job $jobId not found")
         }
         return toStatusResponse(job)
+    }
+
+    @Transactional
+    fun retryJob(
+        jobId: UUID,
+        ownerId: UUID,
+        request: PackageImportJobRetryRequest
+    ): PackageImportJobAcceptedResponse {
+        val job = jobsRepository.findByIdAndOwnerId(jobId, ownerId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Import job $jobId not found")
+        }
+        if (job.status != PackageImportStages.STATUS_FAILED) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Import job $jobId is not retryable")
+        }
+        val error = job.errorJson?.let { json ->
+            try {
+                objectMapper.readValue<PackageImportJobErrorDto>(json)
+            } catch (_: Exception) {
+                null
+            }
+        }
+        if (error?.code != PackageImportErrorCodes.MODEL_EXISTS) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Import job $jobId can only be retried after MODEL_EXISTS"
+            )
+        }
+        val tempPath = job.tempPath
+        if (tempPath.isNullOrBlank() || !Files.exists(Path.of(tempPath))) {
+            throw ResponseStatusException(
+                HttpStatus.GONE,
+                "Import job $jobId package upload is no longer available; upload the package again"
+            )
+        }
+
+        val name = request.targetModelName?.trim()?.takeIf { it.isNotEmpty() }
+        val version = request.targetModelVersion?.trim()?.takeIf { it.isNotEmpty() }
+        if (name == null && version == null) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Provide targetModelName and/or targetModelVersion"
+            )
+        }
+
+        val overridesJson = objectMapper.writeValueAsString(
+            ModelPackageImportOverrides(
+                targetModelName = name,
+                targetModelVersion = version
+            )
+        )
+        val requeued = progressWriter.requeueForRetry(jobId, overridesJson)
+        if (!requeued) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Import job $jobId is not retryable")
+        }
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                object : TransactionSynchronization {
+                    override fun afterCommit() {
+                        jobRunner.runAsync(jobId)
+                    }
+                }
+            )
+        } else {
+            jobRunner.runAsync(jobId)
+        }
+
+        return PackageImportJobAcceptedResponse(
+            jobId = jobId,
+            status = PackageImportStages.STATUS_QUEUED
+        )
     }
 
     @Transactional

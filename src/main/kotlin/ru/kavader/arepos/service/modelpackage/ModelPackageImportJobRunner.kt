@@ -1,12 +1,18 @@
 package ru.kavader.arepos.service.modelpackage
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.scheduling.annotation.Async
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.authority.SimpleGrantedAuthority
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.config.AuditInterceptor
+import ru.kavader.arepos.dto.modelpackage.ModelPackageImportOverrides
+import ru.kavader.arepos.dto.modelpackage.PackageImportErrorCodes
 import ru.kavader.arepos.dto.modelpackage.PackageImportJobErrorDto
 import ru.kavader.arepos.dto.modelpackage.PackageImportJobResultDto
 import ru.kavader.arepos.repository.UsersRepository
@@ -33,7 +39,30 @@ class ModelPackageImportJobRunner(
             return
         }
 
+        val owner = usersRepository.findById(snapshot.ownerId).orElse(null)
+        if (owner == null) {
+            logger.warn("Package import job {} owner {} not found", jobId, snapshot.ownerId)
+            progressWriter.markFailed(
+                jobId,
+                objectMapper.writeValueAsString(
+                    PackageImportJobErrorDto(status = 404, message = "User ${snapshot.ownerId} not found")
+                ),
+                "User ${snapshot.ownerId} not found",
+                keepTemp = false
+            )
+            ModelPackageImportJobService.deleteTempQuietly(snapshot.tempPath)
+            return
+        }
+
         AuditInterceptor.setCurrentUserId(snapshot.ownerId)
+        val previousAuth = SecurityContextHolder.getContext().authentication
+        SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken(
+            snapshot.ownerId,
+            null,
+            listOf(SimpleGrantedAuthority("ROLE_${owner.role.name}"))
+        )
+
+        var keepTemp = false
         logger.info(
             "Package import job {} started (ownerId={}, tempPath={}, thread={})",
             jobId,
@@ -49,9 +78,6 @@ class ModelPackageImportJobRunner(
                 message = "Validating package"
             )
 
-            val owner = usersRepository.findById(snapshot.ownerId).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "User ${snapshot.ownerId} not found")
-            }
             val zipBytes = Files.readAllBytes(Path.of(snapshot.tempPath))
             logger.info("Package import job {} loaded zip ({} bytes)", jobId, zipBytes.size)
             val listener = PackageImportProgressListener { stage, progress, message ->
@@ -64,7 +90,15 @@ class ModelPackageImportJobRunner(
                 )
                 progressWriter.updateProgress(jobId, stage, progress, message)
             }
-            val result = importService.importPackage(zipBytes, owner, listener)
+            val overrides = snapshot.overridesJson?.let { json ->
+                try {
+                    objectMapper.readValue<ModelPackageImportOverrides>(json)
+                } catch (ex: Exception) {
+                    logger.warn("Package import job {} invalid overrides_json", jobId, ex)
+                    null
+                }
+            }
+            val result = importService.importPackage(zipBytes, owner, listener, overrides)
             val resultJson = objectMapper.writeValueAsString(
                 PackageImportJobResultDto(
                     modelId = result.modelId,
@@ -80,13 +114,38 @@ class ModelPackageImportJobRunner(
                 result.modelId,
                 result.warnings.size
             )
+        } catch (ex: PackageImportConflictException) {
+            keepTemp = ex.code == PackageImportErrorCodes.MODEL_EXISTS
+            val status = ex.statusCode.value()
+            val message = ex.reason ?: ex.message ?: "Import failed"
+            logger.error(
+                "Package import job {} failed with conflict {}: {} (keepTemp={})",
+                jobId,
+                ex.code,
+                message,
+                keepTemp,
+                ex
+            )
+            progressWriter.markFailed(
+                jobId,
+                objectMapper.writeValueAsString(
+                    PackageImportJobErrorDto(
+                        status = status,
+                        message = message,
+                        code = ex.code,
+                        conflict = ex.conflict
+                    )
+                ),
+                message,
+                keepTemp = keepTemp
+            )
         } catch (ex: ResponseStatusException) {
             val status = ex.statusCode.value()
             val message = ex.reason ?: ex.message ?: "Import failed"
             val code = when (status) {
-                HttpStatus.CONFLICT.value() -> "CONFLICT"
-                HttpStatus.PAYLOAD_TOO_LARGE.value() -> "PAYLOAD_TOO_LARGE"
-                HttpStatus.BAD_REQUEST.value() -> "BAD_REQUEST"
+                HttpStatus.CONFLICT.value() -> PackageImportErrorCodes.CONFLICT
+                HttpStatus.PAYLOAD_TOO_LARGE.value() -> PackageImportErrorCodes.PAYLOAD_TOO_LARGE
+                HttpStatus.BAD_REQUEST.value() -> PackageImportErrorCodes.BAD_REQUEST
                 else -> null
             }
             logger.error(
@@ -102,7 +161,8 @@ class ModelPackageImportJobRunner(
                 objectMapper.writeValueAsString(
                     PackageImportJobErrorDto(status = status, message = message, code = code)
                 ),
-                message
+                message,
+                keepTemp = false
             )
         } catch (ex: Throwable) {
             // Catch Error too (OOM/StackOverflow): otherwise job stays RUNNING forever.
@@ -114,7 +174,8 @@ class ModelPackageImportJobRunner(
                     objectMapper.writeValueAsString(
                         PackageImportJobErrorDto(status = 500, message = message)
                     ),
-                    message
+                    message,
+                    keepTemp = false
                 )
             }.onFailure { markEx ->
                 logger.error("Package import job {} could not mark failed after fatal error", jobId, markEx)
@@ -123,9 +184,12 @@ class ModelPackageImportJobRunner(
                 throw ex
             }
         } finally {
-            ModelPackageImportJobService.deleteTempQuietly(snapshot.tempPath)
+            if (!keepTemp) {
+                ModelPackageImportJobService.deleteTempQuietly(snapshot.tempPath)
+            }
+            SecurityContextHolder.getContext().authentication = previousAuth
             AuditInterceptor.clearCurrentUserId()
-            logger.info("Package import job {} finished cleanup", jobId)
+            logger.info("Package import job {} finished cleanup (keepTemp={})", jobId, keepTemp)
         }
     }
 }

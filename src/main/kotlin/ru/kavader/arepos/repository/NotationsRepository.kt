@@ -35,6 +35,9 @@ interface NotationsRepository : JpaRepository<Notations, UUID> {
     @Query("SELECT CASE WHEN COUNT(n) > 0 THEN true ELSE false END FROM Notations n WHERE n.name = :name AND n.version = :version AND n.deleted = false")
     fun existsByNameAndVersion(name: String, version: String): Boolean
 
+    @Query("SELECT n FROM Notations n WHERE n.name = :name AND n.version = :version AND n.deleted = false")
+    fun findByNameAndVersion(name: String, version: String): Notations?
+
     @Query("SELECT CASE WHEN COUNT(n) > 0 THEN true ELSE false END FROM Notations n WHERE n.id = :id AND n.deleted = false")
     override fun existsById(id: UUID): Boolean
 

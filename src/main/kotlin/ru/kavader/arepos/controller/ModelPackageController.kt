@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.modelpackage.PackageImportJobAcceptedResponse
+import ru.kavader.arepos.dto.modelpackage.PackageImportJobRetryRequest
 import ru.kavader.arepos.dto.modelpackage.PackageImportJobStatusResponse
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.ResourceAccessService
@@ -57,5 +59,15 @@ class ModelPackageController(
     @Operation(summary = "Get async model package import job status")
     fun getImportJob(@PathVariable jobId: UUID): PackageImportJobStatusResponse {
         return importJobService.getJob(jobId, accessService.currentUserId())
+    }
+
+    @PostMapping("/package/jobs/{jobId}/retry")
+    @Operation(summary = "Retry a failed model package import after MODEL_EXISTS with name/version overrides")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    fun retryImportJob(
+        @PathVariable jobId: UUID,
+        @RequestBody request: PackageImportJobRetryRequest
+    ): PackageImportJobAcceptedResponse {
+        return importJobService.retryJob(jobId, accessService.currentUserId(), request)
     }
 }
