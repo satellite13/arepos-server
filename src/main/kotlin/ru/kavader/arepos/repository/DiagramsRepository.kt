@@ -204,4 +204,12 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
         nativeQuery = true
     )
     fun findRecentAccessibleForUser(currentUserId: UUID, limit: Int): List<Diagrams>
+
+    @Query(
+        "SELECT d FROM Diagrams d JOIN FETCH d.model WHERE d.deleted = false ORDER BY d.updatedAt DESC NULLS LAST"
+    )
+    fun findRecentWithModel(pageable: Pageable): List<Diagrams>
+
+    @Query("SELECT d FROM Diagrams d JOIN FETCH d.model WHERE d.id IN :ids")
+    fun findAllWithModelByIdIn(ids: Collection<UUID>): List<Diagrams>
 }

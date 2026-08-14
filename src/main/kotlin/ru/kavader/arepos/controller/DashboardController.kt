@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -11,9 +12,11 @@ import org.springframework.web.bind.annotation.RestController
 import ru.kavader.arepos.dto.dashboard.DashboardRecentResponse
 import ru.kavader.arepos.dto.dashboard.DashboardStatsResponse
 import ru.kavader.arepos.mapper.AuditMapper
+import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.SharePermission
 import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/dashboard")
@@ -53,6 +56,7 @@ class DashboardController(
 
     @GetMapping("/recent")
     @Operation(summary = "Get recent dashboard activity")
+    @Transactional(readOnly = true)
     fun getRecent(@RequestParam(defaultValue = "5") limit: Int): DashboardRecentResponse {
         val recentSort = Sort.by(Sort.Direction.DESC, "updatedAt")
         val pageable = PageRequest.of(0, limit, recentSort)
@@ -82,11 +86,9 @@ class DashboardController(
         }
 
         val diagrams = if (accessService.canViewAdminPanel()) {
-            diagramsRepository.findAll(
-                PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "updatedAt"))
-            ).content
+            diagramsRepository.findRecentWithModel(PageRequest.of(0, limit))
         } else {
-            diagramsRepository.findRecentAccessibleForUser(accessService.currentUserId(), limit)
+            loadAccessibleRecentDiagrams(accessService.currentUserId(), limit)
         }
 
         return DashboardRecentResponse(
@@ -96,5 +98,13 @@ class DashboardController(
         )
     }
 
-
+    private fun loadAccessibleRecentDiagrams(currentUserId: UUID, limit: Int): List<Diagrams> {
+        val recent = diagramsRepository.findRecentAccessibleForUser(currentUserId, limit)
+        if (recent.isEmpty()) {
+            return recent
+        }
+        val ids = recent.map { requireNotNull(it.id) }
+        val byId = diagramsRepository.findAllWithModelByIdIn(ids).associateBy { requireNotNull(it.id) }
+        return ids.mapNotNull { byId[it] }
+    }
 }
