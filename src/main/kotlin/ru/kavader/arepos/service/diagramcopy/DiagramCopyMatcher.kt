@@ -44,6 +44,10 @@ data class MatcherResult(
 @Component
 class DiagramCopyMatcher {
 
+    companion object {
+        const val UNRESOLVED_EDGE_ENDPOINT = "UNRESOLVED_EDGE_ENDPOINT"
+    }
+
     fun buildPreview(
         sourceNodes: List<MatchableNode>,
         sourceLinks: List<MatchableLink>,
@@ -293,6 +297,7 @@ class DiagramCopyMatcher {
                 modelLinkId = edge.modelLinkId,
                 sourceModelNodeId = edge.sourceModelNodeId,
                 targetModelNodeId = edge.targetModelNodeId,
+                code = UNRESOLVED_EDGE_ENDPOINT,
                 reason = "An edge endpoint or link is unresolved"
             )
         } else {

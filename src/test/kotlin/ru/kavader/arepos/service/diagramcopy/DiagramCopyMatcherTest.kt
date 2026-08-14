@@ -199,6 +199,7 @@ class DiagramCopyMatcherTest {
         )
 
         assertEquals(listOf(edge.edgeInstanceId), result.blockers.map { it.edgeInstanceId })
+        assertEquals(listOf(DiagramCopyMatcher.UNRESOLVED_EDGE_ENDPOINT), result.blockers.map { it.code })
         assertTrue(result.nodes.single().isEndpointOfEdge)
     }
 

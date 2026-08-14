@@ -59,6 +59,7 @@ data class DiagramCopyEdgeBlocker(
     val modelLinkId: UUID?,
     val sourceModelNodeId: UUID?,
     val targetModelNodeId: UUID?,
+    val code: String,
     val reason: String
 )
 
