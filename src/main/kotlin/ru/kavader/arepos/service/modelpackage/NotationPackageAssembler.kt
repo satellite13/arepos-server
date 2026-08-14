@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.kavader.arepos.dto.import.ImportedComponent
+import ru.kavader.arepos.dto.import.ImportedLibraryIcon
 import ru.kavader.arepos.dto.import.ImportedLinkType
 import ru.kavader.arepos.dto.import.ImportedNodeShape
 import ru.kavader.arepos.dto.import.ImportedNodeType
@@ -26,6 +27,8 @@ import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.RelationRulesRepository
 import ru.kavader.arepos.repository.RelationsRepository
+import ru.kavader.arepos.service.LibraryIconNameCollector
+import ru.kavader.arepos.service.LibraryIconService
 import ru.kavader.arepos.service.buildEffectiveShapes
 import ru.kavader.arepos.service.stripDocumentFileIdFromAttrs
 import java.time.Instant
@@ -40,7 +43,9 @@ class NotationPackageAssembler(
     private val nodeTypesRepository: NodeTypesRepository,
     private val linkTypesRepository: LinkTypesRepository,
     private val nodeShapesRepository: NodeShapesRepository,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val libraryIconNameCollector: LibraryIconNameCollector,
+    private val libraryIconService: LibraryIconService
 ) {
     /** Flat payload for model package `notations/<id>.json` and NotationImportService. */
     @Transactional(readOnly = true)
@@ -85,7 +90,10 @@ class NotationPackageAssembler(
                 )
             },
             relationRules = snapshot.relationRules,
-            shapes = snapshot.shapes
+            shapes = snapshot.shapes,
+            icons = collectLibraryIcons(snapshot, notation.attrs).map { icon ->
+                ImportedLibraryIcon(name = icon.getValue("name"), svg = icon.getValue("svg"))
+            }
         )
     }
 
@@ -172,8 +180,23 @@ class NotationPackageAssembler(
                     "contentArea" to shape.contentArea,
                     "attrs" to shape.attrs
                 )
-            }
+            },
+            "icons" to collectLibraryIcons(snapshot, notation.attrs)
         )
+    }
+
+    private fun collectLibraryIcons(snapshot: NotationSnapshot, notationAttrs: String?): List<Map<String, String>> {
+        val names = linkedSetOf<String>()
+        names += libraryIconNameCollector.collectFromJson(notationAttrs)
+        snapshot.nodeTypes.forEach { names += libraryIconNameCollector.collectFromJson(it.attrs) }
+        snapshot.linkTypes.forEach { names += libraryIconNameCollector.collectFromJson(it.attrs) }
+        snapshot.components.forEach { names += libraryIconNameCollector.collectFromJson(it.attrs) }
+        snapshot.relations.forEach { names += libraryIconNameCollector.collectFromJson(it.attrs) }
+        snapshot.shapes.forEach { names += libraryIconNameCollector.collectFromJson(it.attrs) }
+        if (names.isEmpty()) return emptyList()
+        return libraryIconService.findByNames(names)
+            .sortedBy { it.name }
+            .map { icon -> linkedMapOf("name" to icon.name, "svg" to icon.svg) }
     }
 
     private data class NotationSnapshot(

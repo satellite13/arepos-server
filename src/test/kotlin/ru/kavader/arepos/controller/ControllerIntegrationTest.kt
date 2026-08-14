@@ -47,6 +47,7 @@ abstract class ControllerIntegrationTest : PostgresContainerTest() {
                 public.diagrams,
                 public.nodes,
                 public.node_shapes,
+                public.library_icons,
                 public.node_types,
                 public.link_types,
                 public.notations,

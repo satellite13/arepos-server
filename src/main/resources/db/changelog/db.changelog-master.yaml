@@ -495,3 +495,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 053-library-icons
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/053-library-icons.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

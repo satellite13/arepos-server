@@ -4,10 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import ru.kavader.arepos.model.LibraryIcons
 import ru.kavader.arepos.model.NodeShapes
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
+import ru.kavader.arepos.repository.LibraryIconsRepository
 import ru.kavader.arepos.repository.NodeShapesRepository
+import ru.kavader.arepos.service.SvgSanitizer
 import ru.kavader.arepos.repository.RepositoryTestBase
 import java.time.Instant
 import kotlin.test.assertEquals
@@ -22,6 +25,9 @@ class NotationPackageAssemblerTest : RepositoryTestBase() {
 
     @Autowired
     lateinit var nodeShapesRepository: NodeShapesRepository
+
+    @Autowired
+    lateinit var libraryIconsRepository: LibraryIconsRepository
 
     @Autowired
     lateinit var objectMapper: ObjectMapper
@@ -104,6 +110,57 @@ class NotationPackageAssemblerTest : RepositoryTestBase() {
         val components = state["components"] as List<*>
         assertEquals(1, components.size)
         assertTrue(doc.containsKey("shapes"))
+        assertTrue(doc.containsKey("icons"))
+        @Suppress("UNCHECKED_CAST")
+        assertEquals(emptyList<Any>(), doc["icons"] as List<*>)
+    }
+
+    @Test
+    fun `toClientExportDocument includes used library icons only`() {
+        val owner = usersRepository.save(
+            Users(
+                email = "notation-export-icons@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val sanitizer = SvgSanitizer()
+        val svg = sanitizer.sanitize(
+            """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M1 1h8"/></svg>"""
+        )
+        libraryIconsRepository.save(
+            LibraryIcons(
+                name = "acme-app",
+                svg = svg,
+                contentHash = sanitizer.contentHash(svg),
+                createdBy = owner,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+        val notation = persistNotation(owner = owner, name = "Icon Export Notation", version = "1.0.0")
+        val nodeType = persistNodeType(owner = owner, name = "Icon Export Type")
+        persistComponent(
+            notation = notation,
+            nodeType = nodeType,
+            owner = owner,
+            name = "Icon Export Component",
+            attrs = """{"diagramStyle":{"iconName":"acme-app"}}"""
+        )
+        persistComponent(
+            notation = notation,
+            nodeType = nodeType,
+            owner = owner,
+            name = "Catalog Icon Component",
+            attrs = """{"diagramStyle":{"iconName":"server"}}"""
+        )
+
+        val doc = assembler.toClientExportDocument(notation)
+        @Suppress("UNCHECKED_CAST")
+        val icons = doc["icons"] as List<Map<String, String>>
+        assertEquals(1, icons.size)
+        assertEquals("acme-app", icons.single()["name"])
+        assertNotNull(icons.single()["svg"])
     }
 
     @Test

@@ -25,7 +25,19 @@ data class NotationImportRequest(
     val relationRules: List<ImportedRelationRule> = emptyList(),
     @field:Size(max = 1000)
     @field:Valid
-    val shapes: List<ImportedNodeShape> = emptyList()
+    val shapes: List<ImportedNodeShape> = emptyList(),
+    /** Library SVG snapshots for admin extract. Import does not upsert these. */
+    @field:Size(max = 500)
+    val icons: List<ImportedLibraryIcon> = emptyList()
+)
+
+data class ImportedLibraryIcon(
+    @field:NotBlank
+    @field:Size(max = 255)
+    val name: String,
+    @field:NotBlank
+    @field:Size(max = 102400)
+    val svg: String
 )
 
 data class NotationImportMeta(

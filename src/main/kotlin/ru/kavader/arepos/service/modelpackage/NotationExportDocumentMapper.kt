@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.import.ImportedComponent
+import ru.kavader.arepos.dto.import.ImportedLibraryIcon
 import ru.kavader.arepos.dto.import.ImportedLinkType
 import ru.kavader.arepos.dto.import.ImportedNodeShape
 import ru.kavader.arepos.dto.import.ImportedNodeType
@@ -77,7 +78,8 @@ class NotationExportDocumentMapper(
                 )
             },
             relationRules = mapRelationRules(state.path("relationRules")),
-            shapes = mapShapes(root.path("shapes"))
+            shapes = mapShapes(root.path("shapes")),
+            icons = mapIcons(root.path("icons"))
         )
     }
 
@@ -165,5 +167,15 @@ class NotationExportDocumentMapper(
         if (attrs.isTextual) return attrs.asText()
         if (attrs.isObject) return objectMapper.writeValueAsString(attrs)
         return null
+    }
+
+    private fun mapIcons(array: JsonNode): List<ImportedLibraryIcon> {
+        if (!array.isArray) return emptyList()
+        return array.mapNotNull { node ->
+            val name = node.path("name").asText("").trim()
+            val svg = node.path("svg").asText("").trim()
+            if (name.isEmpty() || svg.isEmpty()) null
+            else ImportedLibraryIcon(name = name, svg = svg)
+        }
     }
 }
