@@ -1,10 +1,11 @@
 package ru.kavader.arepos.mapper
 
 import org.springframework.stereotype.Component
-import ru.kavader.arepos.dto.dashboard.DashboardActivityItem
+import ru.kavader.arepos.dto.dashboard.DashboardRecentDiagramItem
 import ru.kavader.arepos.dto.dashboard.DashboardRecentItem
 import ru.kavader.arepos.dto.system.AuditLogResponse
 import ru.kavader.arepos.model.AuditLog
+import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Notations
 
@@ -37,12 +38,12 @@ class AuditMapper {
         updatedAt = notation.updatedAt
     )
 
-    fun toActivityItem(auditLog: AuditLog): DashboardActivityItem = DashboardActivityItem(
-        id = requireNotNull(auditLog.id),
-        tableName = auditLog.tableName,
-        operation = auditLog.operation,
-        rowId = auditLog.rowId,
-        changedById = auditLog.changedBy?.id,
-        changedAt = auditLog.changedAt
+    fun toRecentDiagramItem(diagram: Diagrams): DashboardRecentDiagramItem = DashboardRecentDiagramItem(
+        id = requireNotNull(diagram.id),
+        name = diagram.name,
+        version = diagram.version,
+        modelId = requireNotNull(diagram.model.id),
+        modelName = diagram.model.name,
+        updatedAt = diagram.updatedAt
     )
 }

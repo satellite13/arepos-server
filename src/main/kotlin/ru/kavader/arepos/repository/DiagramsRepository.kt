@@ -175,4 +175,33 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
 
     @Query("SELECT d FROM Diagrams d WHERE d.model.id = :modelId AND d.deleted = false")
     fun findAllActiveByModelId(modelId: UUID): List<Diagrams>
+
+    @Query(
+        value = """
+            SELECT d.*
+            FROM diagrams d
+            WHERE d.deleted = false
+              AND EXISTS (
+                  SELECT 1
+                  FROM models m
+                  WHERE m.id = d.model
+                    AND m.deleted = false
+                    AND (
+                        m.owner = :currentUserId
+                        OR EXISTS (
+                            SELECT 1
+                            FROM resource_shares rs
+                            WHERE rs.resource_type = 'MODEL'
+                              AND rs.resource_id = m.id
+                              AND rs.permission IN ('VIEW', 'EDIT')
+                              AND (rs.grantee_user_id = :currentUserId OR rs.grantee_user_id IS NULL)
+                        )
+                    )
+              )
+            ORDER BY d.updated_at DESC NULLS LAST
+            LIMIT :limit
+        """,
+        nativeQuery = true
+    )
+    fun findRecentAccessibleForUser(currentUserId: UUID, limit: Int): List<Diagrams>
 }

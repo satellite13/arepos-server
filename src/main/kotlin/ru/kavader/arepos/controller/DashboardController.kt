@@ -23,8 +23,7 @@ class DashboardController(
     private val notationsRepository: NotationsRepository,
     private val nodeTypesRepository: NodeTypesRepository,
     private val linkTypesRepository: LinkTypesRepository,
-    private val auditLogRepository: AuditLogRepository,
-    private val usersRepository: UsersRepository,
+    private val diagramsRepository: DiagramsRepository,
     private val accessService: ResourceAccessService,
     private val auditMapper: AuditMapper
 ) {
@@ -82,18 +81,18 @@ class DashboardController(
             ).content
         }
 
-        val activityPageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "changedAt"))
-        val activity = if (accessService.canViewAdminPanel()) {
-            auditLogRepository.findAll(activityPageable).content
+        val diagrams = if (accessService.canViewAdminPanel()) {
+            diagramsRepository.findAll(
+                PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "updatedAt"))
+            ).content
         } else {
-            val currentUser = usersRepository.findById(accessService.currentUserId()).orElseThrow()
-            auditLogRepository.findByChangedBy(currentUser, activityPageable).content
+            diagramsRepository.findRecentAccessibleForUser(accessService.currentUserId(), limit)
         }
 
         return DashboardRecentResponse(
             models = models.map { auditMapper.toRecentItem(it) },
             notations = notations.map { auditMapper.toRecentItem(it) },
-            activity = activity.map { auditMapper.toActivityItem(it) }
+            diagrams = diagrams.map { auditMapper.toRecentDiagramItem(it) }
         )
     }
 

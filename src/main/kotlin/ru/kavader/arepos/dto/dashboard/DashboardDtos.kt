@@ -13,7 +13,7 @@ data class DashboardStatsResponse(
 data class DashboardRecentResponse(
     val models: List<DashboardRecentItem>,
     val notations: List<DashboardRecentItem>,
-    val activity: List<DashboardActivityItem>
+    val diagrams: List<DashboardRecentDiagramItem>
 )
 
 data class DashboardRecentItem(
@@ -24,11 +24,11 @@ data class DashboardRecentItem(
     val updatedAt: Instant?
 )
 
-data class DashboardActivityItem(
+data class DashboardRecentDiagramItem(
     val id: UUID,
-    val tableName: String,
-    val operation: String,
-    val rowId: UUID,
-    val changedById: UUID?,
-    val changedAt: Instant?
+    val name: String,
+    val version: String,
+    val modelId: UUID,
+    val modelName: String,
+    val updatedAt: Instant?
 )
