@@ -16,6 +16,27 @@ object DiagramCanvasJsonCleanup {
     const val DIAGRAM_NOTE_EDGE_MODEL_LINK_PREFIX: String = "__diagram-note-edge__:"
     private val log = LoggerFactory.getLogger(DiagramCanvasJsonCleanup::class.java)
 
+    fun extractModelNodeIds(attrs: String?, objectMapper: ObjectMapper): Set<UUID> {
+        if (attrs.isNullOrBlank()) return emptySet()
+        return try {
+            val root = objectMapper.readTree(attrs)
+            val ids = linkedSetOf<UUID>()
+            fun scan(container: JsonNode?) {
+                val canvasNodes = container?.get("nodes") ?: return
+                if (!canvasNodes.isArray) return
+                for (node in canvasNodes) {
+                    val raw = node.path("modelNodeId").asText(null) ?: continue
+                    runCatching { UUID.fromString(raw) }.getOrNull()?.let { ids.add(it) }
+                }
+            }
+            scan(root)
+            scan(root.get("instances"))
+            ids
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
     fun cleanupDiagramAttrs(
         attrs: String?,
         objectMapper: ObjectMapper,

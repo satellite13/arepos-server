@@ -9,6 +9,7 @@ import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
+import ru.kavader.arepos.service.DiagramOnlyOrphanCleanupService
 import java.time.Instant
 import java.util.*
 
@@ -47,6 +48,7 @@ class BatchGraphOpsExecutor(
     private val notationsRepository: NotationsRepository,
     private val accessService: ResourceAccessService,
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
+    private val diagramOnlyOrphanCleanupService: DiagramOnlyOrphanCleanupService,
     private val typeUsageAuthorization: TypeUsageAuthorization,
     private val diagramAttrsRemapper: DiagramAttrsRemapper
 ) {
@@ -79,7 +81,7 @@ class BatchGraphOpsExecutor(
         val linksCreated = createLinks(request.links.create, model, owner, now, nodeIdMap, linkIdMap)
         val linksUpdated = updateLinks(request.links.update, model, now, nodeIdMap)
 
-        val diagramsDeleted = deleteDiagrams(request.diagrams.delete)
+        val diagramsDeleted = deleteDiagrams(request.diagrams.delete, requireNotNull(model.id))
         val diagramsCreated = createDiagrams(
             request.diagrams.create, model, owner, now, nodeIdMap, linkIdMap, diagramIdMap
         )
@@ -314,21 +316,23 @@ class BatchGraphOpsExecutor(
             diagram.version = upd.version
             diagram.notation = fields.notation
             diagram.node = fields.node
-            diagram.attrs = fields.attrs
+            // null attrs = metadata-only update (move/rename) — keep stored canvas
+            if (upd.attrs != null) {
+                diagram.attrs = fields.attrs
+            }
             diagram.updatedAt = now
             diagramsRepository.save(diagram)
         }
         return updates.size
     }
 
-    private fun deleteDiagrams(entries: List<BatchDeleteEntry>): Int {
-        for (entry in entries) {
-            val id = entry.id
-            if (!diagramsRepository.existsById(id)) {
-                throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
-            }
-            diagramsRepository.softDeleteById(id)
+    private fun deleteDiagrams(entries: List<BatchDeleteEntry>, modelId: UUID): Int {
+        if (entries.isEmpty()) return 0
+        val diagrams = entries.map { findDiagramOrThrow(it.id) }
+        for (diagram in diagrams) {
+            diagramsRepository.softDeleteById(requireNotNull(diagram.id))
         }
+        diagramOnlyOrphanCleanupService.deleteOrphansAfterDiagramsDeleted(modelId, diagrams)
         return entries.size
     }
 

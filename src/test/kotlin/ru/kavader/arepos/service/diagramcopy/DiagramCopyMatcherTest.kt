@@ -32,6 +32,7 @@ class DiagramCopyMatcherTest {
         val preview = result.nodes.single()
         assertEquals(targetWithStableId.id, preview.autoMatchTargetId)
         assertEquals(DiagramCopyMatchReason.STABLE_ID, preview.autoMatchReason)
+        assertEquals(listOf(targetWithStableId.id), preview.candidates.map { it.id })
     }
 
     @Test
@@ -51,6 +52,7 @@ class DiagramCopyMatcherTest {
         val preview = result.nodes.single()
         assertEquals(target.id, preview.autoMatchTargetId)
         assertEquals(DiagramCopyMatchReason.NAME_AND_TYPE, preview.autoMatchReason)
+        assertEquals(listOf(target.id), preview.candidates.map { it.id })
     }
 
     @Test

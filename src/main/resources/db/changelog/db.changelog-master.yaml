@@ -505,3 +505,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 054-delete-orphaned-diagram-only-nodes
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/054-delete-orphaned-diagram-only-nodes.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

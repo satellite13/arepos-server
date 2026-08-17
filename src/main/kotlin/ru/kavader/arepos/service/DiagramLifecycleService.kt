@@ -16,7 +16,8 @@ import java.time.Instant
 class DiagramLifecycleService(
     private val diagramsRepository: DiagramsRepository,
     private val mdFileLinkValidator: MdFileLinkValidator,
-    private val modelSyncBroadcaster: ModelSyncBroadcaster
+    private val modelSyncBroadcaster: ModelSyncBroadcaster,
+    private val diagramOnlyOrphanCleanupService: DiagramOnlyOrphanCleanupService
 ) {
     @Transactional
     fun createBaseline(diagram: Diagrams): Diagrams {
@@ -69,6 +70,10 @@ class DiagramLifecycleService(
         if (deletedCount == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram $id not found")
         }
+        diagramOnlyOrphanCleanupService.deleteOrphansAfterDiagramsDeleted(
+            requireNotNull(diagram.model.id),
+            listOf(diagram)
+        )
         modelSyncBroadcaster.broadcastModelChanged(
             requireNotNull(diagram.model.id),
             ModelSyncChangeType.DIAGRAM_DELETE.wireValue,

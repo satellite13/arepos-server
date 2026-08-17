@@ -220,6 +220,53 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
     }
 
     @Test
+    fun `export omits nodes that remain only on deleted diagrams`() {
+        val owner = persistUser(email = "package-export-deleted-diagram-node@test.com")
+        authAs(owner.id!!, Role.USER)
+
+        val uml = persistNotation(owner = owner, name = "UML-export-orphan", version = "1.0.0")
+        val actorType = persistNodeType(owner = owner, name = "Business Actor")
+        persistComponent(notation = uml, nodeType = actorType, owner = owner, name = "Actor")
+
+        val route = persistNotation(owner = owner, name = "Route-export-orphan", version = "1.0.0")
+        val diagramOnlyType = persistNodeType(owner = owner, name = "Diagram only", attrs = "{}")
+        val routeComponent = persistComponent(
+            notation = route,
+            nodeType = diagramOnlyType,
+            owner = owner,
+            name = "Simple Note"
+        )
+
+        val model = persistModel(owner = owner, name = "Export orphan model", version = "1.1.0")
+        persistNode(model = model, owner = owner, nodeType = actorType, name = "Actor")
+        val leftover = persistNode(
+            model = model,
+            owner = owner,
+            nodeType = diagramOnlyType,
+            name = "Simple path",
+            attrs = """{"notationComponents":{"${route.id}":{"componentId":"${routeComponent.id}"}}}"""
+        )
+        persistDiagram(model = model, notation = uml, owner = owner, name = "Use-Case 1")
+        val deletedRouteDiagram = persistDiagram(
+            model = model,
+            notation = route,
+            owner = owner,
+            name = "Route to Work",
+            attrs = """{"instances":{"nodes":[{"id":"inst-1","modelNodeId":"${leftover.id}"}],"edges":[]}}"""
+        )
+        deletedRouteDiagram.deleted = true
+        diagramsRepository.save(deletedRouteDiagram)
+
+        val entries = readZipEntries(exportService.export(model.id!!))
+        val modelJson = objectMapper.readTree(entries["model.json"])
+        val nodeNames = modelJson.path("nodes").map { it.path("name").asText() }
+        assertTrue("Actor" in nodeNames)
+        assertTrue("Simple path" !in nodeNames)
+        assertTrue(entries.containsKey("notations/${uml.id}.json"))
+        assertTrue(!entries.containsKey("notations/${route.id}.json"))
+    }
+
+    @Test
     fun `export ignores legacy Directory system type outside notations`() {
         val owner = persistUser(email = "package-export-legacy-directory@test.com")
         authAs(owner.id!!, Role.USER)

@@ -748,4 +748,93 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         assertNotNull(reloadedModel.syncRevision)
         assertTrue(reloadedModel.syncRevision > 0)
     }
+
+    @Test
+    fun `batch save move diagram with null attrs keeps stored canvas`() {
+        val owner = usersRepository.save(
+            Users(
+                email = "batch-owner-move-diagram@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "m-move-diagram",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+        val nodeType = nodeTypesRepository.save(
+            NodeTypes(
+                name = "nt-move-diagram-dir",
+                createdAt = Instant.now(),
+                owner = owner
+            )
+        )
+        val folder = nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "Folder",
+                model = model,
+                owner = owner,
+                nodeType = nodeType,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+        val notation = notationsRepository.save(
+            Notations(
+                name = "notation-move-diagram",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val canvas = """{"instances":{"nodes":[{"id":"i1","modelNodeId":"${folder.id}"}],"edges":[]}}"""
+        val diagram = diagramsRepository.save(
+            Diagrams(
+                name = "Imported diagram",
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                attrs = canvas,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+
+        val payload = mapOf(
+            "diagrams" to mapOf(
+                "update" to listOf(
+                    mapOf(
+                        "id" to diagram.id.toString(),
+                        "name" to diagram.name,
+                        "version" to diagram.version,
+                        "notationId" to notation.id.toString(),
+                        "nodeId" to folder.id.toString(),
+                        "attrs" to null,
+                        "baseUpdatedAt" to diagram.updatedAt.toString()
+                    )
+                )
+            )
+        )
+
+        mockMvc.perform(
+            post("/api/v1/models/${model.id}/batch-save")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.diagramsUpdated").value(1))
+
+        val updated = diagramsRepository.findById(requireNotNull(diagram.id)).orElseThrow()
+        assertEquals(folder.id, updated.node?.id)
+        val keptAttrs = updated.attrs ?: error("Diagram attrs must stay set")
+        assertTrue(keptAttrs.contains("i1"))
+        assertTrue(keptAttrs.contains(requireNotNull(folder.id).toString()))
+    }
 }

@@ -34,6 +34,7 @@ import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.repository.RelationsRepository
 import ru.kavader.arepos.security.ResourceAccessService
+import ru.kavader.arepos.service.DiagramCanvasJsonCleanup
 import ru.kavader.arepos.service.FileStorageService
 import java.io.ByteArrayOutputStream
 import java.time.Instant
@@ -66,13 +67,22 @@ class ModelPackageExportService(
         }
         accessService.requireCanViewModel(model)
 
-        val nodes = nodesRepository.findByModelIdOrdered(model.id!!, Pageable.unpaged()).content
-        val links = linksRepository.findByModelOrderByIdAsc(model, Pageable.unpaged()).content
+        val allNodes = nodesRepository.findByModelIdOrdered(model.id!!, Pageable.unpaged()).content
+        val allLinks = linksRepository.findByModelOrderByIdAsc(model, Pageable.unpaged()).content
         val diagrams = diagramsRepository.findAllActiveByModelId(model.id!!)
+        val deletedDiagrams = diagramsRepository.findAllDeletedByModelId(model.id!!)
+        val (nodes, links) = excludeNodesOnlyOnDeletedDiagrams(allNodes, allLinks, diagrams, deletedDiagrams)
 
         enforceCountLimits(nodes, links, diagrams)
 
         val notationIds = diagrams.mapNotNull { it.notation?.id }.toCollection(linkedSetOf())
+        notationIds.addAll(extractBoundNotationIds(model.attrs))
+        for (node in nodes) {
+            notationIds.addAll(extractBoundNotationIds(node.attrs))
+        }
+        for (link in links) {
+            notationIds.addAll(extractBoundNotationIds(link.attrs))
+        }
         if (notationIds.size > ModelPackageLimits.MAX_NOTATIONS) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
@@ -80,16 +90,22 @@ class ModelPackageExportService(
             )
         }
 
+        val diagramNotationIds = diagrams.mapNotNull { it.notation?.id }.toSet()
         val notations = linkedMapOf<UUID, Notations>()
         for (notationId in notationIds) {
-            val notation = notationsRepository.findById(notationId).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $notationId not found")
+            val notation = notationsRepository.findById(notationId).orElse(null)
+            if (notation == null) {
+                if (notationId in diagramNotationIds) {
+                    throw ResponseStatusException(HttpStatus.NOT_FOUND, "Notation $notationId not found")
+                }
+                // Stale notationComponents / notationRelations keys must not block export.
+                continue
             }
             notations[notationId] = notation
         }
         // Package export requires direct notation read (owner/share), not diagram-mediated view.
         val notationView = accessService.canViewNotations(notations.values)
-        for (notationId in notationIds) {
+        for (notationId in notations.keys) {
             if (notationView[notationId] != true) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Notation $notationId is not readable")
             }
@@ -113,7 +129,7 @@ class ModelPackageExportService(
             model = model,
             nodes = nodes,
             diagrams = diagrams,
-            notationIds = notationIds,
+            notationIds = notations.keys,
             componentsByNotation = componentsByNotation,
             relationsByNotation = relationsByNotation
         )
@@ -189,7 +205,7 @@ class ModelPackageExportService(
                 modelName = model.name,
                 modelVersion = model.version
             ),
-            notationIds = notationIds.toList(),
+            notationIds = notations.keys.toList(),
             fileIds = fileIds.toList()
         )
 
@@ -227,6 +243,43 @@ class ModelPackageExportService(
                 HttpStatus.BAD_REQUEST,
                 "Package exceeds diagram limit of ${ModelPackageLimits.MAX_DIAGRAMS}"
             )
+        }
+    }
+
+    private fun excludeNodesOnlyOnDeletedDiagrams(
+        nodes: List<Nodes>,
+        links: List<Links>,
+        activeDiagrams: List<Diagrams>,
+        deletedDiagrams: List<Diagrams>
+    ): Pair<List<Nodes>, List<Links>> {
+        if (deletedDiagrams.isEmpty()) return nodes to links
+        val activeNodeIds = activeDiagrams
+            .flatMap { DiagramCanvasJsonCleanup.extractModelNodeIds(it.attrs, objectMapper) }
+            .toSet()
+        val orphanedNodeIds = deletedDiagrams
+            .flatMap { DiagramCanvasJsonCleanup.extractModelNodeIds(it.attrs, objectMapper) }
+            .toSet() - activeNodeIds
+        if (orphanedNodeIds.isEmpty()) return nodes to links
+        val keptNodes = nodes.filter { it.id !in orphanedNodeIds }
+        val keptLinks = links.filter { it.source.id !in orphanedNodeIds && it.target.id !in orphanedNodeIds }
+        return keptNodes to keptLinks
+    }
+
+    private fun extractBoundNotationIds(attrs: String?): Set<UUID> {
+        if (attrs.isNullOrBlank()) return emptySet()
+        return try {
+            val root = objectMapper.readTree(attrs)
+            val ids = linkedSetOf<UUID>()
+            for (field in listOf("notationComponents", "notationRelations")) {
+                val obj = root.get(field) ?: continue
+                if (!obj.isObject) continue
+                obj.fieldNames().forEachRemaining { key ->
+                    runCatching { UUID.fromString(key) }.getOrNull()?.let { ids.add(it) }
+                }
+            }
+            ids
+        } catch (_: Exception) {
+            emptySet()
         }
     }
 
