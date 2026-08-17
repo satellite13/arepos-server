@@ -316,7 +316,10 @@ class BatchGraphOpsExecutor(
             diagram.version = upd.version
             diagram.notation = fields.notation
             diagram.node = fields.node
-            diagram.attrs = fields.attrs
+            // null attrs = metadata-only update (move/rename) — keep stored canvas
+            if (upd.attrs != null) {
+                diagram.attrs = fields.attrs
+            }
             diagram.updatedAt = now
             diagramsRepository.save(diagram)
         }
