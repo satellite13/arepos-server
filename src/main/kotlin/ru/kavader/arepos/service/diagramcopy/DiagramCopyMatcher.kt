@@ -214,7 +214,7 @@ class DiagramCopyMatcher {
             typeId = source.nodeTypeId,
             autoMatchTargetId = match?.target?.id,
             autoMatchReason = match?.target?.let { match.reason },
-            candidates = match?.takeIf { it.target == null }?.candidates?.map(::nodeCandidate).orEmpty(),
+            candidates = match?.candidates?.map(::nodeCandidate).orEmpty(),
             effectiveAction = effective.action,
             effectiveTargetId = effective.targetId,
             isEndpointOfEdge = isEndpointOfEdge
@@ -237,8 +237,7 @@ class DiagramCopyMatcher {
             typeId = source.linkTypeId,
             autoMatchTargetId = match?.target?.id,
             autoMatchReason = match?.target?.let { match.reason },
-            candidates = match?.takeIf { it.target == null }
-                ?.candidates
+            candidates = match?.candidates
                 ?.map { linkCandidate(it, targetNodesById) }
                 .orEmpty(),
             effectiveAction = effective.action,
