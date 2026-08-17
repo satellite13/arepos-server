@@ -21,6 +21,7 @@ import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
+import ru.kavader.arepos.service.DiagramOnlyOrphanCleanupService
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -40,6 +41,7 @@ class BatchGraphOpsExecutorTest {
         notationsRepository = mock(NotationsRepository::class.java),
         accessService = mock(ResourceAccessService::class.java),
         diagramCanvasInstancesCleanupService = mock(DiagramCanvasInstancesCleanupService::class.java),
+        diagramOnlyOrphanCleanupService = mock(DiagramOnlyOrphanCleanupService::class.java),
         typeUsageAuthorization = mock(TypeUsageAuthorization::class.java),
         diagramAttrsRemapper = mock(DiagramAttrsRemapper::class.java)
     )

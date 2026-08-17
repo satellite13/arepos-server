@@ -176,6 +176,9 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
     @Query("SELECT d FROM Diagrams d WHERE d.model.id = :modelId AND d.deleted = false")
     fun findAllActiveByModelId(modelId: UUID): List<Diagrams>
 
+    @Query("SELECT d FROM Diagrams d WHERE d.model.id = :modelId AND d.deleted = true")
+    fun findAllDeletedByModelId(modelId: UUID): List<Diagrams>
+
     @Query(
         value = """
             SELECT d.*
