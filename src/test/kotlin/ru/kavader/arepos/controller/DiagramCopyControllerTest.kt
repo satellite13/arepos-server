@@ -259,7 +259,43 @@ class DiagramCopyControllerTest : ControllerIntegrationTest() {
                         )
                     )
                 )
-        ).andExpect(status().isConflict)
+        )
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.error").value("CONFLICT"))
+            .andExpect(jsonPath("$.message").value("Diagram 'Copied' version '1.0.0' already exists in the target model"))
+    }
+
+    @Test
+    fun `commit reports conflict when a deleted diagram occupies the same name and version`() {
+        val fixture = fixture()
+        val sourceNode = fixture.node(fixture.sourceModel, "Source", stableId = UUID.randomUUID())
+        val targetNode = fixture.node(
+            fixture.targetModel,
+            "Target",
+            stableId = sourceNode.stableId,
+            parentNode = fixture.targetRoot
+        )
+        val sourceDiagram = fixture.diagramWithNodes(sourceNode)
+        val deleted = fixture.diagram(fixture.targetModel, "Copied", "1.0.0", """{"instances":{"nodes":[],"edges":[]}}""")
+        deleted.deleted = true
+        diagramsRepository.saveAndFlush(deleted)
+
+        mockMvc.perform(
+            post("/api/v1/models/${fixture.targetModel.id}/diagram-copies/commit")
+                .withAuth(fixture.owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        fixture.commitRequest(
+                            sourceDiagram,
+                            resolutions = listOf(fixture.match(sourceNode.id!!, targetNode.id!!, DiagramCopyEntityKind.NODE))
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.error").value("CONFLICT"))
+            .andExpect(jsonPath("$.message").value("Diagram 'Copied' version '1.0.0' already exists in the target model"))
     }
 
     private fun fixture(): CopyFixture {

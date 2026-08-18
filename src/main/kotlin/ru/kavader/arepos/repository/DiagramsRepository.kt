@@ -15,6 +15,8 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
 
     fun findByModelIdAndNameAndDeletedFalse(modelId: UUID, name: String): List<Diagrams>
 
+    fun findByModelIdAndName(modelId: UUID, name: String): List<Diagrams>
+
     @Query("SELECT d FROM Diagrams d WHERE d.deleted = false")
     override fun findAll(pageable: Pageable): Page<Diagrams>
 
@@ -43,13 +45,13 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
 
     @Query(
         "SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END " +
-                "FROM Diagrams d WHERE d.model = :model AND d.name = :name AND d.version = :version AND d.deleted = false"
+                "FROM Diagrams d WHERE d.model.id = :#{#model.id} AND d.name = :name AND d.version = :version"
     )
     fun existsByModelAndNameAndVersion(model: Models, name: String, version: String): Boolean
 
     @Query(
         "SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END " +
-                "FROM Diagrams d WHERE d.model = :model AND d.name = :name AND d.version = :version AND d.id != :id AND d.deleted = false"
+                "FROM Diagrams d WHERE d.model.id = :#{#model.id} AND d.name = :name AND d.version = :version AND d.id != :id"
     )
     fun existsByModelAndNameAndVersionAndIdNot(model: Models, name: String, version: String, id: UUID): Boolean
 
