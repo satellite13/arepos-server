@@ -68,6 +68,10 @@ class DiagramsRepositoryTest : RepositoryTestBase() {
                 first.id!!
             )
         )
+
+        first.deleted = true
+        diagramsRepository.saveAndFlush(first)
+        assertTrue(diagramsRepository.existsByModelAndNameAndVersion(model, "diagram-unique", "2.1.0"))
     }
 
     @Test

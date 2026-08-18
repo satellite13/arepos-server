@@ -116,7 +116,7 @@ class DiagramCopyService(
         if (diagramsRepository.existsByModelAndNameAndVersion(context.targetModel, request.name, request.version)) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "Diagram with model '$targetModelId', name '${request.name}' and version '${request.version}' already exists"
+                diagramNameVersionConflict(request.name, request.version)
             )
         }
 
@@ -537,7 +537,7 @@ class DiagramCopyService(
     }
 
     private fun suggestVersion(targetModel: Models, sourceDiagram: Diagrams): String {
-        val used = diagramsRepository.findByModelIdAndNameAndDeletedFalse(
+        val used = diagramsRepository.findByModelIdAndName(
             requireNotNull(targetModel.id),
             sourceDiagram.name
         ).mapTo(mutableSetOf()) { it.version }
@@ -547,6 +547,9 @@ class DiagramCopyService(
         }
         return candidate
     }
+
+    private fun diagramNameVersionConflict(name: String, version: String): String =
+        "Diagram '$name' version '$version' already exists in the target model"
 
     private fun bumpPatch(version: String): String {
         val parts = version.split(".")
