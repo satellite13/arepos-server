@@ -10,12 +10,49 @@ import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Models
 import java.util.*
 
+interface DiagramReferenceProjection {
+    fun getId(): UUID
+    fun getName(): String
+    fun getVersion(): String
+    fun getNotationId(): UUID
+    fun getNodeId(): UUID?
+}
+
 @Repository
 interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
 
     fun findByModelIdAndNameAndDeletedFalse(modelId: UUID, name: String): List<Diagrams>
 
     fun findByModelIdAndName(modelId: UUID, name: String): List<Diagrams>
+
+    @Query(
+        value = """
+            SELECT
+                d.id,
+                d.name,
+                d.version,
+                d.notation_id AS "notationId",
+                d.node_id AS "nodeId"
+            FROM diagrams d
+            WHERE d.model = :modelId
+              AND d.deleted = false
+              AND d.attrs @@ CAST(:nodeJsonPath AS jsonpath)
+            ORDER BY d.name, d.id
+        """,
+        countQuery = """
+            SELECT COUNT(*)
+            FROM diagrams d
+            WHERE d.model = :modelId
+              AND d.deleted = false
+              AND d.attrs @@ CAST(:nodeJsonPath AS jsonpath)
+        """,
+        nativeQuery = true
+    )
+    fun findDiagramReferences(
+        modelId: UUID,
+        nodeJsonPath: String,
+        pageable: Pageable
+    ): Page<DiagramReferenceProjection>
 
     @Query("SELECT d FROM Diagrams d WHERE d.deleted = false")
     override fun findAll(pageable: Pageable): Page<Diagrams>
