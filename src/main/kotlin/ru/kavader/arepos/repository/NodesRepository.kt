@@ -11,6 +11,11 @@ import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.model.Users
 import java.util.*
 
+interface NodeTreePageProjection {
+    fun getId(): UUID
+    fun getHasChildren(): Boolean
+}
+
 @Repository
 interface NodesRepository : JpaRepository<Nodes, UUID> {
     fun findByModel(model: Models, pageable: Pageable): Page<Nodes>
@@ -39,6 +44,55 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
         @Param("modelId") modelId: UUID,
         pageable: Pageable
     ): Page<Nodes>
+
+    @Query(
+        value = """
+            SELECT
+                n.id AS id,
+                EXISTS (
+                    SELECT 1
+                    FROM nodes child
+                    JOIN node_types child_type ON child_type.id = child.node_type
+                    WHERE child.model = :modelId
+                      AND child.parent_node = n.id
+                      AND (
+                          NOT :excludeSystem
+                          OR LOWER(COALESCE(child.attrs #>> '{system,hiddenTreeRoot}', 'false')) <> 'true'
+                      )
+                      AND (NOT :foldersOnly OR LOWER(child_type.name) = 'directory')
+                ) AS hasChildren
+            FROM nodes n
+            JOIN node_types node_type ON node_type.id = n.node_type
+            WHERE n.model = :modelId
+              AND n.parent_node IS NOT DISTINCT FROM CAST(:parentNodeId AS uuid)
+              AND (
+                  NOT :excludeSystem
+                  OR LOWER(COALESCE(n.attrs #>> '{system,hiddenTreeRoot}', 'false')) <> 'true'
+              )
+              AND (NOT :foldersOnly OR LOWER(node_type.name) = 'directory')
+            ORDER BY COALESCE((n.attrs ->> 'treeOrder')::int, 0), n.id
+        """,
+        countQuery = """
+            SELECT COUNT(*)
+            FROM nodes n
+            JOIN node_types node_type ON node_type.id = n.node_type
+            WHERE n.model = :modelId
+              AND n.parent_node IS NOT DISTINCT FROM CAST(:parentNodeId AS uuid)
+              AND (
+                  NOT :excludeSystem
+                  OR LOWER(COALESCE(n.attrs #>> '{system,hiddenTreeRoot}', 'false')) <> 'true'
+              )
+              AND (NOT :foldersOnly OR LOWER(node_type.name) = 'directory')
+        """,
+        nativeQuery = true
+    )
+    fun findDirectChildrenPage(
+        @Param("modelId") modelId: UUID,
+        @Param("parentNodeId") parentNodeId: UUID?,
+        @Param("excludeSystem") excludeSystem: Boolean,
+        @Param("foldersOnly") foldersOnly: Boolean,
+        pageable: Pageable
+    ): Page<NodeTreePageProjection>
 
     @Query(
         value = """

@@ -71,7 +71,8 @@ data class NodeResponse(
     val parentNodeId: UUID?,
     val attrs: String?,
     val createdAt: Instant?,
-    val updatedAt: Instant?
+    val updatedAt: Instant?,
+    val hasChildren: Boolean? = null
 )
 
 data class EnsureNodeResponse(
