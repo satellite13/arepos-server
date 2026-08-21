@@ -26,6 +26,23 @@ interface NodeTreePageProjection {
     fun getHasChildren(): Boolean
 }
 
+interface NodeAncestorProjection {
+    fun getId(): UUID
+    fun getStableId(): UUID
+    fun getName(): String
+    fun getModelId(): UUID
+    fun getOwnerId(): UUID
+    fun getNodeTypeId(): UUID
+    fun getParentNodeId(): UUID?
+    fun getAttrs(): String?
+    fun getCreatedAt(): Instant?
+    fun getUpdatedAt(): Instant?
+    fun getHasChildren(): Boolean
+    fun getHiddenTreeRoot(): Boolean
+    fun getDepth(): Int
+    fun getCycle(): Boolean
+}
+
 @Repository
 interface NodesRepository : JpaRepository<Nodes, UUID> {
     fun findByModel(model: Models, pageable: Pageable): Page<Nodes>
@@ -113,6 +130,88 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
         @Param("foldersOnly") foldersOnly: Boolean,
         pageable: Pageable
     ): Page<NodeTreePageProjection>
+
+    @Query(
+        value = """
+            WITH RECURSIVE ancestor_path AS (
+                SELECT
+                    n.id,
+                    n.stable_id,
+                    n.name,
+                    n.model,
+                    n.owner,
+                    n.node_type,
+                    n.parent_node,
+                    n.attrs,
+                    n.created_at,
+                    n.updated_at,
+                    0 AS depth,
+                    ARRAY[n.id]::uuid[] AS visited,
+                    false AS cycle
+                FROM nodes n
+                WHERE n.id = :nodeId
+                  AND n.model = :modelId
+
+                UNION ALL
+
+                SELECT
+                    parent.id,
+                    parent.stable_id,
+                    parent.name,
+                    parent.model,
+                    parent.owner,
+                    parent.node_type,
+                    parent.parent_node,
+                    parent.attrs,
+                    parent.created_at,
+                    parent.updated_at,
+                    path.depth + 1,
+                    path.visited || parent.id,
+                    parent.id = ANY(path.visited)
+                FROM ancestor_path path
+                JOIN nodes parent ON parent.id = path.parent_node
+                WHERE path.parent_node IS NOT NULL
+                  AND path.depth < :maxDepthPlusOne
+                  AND NOT path.cycle
+                  AND LOWER(COALESCE(path.attrs #>> '{system,hiddenTreeRoot}', 'false')) <> 'true'
+                  AND (
+                      CAST(:configuredRootId AS uuid) IS NULL
+                      OR path.id <> CAST(:configuredRootId AS uuid)
+                  )
+            )
+            SELECT
+                path.id AS id,
+                path.stable_id AS "stableId",
+                path.name AS name,
+                path.model AS "modelId",
+                path.owner AS "ownerId",
+                path.node_type AS "nodeTypeId",
+                path.parent_node AS "parentNodeId",
+                CAST(path.attrs AS text) AS attrs,
+                path.created_at AS "createdAt",
+                path.updated_at AS "updatedAt",
+                EXISTS (
+                    SELECT 1
+                    FROM nodes child
+                    WHERE child.model = :modelId
+                      AND child.parent_node = path.id
+                      AND LOWER(COALESCE(child.attrs #>> '{system,hiddenTreeRoot}', 'false')) <> 'true'
+                ) AS "hasChildren",
+                LOWER(COALESCE(path.attrs #>> '{system,hiddenTreeRoot}', 'false')) = 'true'
+                    AS "hiddenTreeRoot",
+                path.depth AS depth,
+                path.cycle AS cycle
+            FROM ancestor_path path
+            ORDER BY path.depth DESC
+        """,
+        nativeQuery = true
+    )
+    fun findAncestorPath(
+        @Param("modelId") modelId: UUID,
+        @Param("nodeId") nodeId: UUID,
+        @Param("configuredRootId") configuredRootId: UUID?,
+        @Param("maxDepthPlusOne") maxDepthPlusOne: Int
+    ): List<NodeAncestorProjection>
 
     @Query(
         value = """
@@ -206,12 +305,22 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
     ): List<Nodes>
 
     @Query(
-        """
-        SELECT n FROM Nodes n
-        WHERE n.model.id = :modelId
-          AND LOWER(n.name) LIKE LOWER(CONCAT('%', :q, '%'))
-        ORDER BY n.name ASC, n.id ASC
-        """
+        value = """
+            SELECT *
+            FROM nodes n
+            WHERE n.model = :modelId
+              AND n.name ILIKE CONCAT('%', :q, '%')
+              AND LOWER(COALESCE(n.attrs #>> '{system,hiddenTreeRoot}', 'false')) <> 'true'
+            ORDER BY n.name ASC, n.id ASC
+        """,
+        countQuery = """
+            SELECT COUNT(*)
+            FROM nodes n
+            WHERE n.model = :modelId
+              AND n.name ILIKE CONCAT('%', :q, '%')
+              AND LOWER(COALESCE(n.attrs #>> '{system,hiddenTreeRoot}', 'false')) <> 'true'
+        """,
+        nativeQuery = true
     )
     fun searchByModelIdAndName(
         @Param("modelId") modelId: UUID,

@@ -208,6 +208,53 @@ class SearchControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `model node search excludes hidden root without changing order or hit limit`() {
+        nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "Match hidden root",
+                createdAt = Instant.now(),
+                attrs = """{"system":{"hiddenTreeRoot":true}}""",
+                model = model,
+                owner = owner,
+                nodeType = nodeType
+            )
+        )
+        val first = nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "Match Alpha",
+                createdAt = Instant.now(),
+                model = model,
+                owner = owner,
+                nodeType = nodeType
+            )
+        )
+        nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "Match Beta",
+                createdAt = Instant.now(),
+                model = model,
+                owner = owner,
+                nodeType = nodeType
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/search/models/${model.id}")
+                .param("q", "match")
+                .param("kinds", "nodes")
+                .param("limit", "1")
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.totalEstimate").value(2))
+            .andExpect(jsonPath("$.hits.length()").value(1))
+            .andExpect(jsonPath("$.hits[0].id").value(first.id.toString()))
+    }
+
+    @Test
     fun `model search finds link by endpoint node name`() {
         val source = nodesRepository.save(
             Nodes(
