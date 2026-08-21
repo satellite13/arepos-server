@@ -191,6 +191,23 @@ class ModelResolveControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `rejects null elements in every resolve id list`() {
+        resolve("/api/v1/models/${model.id}/nodes:resolve", mapOf("nodeIds" to listOf(null)), owner)
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
+        resolve("/api/v1/models/${model.id}/links:resolve", mapOf("linkIds" to listOf(null)), owner)
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
+        resolve(
+            "/api/v1/models/${model.id}/links:resolve",
+            mapOf("endpointNodeIds" to listOf(null)),
+            owner
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
+    }
+
+    @Test
     fun `allows owner shared viewer and admin but rejects stranger before resolve data`() {
         val node = saveNode(model, "visible")
         val viewer = saveUser(Role.USER)

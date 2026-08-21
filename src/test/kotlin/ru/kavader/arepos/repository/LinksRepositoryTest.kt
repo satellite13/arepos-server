@@ -3,6 +3,7 @@ package ru.kavader.arepos.repository
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.data.domain.Pageable
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -41,14 +42,15 @@ class LinksRepositoryTest : RepositoryTestBase() {
             foreignTarget
         )
 
-        val found = linksRepository.findByModelIdAndEndpointNodeIds(
+        val foundIds = linksRepository.findIdsByModelIdAndEndpointNodeIds(
             model.id!!,
-            listOf(endpoint.id!!, foreignSource.id!!)
+            listOf(endpoint.id!!, foreignSource.id!!),
+            Pageable.ofSize(10)
         )
 
         assertEquals(
             listOf(first.id!!, second.id!!).sortedBy { it.toString() },
-            found.map { it.id }
+            foundIds
         )
     }
 }

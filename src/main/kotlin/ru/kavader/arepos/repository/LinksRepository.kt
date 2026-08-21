@@ -23,16 +23,29 @@ interface LinksRepository : JpaRepository<Links, UUID> {
 
     @Query(
         """
-        SELECT l FROM Links l
+        SELECT l.id FROM Links l
+        WHERE l.model.id = :modelId
+          AND l.id IN :linkIds
+        """
+    )
+    fun findIdsByModelIdAndIdIn(
+        @Param("modelId") modelId: UUID,
+        @Param("linkIds") linkIds: Collection<UUID>
+    ): List<UUID>
+
+    @Query(
+        """
+        SELECT l.id FROM Links l
         WHERE l.model.id = :modelId
           AND (l.source.id IN :endpointNodeIds OR l.target.id IN :endpointNodeIds)
         ORDER BY l.id ASC
         """
     )
-    fun findByModelIdAndEndpointNodeIds(
+    fun findIdsByModelIdAndEndpointNodeIds(
         @Param("modelId") modelId: UUID,
-        @Param("endpointNodeIds") endpointNodeIds: Collection<UUID>
-    ): List<Links>
+        @Param("endpointNodeIds") endpointNodeIds: Collection<UUID>,
+        pageable: Pageable
+    ): List<UUID>
 
     fun findByModel_IdAndSource_IdAndTarget_IdAndLinkType_Id(
         modelId: UUID,
