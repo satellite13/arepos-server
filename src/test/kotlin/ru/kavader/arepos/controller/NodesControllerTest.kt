@@ -130,6 +130,33 @@ class NodesControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `honors requested page size up to configured max of 25000`() {
+        mockMvc.perform(
+            get("/api/v1/nodes?page=0&size=25000")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.size").value(25000))
+
+        mockMvc.perform(
+            get("/api/v1/nodes?page=0&size=30000")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.size").value(25000))
+    }
+
+    @Test
+    fun `uses configured default page size when size is omitted`() {
+        mockMvc.perform(
+            get("/api/v1/nodes")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.size").value(50))
+    }
+
+    @Test
     fun `preserves existing parent when parentNodeId is omitted from update`() {
         val folder = nodesRepository.save(
             ru.kavader.arepos.model.Nodes(
