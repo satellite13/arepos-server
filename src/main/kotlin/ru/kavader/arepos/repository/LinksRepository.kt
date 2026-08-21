@@ -19,6 +19,21 @@ interface LinksRepository : JpaRepository<Links, UUID> {
     fun findByModelAndOwnerOrderByIdAsc(model: Models, owner: Users, pageable: Pageable): Page<Links>
     fun existsByLinkTypeId(linkTypeId: UUID): Boolean
 
+    fun findByModel_IdAndIdIn(modelId: UUID, ids: Collection<UUID>): List<Links>
+
+    @Query(
+        """
+        SELECT l FROM Links l
+        WHERE l.model.id = :modelId
+          AND (l.source.id IN :endpointNodeIds OR l.target.id IN :endpointNodeIds)
+        ORDER BY l.id ASC
+        """
+    )
+    fun findByModelIdAndEndpointNodeIds(
+        @Param("modelId") modelId: UUID,
+        @Param("endpointNodeIds") endpointNodeIds: Collection<UUID>
+    ): List<Links>
+
     fun findByModel_IdAndSource_IdAndTarget_IdAndLinkType_Id(
         modelId: UUID,
         sourceId: UUID,
