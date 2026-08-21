@@ -157,5 +157,34 @@ class NodesRepositoryTest : RepositoryTestBase() {
         assertFalse(folderHasChildren.getValue(tiedLow.id!!))
         assertTrue(folderHasChildren.getValue(tiedHigh.id!!))
     }
+
+    @Test
+    fun `folders only hasChildren ignores visible non-directory children`() {
+        val model = persistModel()
+        val owner = model.owner
+        val directoryType = persistNodeType(owner = owner, name = "Directory")
+        val regularType = persistNodeType(owner = owner, name = "Application")
+        val root = persistNode(model = model, owner = owner, nodeType = directoryType)
+        val folder = persistNode(model = model, owner = owner, nodeType = directoryType, parent = root)
+        persistNode(model = model, owner = owner, nodeType = regularType, parent = folder)
+
+        val allChildren = nodesRepository.findDirectChildrenPage(
+            model.id!!,
+            root.id,
+            excludeSystem = true,
+            foldersOnly = false,
+            Pageable.unpaged()
+        )
+        val foldersOnly = nodesRepository.findDirectChildrenPage(
+            model.id!!,
+            root.id,
+            excludeSystem = true,
+            foldersOnly = true,
+            Pageable.unpaged()
+        )
+
+        assertTrue(allChildren.content.single().getHasChildren())
+        assertFalse(foldersOnly.content.single().getHasChildren())
+    }
 }
 

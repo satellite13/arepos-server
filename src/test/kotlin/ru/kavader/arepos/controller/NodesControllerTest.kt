@@ -261,6 +261,13 @@ class NodesControllerTest : ControllerIntegrationTest() {
                 createdAt = Instant.now()
             )
         )
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin-${UUID.randomUUID()}@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
         resourceSharesRepository.save(
             ResourceShares(
                 resourceType = ShareResourceType.MODEL,
@@ -277,7 +284,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
         val expectedIds = listOf(first.id.toString(), second.id.toString())
         val ownerIds = lazyTreeIds(owner.id!!, Role.USER, model.id!!, parent.id!!)
         val sharedIds = lazyTreeIds(viewer.id!!, Role.USER, model.id!!, parent.id!!)
-        val adminIds = lazyTreeIds(owner.id!!, Role.ADMIN, model.id!!, parent.id!!)
+        val adminIds = lazyTreeIds(admin.id!!, Role.ADMIN, model.id!!, parent.id!!)
         val mcpToken = jwtTokenProvider.generateMcpAccessToken(
             owner.id!!,
             Role.USER.name,
