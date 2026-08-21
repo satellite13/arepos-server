@@ -9,9 +9,9 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.NodeResponse
-import ru.kavader.arepos.mapper.ModelMapper
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.repository.ModelsRepository
+import ru.kavader.arepos.repository.NodeTreePageProjection
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import java.util.UUID
@@ -21,7 +21,6 @@ class ModelTreeQueryService(
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
     private val accessService: ResourceAccessService,
-    private val modelMapper: ModelMapper,
     private val objectMapper: ObjectMapper
 ) {
     fun listChildren(
@@ -45,16 +44,11 @@ class ModelTreeQueryService(
             foldersOnly = foldersOnly,
             pageable = boundedPageable
         )
-        val nodesById = nodesRepository.findAllById(projections.content.map { it.getId() })
-            .associateBy { requireNotNull(it.id) }
-        val content = projections.content.mapNotNull { projection ->
-            val node = nodesById[projection.getId()] ?: return@mapNotNull null
-            modelMapper.toResponse(node, projection.getHasChildren())
-        }
-        val missingRows = projections.numberOfElements - content.size
-        val adjustedTotal = (projections.totalElements - missingRows)
-            .coerceAtLeast(boundedPageable.offset + content.size)
-        return PageImpl(content, boundedPageable, adjustedTotal)
+        return PageImpl(
+            projections.content.map(NodeTreePageProjection::toResponse),
+            boundedPageable,
+            projections.totalElements
+        )
     }
 
     private fun resolveParentNodeId(model: Models, parentRef: String): UUID? {
@@ -105,3 +99,17 @@ class ModelTreeQueryService(
         const val MAX_PAGE_SIZE = 500
     }
 }
+
+private fun NodeTreePageProjection.toResponse() = NodeResponse(
+    id = getId(),
+    stableId = getStableId(),
+    name = getName(),
+    modelId = getModelId(),
+    ownerId = getOwnerId(),
+    nodeTypeId = getNodeTypeId(),
+    parentNodeId = getParentNodeId(),
+    attrs = getAttrs(),
+    createdAt = getCreatedAt(),
+    updatedAt = getUpdatedAt(),
+    hasChildren = getHasChildren()
+)

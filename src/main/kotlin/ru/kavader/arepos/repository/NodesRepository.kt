@@ -9,10 +9,20 @@ import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Nodes
 import ru.kavader.arepos.model.Users
+import java.time.Instant
 import java.util.*
 
 interface NodeTreePageProjection {
     fun getId(): UUID
+    fun getStableId(): UUID
+    fun getName(): String
+    fun getModelId(): UUID
+    fun getOwnerId(): UUID
+    fun getNodeTypeId(): UUID
+    fun getParentNodeId(): UUID?
+    fun getAttrs(): String?
+    fun getCreatedAt(): Instant?
+    fun getUpdatedAt(): Instant?
     fun getHasChildren(): Boolean
 }
 
@@ -49,6 +59,15 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
         value = """
             SELECT
                 n.id AS id,
+                n.stable_id AS "stableId",
+                n.name AS name,
+                n.model AS "modelId",
+                n.owner AS "ownerId",
+                n.node_type AS "nodeTypeId",
+                n.parent_node AS "parentNodeId",
+                CAST(n.attrs AS text) AS attrs,
+                n.created_at AS "createdAt",
+                n.updated_at AS "updatedAt",
                 EXISTS (
                     SELECT 1
                     FROM nodes child

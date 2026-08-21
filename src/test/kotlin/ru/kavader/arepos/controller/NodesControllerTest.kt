@@ -1,6 +1,7 @@
 package ru.kavader.arepos.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -164,6 +165,11 @@ class NodesControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.page.totalElements").value(2))
             .andExpect(jsonPath("$.content[0].id").value(first.id.toString()))
+            .andExpect(jsonPath("$.content[0].stableId").value(first.stableId.toString()))
+            .andExpect(jsonPath("$.content[0].name").value(first.name))
+            .andExpect(jsonPath("$.content[0].modelId").value(model.id.toString()))
+            .andExpect(jsonPath("$.content[0].parentNodeId").value(hiddenRoot.id.toString()))
+            .andExpect(jsonPath("$.content[0].attrs").value(containsString("\"treeOrder\"")))
             .andExpect(jsonPath("$.content[0].hasChildren").value(true))
 
         val legacyModel = modelsRepository.save(
