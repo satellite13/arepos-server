@@ -3,6 +3,8 @@ package ru.kavader.arepos.controller
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
@@ -182,6 +184,27 @@ class NodesControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.page.totalElements").value(1))
             .andExpect(jsonPath("$.content[0].id").value(legacyRoot.id.toString()))
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            """{"treeRootNodeId":null}""",
+            """{"treeRootNodeId":""}""",
+            """{"treeRootNodeId":{}}""",
+            """{"treeRootNodeId":[]}""",
+            """{"treeRootNodeId":"not-a-uuid"}"""
+        ]
+    )
+    fun `rejects present invalid tree root configuration`(attrs: String) {
+        model.attrs = attrs
+        modelsRepository.save(model)
+
+        mockMvc.perform(
+            get("/api/v1/nodes?modelId=${model.id}&parentId=root")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isConflict)
     }
 
     @Test

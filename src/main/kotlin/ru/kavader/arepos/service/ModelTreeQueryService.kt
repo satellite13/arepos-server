@@ -47,12 +47,14 @@ class ModelTreeQueryService(
         )
         val nodesById = nodesRepository.findAllById(projections.content.map { it.getId() })
             .associateBy { requireNotNull(it.id) }
-        val content = projections.content.map { projection ->
-            val node = nodesById[projection.getId()]
-                ?: throw IllegalStateException("Node ${projection.getId()} disappeared during tree query")
+        val content = projections.content.mapNotNull { projection ->
+            val node = nodesById[projection.getId()] ?: return@mapNotNull null
             modelMapper.toResponse(node, projection.getHasChildren())
         }
-        return PageImpl(content, boundedPageable, projections.totalElements)
+        val missingRows = projections.numberOfElements - content.size
+        val adjustedTotal = (projections.totalElements - missingRows)
+            .coerceAtLeast(boundedPageable.offset + content.size)
+        return PageImpl(content, boundedPageable, adjustedTotal)
     }
 
     private fun resolveParentNodeId(model: Models, parentRef: String): UUID? {
@@ -80,13 +82,17 @@ class ModelTreeQueryService(
     private fun configuredRootId(model: Models): UUID? {
         val attrs = model.attrs ?: return null
         val rootNodeId = try {
-            objectMapper.readTree(attrs).path("treeRootNodeId")
+            objectMapper.readTree(attrs).get("treeRootNodeId") ?: return null
         } catch (_: Exception) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "Model tree root configuration is invalid")
         }
-        if (rootNodeId.isMissingNode || rootNodeId.isNull) return null
+        if (!rootNodeId.isTextual) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Model tree root configuration is invalid")
+        }
         val rawId = rootNodeId.asText().trim()
-        if (rawId.isEmpty()) return null
+        if (rawId.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Model tree root configuration is invalid")
+        }
         return try {
             UUID.fromString(rawId)
         } catch (_: IllegalArgumentException) {
