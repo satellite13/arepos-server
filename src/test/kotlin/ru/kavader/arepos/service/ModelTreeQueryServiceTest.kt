@@ -9,6 +9,8 @@ import org.mockito.junit.jupiter.MockitoExtension
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
+import org.springframework.transaction.annotation.Isolation
+import org.springframework.transaction.annotation.Transactional
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.ModelsRepository
@@ -19,6 +21,7 @@ import java.time.Instant
 import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @ExtendWith(MockitoExtension::class)
@@ -31,6 +34,15 @@ class ModelTreeQueryServiceTest {
 
     @Mock
     lateinit var accessService: ResourceAccessService
+
+    @Test
+    fun `uses one repeatable read snapshot for page rows and total`() {
+        val transactional = ModelTreeQueryService::class.java.getAnnotation(Transactional::class.java)
+
+        assertNotNull(transactional)
+        assertTrue(transactional.readOnly)
+        assertEquals(Isolation.REPEATABLE_READ, transactional.isolation)
+    }
 
     @Test
     fun `maps projected rows while preserving deterministic order`() {

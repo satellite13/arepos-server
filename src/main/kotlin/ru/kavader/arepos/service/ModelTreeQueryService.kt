@@ -7,6 +7,8 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Isolation
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.NodeResponse
 import ru.kavader.arepos.model.Models
@@ -17,6 +19,7 @@ import ru.kavader.arepos.security.ResourceAccessService
 import java.util.UUID
 
 @Service
+@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 class ModelTreeQueryService(
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
