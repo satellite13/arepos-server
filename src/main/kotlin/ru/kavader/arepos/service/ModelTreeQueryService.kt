@@ -2,29 +2,25 @@ package ru.kavader.arepos.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Isolation
-import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.NodeResponse
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.repository.ModelsRepository
-import ru.kavader.arepos.repository.NodeTreePageProjection
 import ru.kavader.arepos.repository.NodesRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import java.util.UUID
 
 @Service
-@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 class ModelTreeQueryService(
     private val modelsRepository: ModelsRepository,
     private val nodesRepository: NodesRepository,
     private val accessService: ResourceAccessService,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val treePageReader: ModelTreePageReader
 ) {
     fun listChildren(
         modelId: UUID,
@@ -40,17 +36,12 @@ class ModelTreeQueryService(
 
         val parentNodeId = resolveParentNodeId(model, parentRef)
         val boundedPageable = PageRequest.of(pageable.pageNumber, pageable.pageSize.coerceIn(1, MAX_PAGE_SIZE))
-        val projections = nodesRepository.findDirectChildrenPage(
+        return treePageReader.readPage(
             modelId = modelId,
             parentNodeId = parentNodeId,
             excludeSystem = excludeSystem,
             foldersOnly = foldersOnly,
             pageable = boundedPageable
-        )
-        return PageImpl(
-            projections.content.map(NodeTreePageProjection::toResponse),
-            boundedPageable,
-            projections.totalElements
         )
     }
 
@@ -102,17 +93,3 @@ class ModelTreeQueryService(
         const val MAX_PAGE_SIZE = 500
     }
 }
-
-private fun NodeTreePageProjection.toResponse() = NodeResponse(
-    id = getId(),
-    stableId = getStableId(),
-    name = getName(),
-    modelId = getModelId(),
-    ownerId = getOwnerId(),
-    nodeTypeId = getNodeTypeId(),
-    parentNodeId = getParentNodeId(),
-    attrs = getAttrs(),
-    createdAt = getCreatedAt(),
-    updatedAt = getUpdatedAt(),
-    hasChildren = getHasChildren()
-)
