@@ -39,6 +39,18 @@ interface LinksRepository : JpaRepository<Links, UUID> {
     fun findByModel_IdAndIdIn(modelId: UUID, ids: Collection<UUID>): List<Links>
 
     @Query(
+        """
+        SELECT l FROM Links l
+        WHERE l.model.id = :modelId
+          AND (l.source.id = :nodeId OR l.target.id = :nodeId)
+        """
+    )
+    fun findByModelIdAndEndpointNodeId(
+        @Param("modelId") modelId: UUID,
+        @Param("nodeId") nodeId: UUID
+    ): List<Links>
+
+    @Query(
         value = """
             SELECT
                 l.id AS "linkId",

@@ -170,6 +170,8 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
 
     fun existsByModelIdAndNotationIdAndDeletedFalse(modelId: UUID, notationId: UUID): Boolean
 
+    fun countByNode_IdAndDeletedFalse(nodeId: UUID): Long
+
     @Query("SELECT d FROM Diagrams d JOIN FETCH d.model WHERE d.notation.id = :notationId")
     fun findAllByNotationIdWithModel(notationId: UUID): List<Diagrams>
 

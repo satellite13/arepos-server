@@ -39,3 +39,44 @@ data class DuplicateLinkGroup(
 data class DuplicateLinkMember(
     val id: UUID
 )
+
+data class DiagramRef(
+    val diagramId: UUID,
+    val diagramName: String
+)
+
+data class PreviewIncidentLink(
+    val id: UUID,
+    val linkTypeId: UUID,
+    val linkTypeName: String,
+    val direction: String,
+    val otherNodeId: UUID,
+    val otherNodeName: String
+)
+
+data class MergeNodesPreviewResponse(
+    val keepId: UUID,
+    val dropId: UUID,
+    val keepTypeProperties: Map<String, Any?>,
+    val dropTypeProperties: Map<String, Any?>,
+    val uniqueLinks: List<PreviewIncidentLink>,
+    val linksToDelete: List<PreviewIncidentLink>,
+    val keepDiagrams: List<DiagramRef>,
+    val dropDiagrams: List<DiagramRef>,
+    val hasChildren: Boolean,
+    val hasDocuments: Boolean,
+    val diagramsToReparentCount: Long,
+    val keepUpdatedAt: Instant,
+    val dropUpdatedAt: Instant
+)
+
+data class MergeLinksPreviewResponse(
+    val keepId: UUID,
+    val dropId: UUID,
+    val keepTypeProperties: Map<String, Any?>,
+    val dropTypeProperties: Map<String, Any?>,
+    val keepDiagrams: List<DiagramRef>,
+    val dropDiagrams: List<DiagramRef>,
+    val keepUpdatedAt: Instant,
+    val dropUpdatedAt: Instant
+)

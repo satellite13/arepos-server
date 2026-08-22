@@ -61,6 +61,7 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
     fun findByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<Nodes>
     fun existsByNodeTypeId(nodeTypeId: UUID): Boolean
     fun existsByIdAndModel_Id(id: UUID, modelId: UUID): Boolean
+    fun existsByParentNode_Id(parentNodeId: UUID): Boolean
     fun findByModel_IdAndIdIn(modelId: UUID, ids: Collection<UUID>): List<Nodes>
 
     @Query(
