@@ -205,7 +205,7 @@ class SearchControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.hits[0].name").value("CRM System"))
             .andExpect(jsonPath("$.hits[0].typeName").value("Application Component"))
             .andExpect(jsonPath("$.hits[0].nodeTypeId").value(nodeType.id.toString()))
-            .andExpect(jsonPath("$.hits[0].pathNames").isEmpty)
+            .andExpect(jsonPath("$.hits[0].pathNames[0]").value("CRM System"))
             .andExpect(jsonPath("$.hits[0].attrs").doesNotExist())
     }
 
@@ -787,6 +787,7 @@ class SearchControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.hits[0].id").value(rootDiagram.id.toString()))
             .andExpect(jsonPath("$.hits[0].parentId").isEmpty)
+            .andExpect(jsonPath("$.hits[0].pathNames[0]").value("Root diagram search"))
 
         mockMvc.perform(
             get("/api/v1/search/models/${model.id}")
@@ -797,6 +798,8 @@ class SearchControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.hits[0].id").value(ordinaryDiagram.id.toString()))
             .andExpect(jsonPath("$.hits[0].parentId").value(ordinaryNode.id.toString()))
+            .andExpect(jsonPath("$.hits[0].pathNames[0]").value("Architecture folder"))
+            .andExpect(jsonPath("$.hits[0].pathNames[1]").value("Ordinary diagram search"))
     }
 
     @Test

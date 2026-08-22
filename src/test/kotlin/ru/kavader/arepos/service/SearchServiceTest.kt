@@ -76,6 +76,7 @@ class SearchServiceTest {
         componentsRepository,
         relationsRepository,
         accessService,
+        ModelSearchPathEnricher(nodesRepository, ObjectMapper()),
         ObjectMapper()
     )
 }

@@ -32,6 +32,7 @@ class SearchService(
     private val componentsRepository: ComponentsRepository,
     private val relationsRepository: RelationsRepository,
     private val accessService: ResourceAccessService,
+    private val modelSearchPathEnricher: ModelSearchPathEnricher,
     private val objectMapper: ObjectMapper
 ) {
     companion object {
@@ -169,16 +170,18 @@ class SearchService(
             hits += diagramHits
         }
 
+        val orderedHits = if ("nodes" in kinds && "diagrams" in kinds) {
+            fairTreeHits(nodeHits, diagramHits, linkHits, limit)
+        } else {
+            hits.take(limit)
+        }
+
         return ModelSearchResponse(
             modelId = modelId,
             q = q,
             limit = limit,
             totalEstimate = totalEstimate,
-            hits = if ("nodes" in kinds && "diagrams" in kinds) {
-                fairTreeHits(nodeHits, diagramHits, linkHits, limit)
-            } else {
-                hits.take(limit)
-            }
+            hits = modelSearchPathEnricher.enrich(modelId, model.attrs, orderedHits)
         )
     }
 
