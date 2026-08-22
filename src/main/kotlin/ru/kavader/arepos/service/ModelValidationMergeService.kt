@@ -3,6 +3,7 @@ package ru.kavader.arepos.service
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
@@ -474,11 +475,30 @@ class ModelValidationMergeService(
         fun remap(container: ObjectNode?) {
             val edges = container?.get("edges") ?: return
             if (!edges.isArray) return
-            for (edge in edges) {
-                if (edge is ObjectNode && edge.path("modelLinkId").asText(null) == from) {
-                    edge.put("modelLinkId", to)
-                    changed = true
+            val edgesArray = edges as ArrayNode
+            val hasKeep = edgesArray.any { edge ->
+                edge is ObjectNode && edge.path("modelLinkId").asText(null) == to
+            }
+            val next = objectMapper.createArrayNode()
+            var localChanged = false
+            for (edge in edgesArray) {
+                if (edge !is ObjectNode) {
+                    next.add(edge)
+                    continue
                 }
+                if (edge.path("modelLinkId").asText(null) == from) {
+                    if (hasKeep) {
+                        localChanged = true
+                        continue
+                    }
+                    edge.put("modelLinkId", to)
+                    localChanged = true
+                }
+                next.add(edge)
+            }
+            if (localChanged) {
+                container.replace("edges", next)
+                changed = true
             }
         }
         remap(root)

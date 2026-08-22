@@ -119,6 +119,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.USER))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.duplicateNodes.length()").value(1))
+            .andExpect(jsonPath("$.duplicateNodesTotal").value(1))
             .andExpect(jsonPath("$.duplicateNodes[0].count").value(2))
             .andExpect(jsonPath("$.duplicateNodes[0].nodes[0].parentName").value("Apps"))
     }
@@ -134,6 +135,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.USER))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.duplicateLinks.length()").value(1))
+            .andExpect(jsonPath("$.duplicateLinksTotal").value(1))
             .andExpect(jsonPath("$.duplicateLinks[0].count").value(2))
     }
 
@@ -443,7 +445,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `merge links remaps edges on both diagrams and keeps keep attrs besides typeProperties`() {
+    fun `merge links remaps drop-only diagrams and removes extra edge when keep is already on canvas`() {
         val source = saveNode(model, "A", applicationComponentType)
         val target = saveNode(model, "B", applicationComponentType)
         val keep = saveLink(
@@ -480,9 +482,9 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
 
         val d1 = objectMapper.readTree(diagramsRepository.findById(diagramOne.id!!).orElseThrow().attrs)
         val d1Edges = d1.path("instances").path("edges")
-        assertEquals(2, d1Edges.size())
+        assertEquals(1, d1Edges.size())
+        assertEquals("e1", d1Edges[0].path("id").asText())
         assertEquals(keep.id.toString(), d1Edges[0].path("modelLinkId").asText())
-        assertEquals(keep.id.toString(), d1Edges[1].path("modelLinkId").asText())
         assertEquals(keep.id.toString(), d1.path("edges")[0].path("modelLinkId").asText())
 
         val d2 = objectMapper.readTree(diagramsRepository.findById(diagramTwo.id!!).orElseThrow().attrs)

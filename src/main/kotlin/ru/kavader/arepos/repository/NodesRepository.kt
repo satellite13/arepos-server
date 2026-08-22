@@ -48,6 +48,7 @@ interface DuplicateNodeMemberProjection {
     fun getNodeTypeName(): String
     fun getNameKey(): String
     fun getGroupCount(): Long
+    fun getTotalGroups(): Long
     fun getId(): UUID
     fun getName(): String
     fun getParentId(): UUID?
@@ -354,6 +355,12 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
                 GROUP BY n.node_type, lower(trim(n.name))
                 HAVING COUNT(*) > 1
             ),
+            limited_groups AS (
+                SELECT node_type_id, name_key, cnt
+                FROM duplicate_groups
+                ORDER BY node_type_id, name_key
+                LIMIT :maxGroups
+            ),
             ranked AS (
                 SELECT
                     n.id,
@@ -366,12 +373,13 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
                     g.name_key,
                     g.cnt,
                     m.attrs AS model_attrs,
+                    (SELECT COUNT(*) FROM duplicate_groups) AS total_groups,
                     ROW_NUMBER() OVER (
                         PARTITION BY n.node_type, g.name_key
                         ORDER BY n.id ASC
                     ) AS rn
                 FROM nodes n
-                JOIN duplicate_groups g
+                JOIN limited_groups g
                   ON g.node_type_id = n.node_type
                  AND g.name_key = lower(trim(n.name))
                 JOIN node_types t ON t.id = n.node_type
@@ -384,6 +392,7 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
                 r.node_type_name AS "nodeTypeName",
                 r.name_key AS "nameKey",
                 r.cnt AS "groupCount",
+                r.total_groups AS "totalGroups",
                 r.id AS id,
                 r.name AS name,
                 CASE
@@ -404,7 +413,10 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
         """,
         nativeQuery = true
     )
-    fun findDuplicateNodeMembers(@Param("modelId") modelId: UUID): List<DuplicateNodeMemberProjection>
+    fun findDuplicateNodeMembers(
+        @Param("modelId") modelId: UUID,
+        @Param("maxGroups") maxGroups: Int
+    ): List<DuplicateNodeMemberProjection>
 }
 
 

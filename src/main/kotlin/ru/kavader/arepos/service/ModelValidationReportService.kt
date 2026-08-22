@@ -1,5 +1,6 @@
 package ru.kavader.arepos.service
 
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
@@ -22,18 +23,24 @@ class ModelValidationReportService(
     private val modelsRepository: ModelsRepository,
     private val accessService: ResourceAccessService,
     private val nodesRepository: NodesRepository,
-    private val linksRepository: LinksRepository
+    private val linksRepository: LinksRepository,
+    @Value("\${arepos.validation-report.max-groups:200}")
+    private val maxGroups: Int
 ) {
     fun report(modelId: UUID): ValidationReportResponse {
         val model = modelsRepository.findById(modelId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Model $modelId not found")
         }
         accessService.requireCanViewModel(model)
+        val nodeRows = nodesRepository.findDuplicateNodeMembers(modelId, maxGroups)
+        val linkRows = linksRepository.findDuplicateLinkMembers(modelId, maxGroups)
         return ValidationReportResponse(
             modelId = model.id!!,
             generatedAt = Instant.now(),
-            duplicateNodes = assembleNodeGroups(nodesRepository.findDuplicateNodeMembers(modelId)),
-            duplicateLinks = assembleLinkGroups(linksRepository.findDuplicateLinkMembers(modelId))
+            duplicateNodes = assembleNodeGroups(nodeRows),
+            duplicateLinks = assembleLinkGroups(linkRows),
+            duplicateNodesTotal = nodeRows.firstOrNull()?.getTotalGroups()?.toInt() ?: 0,
+            duplicateLinksTotal = linkRows.firstOrNull()?.getTotalGroups()?.toInt() ?: 0
         )
     }
 

@@ -22,6 +22,7 @@ interface DuplicateLinkMemberProjection {
     fun getLinkTypeId(): UUID
     fun getLinkTypeName(): String
     fun getGroupCount(): Long
+    fun getTotalGroups(): Long
     fun getId(): UUID
 }
 
@@ -226,6 +227,12 @@ interface LinksRepository : JpaRepository<Links, UUID> {
                 GROUP BY l.source, l.target, l.link_type
                 HAVING COUNT(*) > 1
             ),
+            limited_groups AS (
+                SELECT source, target, link_type, cnt
+                FROM duplicate_groups
+                ORDER BY source, target, link_type
+                LIMIT :maxGroups
+            ),
             ranked AS (
                 SELECT
                     l.id,
@@ -236,12 +243,13 @@ interface LinksRepository : JpaRepository<Links, UUID> {
                     l.link_type AS link_type_id,
                     lt.name AS link_type_name,
                     g.cnt,
+                    (SELECT COUNT(*) FROM duplicate_groups) AS total_groups,
                     ROW_NUMBER() OVER (
                         PARTITION BY l.source, l.target, l.link_type
                         ORDER BY l.id ASC
                     ) AS rn
                 FROM links l
-                JOIN duplicate_groups g
+                JOIN limited_groups g
                   ON g.source = l.source
                  AND g.target = l.target
                  AND g.link_type = l.link_type
@@ -258,6 +266,7 @@ interface LinksRepository : JpaRepository<Links, UUID> {
                 r.link_type_id AS "linkTypeId",
                 r.link_type_name AS "linkTypeName",
                 r.cnt AS "groupCount",
+                r.total_groups AS "totalGroups",
                 r.id AS id
             FROM ranked r
             WHERE r.rn <= 50
@@ -265,7 +274,10 @@ interface LinksRepository : JpaRepository<Links, UUID> {
         """,
         nativeQuery = true
     )
-    fun findDuplicateLinkMembers(@Param("modelId") modelId: UUID): List<DuplicateLinkMemberProjection>
+    fun findDuplicateLinkMembers(
+        @Param("modelId") modelId: UUID,
+        @Param("maxGroups") maxGroups: Int
+    ): List<DuplicateLinkMemberProjection>
 }
 
 

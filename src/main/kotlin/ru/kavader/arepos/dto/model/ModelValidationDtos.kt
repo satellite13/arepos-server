@@ -7,7 +7,9 @@ data class ValidationReportResponse(
     val modelId: UUID,
     val generatedAt: Instant,
     val duplicateNodes: List<DuplicateNodeGroup>,
-    val duplicateLinks: List<DuplicateLinkGroup>
+    val duplicateLinks: List<DuplicateLinkGroup>,
+    val duplicateNodesTotal: Int,
+    val duplicateLinksTotal: Int
 )
 
 data class DuplicateNodeGroup(
