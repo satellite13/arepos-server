@@ -34,6 +34,7 @@ interface LinksRepository : JpaRepository<Links, UUID> {
     fun findByLinkType(linkType: LinkTypes, pageable: Pageable): Page<Links>
     fun findByModelAndOwnerOrderByIdAsc(model: Models, owner: Users, pageable: Pageable): Page<Links>
     fun existsByLinkTypeId(linkTypeId: UUID): Boolean
+    fun existsByIdAndModel_Id(id: UUID, modelId: UUID): Boolean
 
     fun findByModel_IdAndIdIn(modelId: UUID, ids: Collection<UUID>): List<Links>
 

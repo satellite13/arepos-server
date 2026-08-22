@@ -5,11 +5,13 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.DiagramReferenceResponse
 import ru.kavader.arepos.dto.model.GraphDirection
 import ru.kavader.arepos.dto.model.GraphNeighborResponse
@@ -39,11 +41,17 @@ class ModelTraceabilityController(
     )
 
     @GetMapping("/diagram-references")
-    @Operation(summary = "Page active diagrams containing a model node instance")
+    @Operation(summary = "Page active diagrams containing a model node or link instance")
     fun diagramReferences(
         @PathVariable modelId: UUID,
-        @RequestParam nodeId: UUID,
+        @RequestParam(required = false) nodeId: UUID?,
+        @RequestParam(required = false) linkId: UUID?,
         @PageableDefault(size = 50) pageable: Pageable
-    ): Page<DiagramReferenceResponse> =
-        traceabilityService.diagramReferences(modelId, nodeId, pageable)
+    ): Page<DiagramReferenceResponse> {
+        if ((nodeId == null) == (linkId == null)) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Provide exactly one of nodeId or linkId")
+        }
+        return if (nodeId != null) traceabilityService.diagramReferences(modelId, nodeId, pageable)
+        else traceabilityService.diagramReferencesForLink(modelId, linkId!!, pageable)
+    }
 }

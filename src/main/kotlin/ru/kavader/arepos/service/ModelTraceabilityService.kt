@@ -45,6 +45,15 @@ class ModelTraceabilityService(
         return traceabilityReader.diagramReferences(modelId, nodeId, bounded(pageable))
     }
 
+    fun diagramReferencesForLink(
+        modelId: UUID,
+        linkId: UUID,
+        pageable: Pageable
+    ): Page<DiagramReferenceResponse> {
+        requireCanViewModel(modelId)
+        return traceabilityReader.diagramReferencesForLink(modelId, linkId, bounded(pageable))
+    }
+
     private fun requireCanViewModel(modelId: UUID) {
         val model = modelsRepository.findById(modelId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Model $modelId not found")

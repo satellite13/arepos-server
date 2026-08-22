@@ -10,6 +10,7 @@ import ru.kavader.arepos.dto.model.DiagramReferenceResponse
 import ru.kavader.arepos.dto.model.GraphDirection
 import ru.kavader.arepos.dto.model.GraphNeighborResponse
 import ru.kavader.arepos.mapper.ModelMapper
+import ru.kavader.arepos.repository.DiagramReferenceProjection
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.LinksRepository
 import ru.kavader.arepos.repository.NodesRepository
@@ -63,11 +64,26 @@ class ModelTraceabilityReader(
         pageable: Pageable
     ): Page<DiagramReferenceResponse> {
         requireModelNode(modelId, nodeId)
-        return diagramsRepository.findDiagramReferences(
-            modelId,
-            diagramReferenceJsonPath(nodeId),
-            pageable
-        ).map {
+        return mapDiagramReferences(
+            diagramsRepository.findDiagramReferences(modelId, diagramReferenceJsonPath(nodeId), pageable)
+        )
+    }
+
+    fun diagramReferencesForLink(
+        modelId: UUID,
+        linkId: UUID,
+        pageable: Pageable
+    ): Page<DiagramReferenceResponse> {
+        requireModelLink(modelId, linkId)
+        return mapDiagramReferences(
+            diagramsRepository.findDiagramReferences(modelId, diagramReferenceJsonPathForLink(linkId), pageable)
+        )
+    }
+
+    private fun mapDiagramReferences(
+        page: Page<DiagramReferenceProjection>
+    ): Page<DiagramReferenceResponse> =
+        page.map {
             DiagramReferenceResponse(
                 id = it.getId(),
                 name = it.getName(),
@@ -76,7 +92,6 @@ class ModelTraceabilityReader(
                 nodeId = it.getNodeId()
             )
         }
-    }
 
     private fun requireModelNode(modelId: UUID, nodeId: UUID) {
         if (!nodesRepository.existsByIdAndModel_Id(nodeId, modelId)) {
@@ -84,6 +99,15 @@ class ModelTraceabilityReader(
         }
     }
 
+    private fun requireModelLink(modelId: UUID, linkId: UUID) {
+        if (!linksRepository.existsByIdAndModel_Id(linkId, modelId)) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Link $linkId not found")
+        }
+    }
+
     private fun diagramReferenceJsonPath(nodeId: UUID): String =
         """exists($.instances.nodes[*] ? (@.modelNodeId == "$nodeId"))"""
+
+    private fun diagramReferenceJsonPathForLink(linkId: UUID): String =
+        """exists($.instances.edges[*] ? (@.modelLinkId == "$linkId"))"""
 }

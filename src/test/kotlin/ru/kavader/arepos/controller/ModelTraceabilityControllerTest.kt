@@ -255,6 +255,46 @@ class ModelTraceabilityControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.page.size").value(50))
     }
 
+    @Test
+    fun `diagram-references accepts linkId and rejects both params`() {
+        val source = saveNode(model, "link-source")
+        val target = saveNode(model, "link-target")
+        val link = saveLink(model, source, target, primaryLinkType)
+        val diagram = saveDiagram(model, "link-diagram", attrsForLink(link.id!!))
+        val foreignModel = saveModel(owner)
+        val foreignLink = saveLink(
+            foreignModel,
+            saveNode(foreignModel, "foreign-source"),
+            saveNode(foreignModel, "foreign-target"),
+            primaryLinkType
+        )
+
+        mockMvc.perform(
+            get("/api/v1/models/${model.id}/diagram-references")
+                .param("linkId", link.id.toString())
+                .withAuth(owner.id!!, Role.USER)
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.content[0].id").value(diagram.id.toString()))
+
+        mockMvc.perform(
+            get("/api/v1/models/${model.id}/diagram-references")
+                .param("nodeId", source.id.toString())
+                .param("linkId", link.id.toString())
+                .withAuth(owner.id!!, Role.USER)
+        ).andExpect(status().isBadRequest)
+
+        mockMvc.perform(
+            get("/api/v1/models/${model.id}/diagram-references")
+                .withAuth(owner.id!!, Role.USER)
+        ).andExpect(status().isBadRequest)
+
+        mockMvc.perform(
+            get("/api/v1/models/${model.id}/diagram-references")
+                .param("linkId", foreignLink.id.toString())
+                .withAuth(owner.id!!, Role.USER)
+        ).andExpect(status().isNotFound)
+    }
+
     private fun assertSlimDiagram(diagram: JsonNode) {
         val fields = diagram.fieldNames().asSequence().toSet()
         assertEquals(setOf("id", "name", "version", "notationId", "nodeId"), fields)
@@ -387,4 +427,7 @@ class ModelTraceabilityControllerTest : ControllerIntegrationTest() {
 
     private fun attrsFor(nodeId: UUID): String =
         """{"instances":{"nodes":[{"modelNodeId":"$nodeId"}]}}"""
+
+    private fun attrsForLink(linkId: UUID): String =
+        """{"instances":{"edges":[{"modelLinkId":"$linkId"}]}}"""
 }
