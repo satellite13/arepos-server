@@ -61,6 +61,21 @@ class BatchGraphOpsExecutor(
         // folder sends parentNodeId as the create tempId, which only resolves via nodeIdMap.
         val nodesCreated = createNodesTopological(request.nodes.create, model, owner, now, nodeIdMap)
         val nodesUpdated = updateNodes(request.nodes.update, model, now, nodeIdMap)
+
+        // Incident links must leave the persistence context before their endpoint
+        // nodes are deleted. Otherwise Hibernate dirty-flushes `source=NULL` and
+        // check_links_same_model() raises 500.
+        val deletedNodeIds = request.nodes.delete.map { it.id }
+        val requestedLinkDeleteIds = request.links.delete.map { it.id }.toMutableSet()
+        requestedLinkDeleteIds += incidentLinkIds(requireNotNull(model.id), deletedNodeIds)
+        val linksDeleted = deleteModelScoped(
+            entries = requestedLinkDeleteIds.map { BatchDeleteEntry(it) },
+            model = model,
+            kind = "Link",
+            load = ::findLinkOrThrow,
+            modelIdOf = { it.model.id },
+            delete = linksRepository::deleteById
+        )
         val nodesDeleted = deleteModelScoped(
             entries = request.nodes.delete,
             model = model,
@@ -69,17 +84,13 @@ class BatchGraphOpsExecutor(
             modelIdOf = { it.model.id },
             delete = nodesRepository::deleteById
         )
-
-        val linksDeleted = deleteModelScoped(
-            entries = request.links.delete,
-            model = model,
-            kind = "Link",
-            load = ::findLinkOrThrow,
-            modelIdOf = { it.model.id },
-            delete = linksRepository::deleteById
-        )
         val linksCreated = createLinks(request.links.create, model, owner, now, nodeIdMap, linkIdMap)
-        val linksUpdated = updateLinks(request.links.update, model, now, nodeIdMap)
+        val linksUpdated = updateLinks(
+            request.links.update.filterNot { upd -> requestedLinkDeleteIds.contains(upd.id) },
+            model,
+            now,
+            nodeIdMap
+        )
 
         val diagramsDeleted = deleteDiagrams(request.diagrams.delete, requireNotNull(model.id))
         val diagramsCreated = createDiagrams(
@@ -87,8 +98,7 @@ class BatchGraphOpsExecutor(
         )
         val diagramsUpdated = updateDiagrams(request.diagrams.update, model, now, nodeIdMap, linkIdMap)
 
-        val deletedNodeIds = request.nodes.delete.map { it.id }
-        val deletedLinkIds = request.links.delete.map { it.id }
+        val deletedLinkIds = requestedLinkDeleteIds.toList()
         if (deletedNodeIds.isNotEmpty() || deletedLinkIds.isNotEmpty()) {
             diagramCanvasInstancesCleanupService.removeDeletedModelEntitiesFromAllDiagrams(
                 requireNotNull(model.id),
@@ -219,6 +229,14 @@ class BatchGraphOpsExecutor(
             delete(id)
         }
         return entries.size
+    }
+
+    private fun incidentLinkIds(modelId: UUID, deletedNodeIds: List<UUID>): Set<UUID> {
+        if (deletedNodeIds.isEmpty()) return emptySet()
+        return deletedNodeIds
+            .flatMap { nodeId -> linksRepository.findByModelIdAndEndpointNodeId(modelId, nodeId) }
+            .mapNotNull { it.id }
+            .toSet()
     }
 
     private fun createLinks(

@@ -428,6 +428,110 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `batch save deletes a node whose incident link is still in the update list`() {
+        val owner = usersRepository.save(
+            Users(
+                email = "batch-incident-owner@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "m-incident",
+                createdAt = Instant.now(),
+                attrs = null,
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+        val nodeType = nodeTypesRepository.save(
+            NodeTypes(
+                name = "nt-incident",
+                attrs = null,
+                createdAt = Instant.now(),
+                owner = owner
+            )
+        )
+        val linkType = linkTypesRepository.save(
+            LinkTypes(
+                name = "lt-incident",
+                createdAt = Instant.now(),
+                owner = owner
+            )
+        )
+        val source = nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "source",
+                model = model,
+                owner = owner,
+                nodeType = nodeType,
+                parentNode = null,
+                attrs = null,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+        val target = nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "target",
+                model = model,
+                owner = owner,
+                nodeType = nodeType,
+                parentNode = null,
+                attrs = null,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+        val link = linksRepository.save(
+            Links(
+                stableId = UUID.randomUUID(),
+                source = source,
+                target = target,
+                attrs = null,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now(),
+                owner = owner,
+                linkType = linkType,
+                model = model
+            )
+        )
+
+        val payload = mapOf(
+            "nodes" to mapOf(
+                "delete" to listOf(source.id.toString())
+            ),
+            "links" to mapOf(
+                "update" to listOf(
+                    mapOf(
+                        "id" to link.id.toString(),
+                        "sourceId" to source.id.toString(),
+                        "targetId" to target.id.toString(),
+                        "linkTypeId" to linkType.id.toString(),
+                        "attrs" to null,
+                        "baseUpdatedAt" to link.updatedAt.toString()
+                    )
+                )
+            )
+        )
+
+        mockMvc.perform(
+            post("/api/v1/models/${model.id}/batch-save")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+
+        assertEquals(false, nodesRepository.existsById(source.id!!))
+        assertEquals(true, nodesRepository.existsById(target.id!!))
+        assertEquals(false, linksRepository.existsById(link.id!!))
+    }
+
+    @Test
     fun `batch save creates graph topologically and remaps diagram attrs`() {
         val owner = usersRepository.save(
             Users(
