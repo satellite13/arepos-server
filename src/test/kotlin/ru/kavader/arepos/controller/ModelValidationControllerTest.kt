@@ -443,6 +443,147 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `merge links remaps edges on both diagrams and keeps keep attrs besides typeProperties`() {
+        val source = saveNode(model, "A", applicationComponentType)
+        val target = saveNode(model, "B", applicationComponentType)
+        val keep = saveLink(
+            model,
+            source,
+            target,
+            servingType,
+            attrs = """{"typeProperties":{"owner":"keep"},"notationRelations":{"r":1},"relationProperties":{"p":2}}"""
+        )
+        val drop = saveLink(
+            model,
+            source,
+            target,
+            servingType,
+            attrs = """{"typeProperties":{"owner":"drop"},"notationRelations":{"r":9}}"""
+        )
+        val diagramOne = saveDiagram(
+            model,
+            "d1",
+            """{"edges":[{"id":"root1","modelLinkId":"${drop.id}"}],"instances":{"edges":[{"id":"e1","modelLinkId":"${keep.id}"},{"id":"e2","modelLinkId":"${drop.id}"}]}}"""
+        )
+        val diagramTwo = saveDiagram(model, "d2", attrsForLink(drop.id!!))
+
+        postMergeLinks(keep, drop, typeProperties = mapOf("owner" to "merged"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.keepId").value(keep.id.toString()))
+            .andExpect(jsonPath("$.dropId").value(drop.id.toString()))
+
+        assertFalse(linksRepository.existsById(drop.id!!))
+        val keepAttrs = objectMapper.readTree(linksRepository.findById(keep.id!!).orElseThrow().attrs)
+        assertEquals("merged", keepAttrs.path("typeProperties").path("owner").asText())
+        assertEquals(1, keepAttrs.path("notationRelations").path("r").asInt())
+        assertEquals(2, keepAttrs.path("relationProperties").path("p").asInt())
+
+        val d1 = objectMapper.readTree(diagramsRepository.findById(diagramOne.id!!).orElseThrow().attrs)
+        val d1Edges = d1.path("instances").path("edges")
+        assertEquals(2, d1Edges.size())
+        assertEquals(keep.id.toString(), d1Edges[0].path("modelLinkId").asText())
+        assertEquals(keep.id.toString(), d1Edges[1].path("modelLinkId").asText())
+        assertEquals(keep.id.toString(), d1.path("edges")[0].path("modelLinkId").asText())
+
+        val d2 = objectMapper.readTree(diagramsRepository.findById(diagramTwo.id!!).orElseThrow().attrs)
+        assertEquals(keep.id.toString(), d2.path("instances").path("edges")[0].path("modelLinkId").asText())
+    }
+
+    @Test
+    fun `merge links broadcasts validation_merge_links with link and diagram events`() {
+        val source = saveNode(model, "A", applicationComponentType)
+        val target = saveNode(model, "B", applicationComponentType)
+        val keep = saveLink(model, source, target, servingType)
+        val drop = saveLink(model, source, target, servingType)
+        saveDiagram(model, "canvas", attrsForLink(drop.id!!))
+
+        postMergeLinks(keep, drop).andExpect(status().isOk)
+
+        val invocation = mockingDetails(modelSyncBroadcaster).invocations
+            .single { it.method.name == "broadcastModelChanged" }
+        assertEquals(model.id, invocation.arguments[0])
+        assertEquals("validation_merge_links", invocation.arguments[1])
+        @Suppress("UNCHECKED_CAST")
+        val types = (invocation.arguments[2] as List<ModelSyncEntityEvent>).map { it.type }.toSet()
+        assertTrue(types.containsAll(listOf("link_updated", "link_deleted", "diagram_updated")))
+    }
+
+    @Test
+    fun `merge links rejects same id reverse pair or different type`() {
+        val source = saveNode(model, "A", applicationComponentType)
+        val target = saveNode(model, "B", applicationComponentType)
+        val keep = saveLink(model, source, target, servingType)
+        val reverse = saveLink(model, target, source, servingType)
+        val otherType = saveLinkType(owner, "Association")
+        val otherTyped = saveLink(model, source, target, otherType)
+
+        postMergeLinks(keep, keep).andExpect(status().isBadRequest)
+        postMergeLinks(keep, reverse).andExpect(status().isBadRequest)
+        postMergeLinks(keep, otherTyped).andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `merge links rejects stale keepUpdatedAt`() {
+        val source = saveNode(model, "A", applicationComponentType)
+        val target = saveNode(model, "B", applicationComponentType)
+        val keep = saveLink(model, source, target, servingType)
+        val drop = saveLink(model, source, target, servingType)
+
+        postMergeLinks(keep, drop, keepUpdatedAt = Instant.parse("2020-01-01T00:00:00Z"))
+            .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `merge links rejects lock held by another user on a diagram with keep or drop edge`() {
+        val source = saveNode(model, "A", applicationComponentType)
+        val target = saveNode(model, "B", applicationComponentType)
+        val keep = saveLink(model, source, target, servingType)
+        val drop = saveLink(model, source, target, servingType)
+        val diagram = saveDiagram(model, "locked", attrsForLink(keep.id!!))
+        val other = saveUser(Role.USER)
+        val now = Instant.now()
+        diagramEditLocksRepository.save(
+            DiagramEditLocks(
+                diagram = diagram,
+                lockedBy = other,
+                lockedAt = now,
+                lastHeartbeatAt = now,
+                expiresAt = now.plusSeconds(600)
+            )
+        )
+
+        postMergeLinks(keep, drop)
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.message").value(DIAGRAM_LOCK_HELD_BY_ANOTHER_USER))
+    }
+
+    @Test
+    fun `merge links is forbidden for view-only share`() {
+        val source = saveNode(model, "A", applicationComponentType)
+        val target = saveNode(model, "B", applicationComponentType)
+        val keep = saveLink(model, source, target, servingType)
+        val drop = saveLink(model, source, target, servingType)
+        val viewer = saveUser(Role.USER)
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = viewer,
+                grantedByUser = owner,
+                permission = SharePermission.VIEW,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            post("/api/v1/models/${model.id}/validation/merge-links")
+                .withAuth(viewer.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mergeLinksBody(keep, drop))
+        ).andExpect(status().isForbidden)
+    }
+
+    @Test
     fun `merge is forbidden for view-only share`() {
         val keep = saveNode(model, "CRM", applicationComponentType)
         val drop = saveNode(model, "CRM", applicationComponentType)
@@ -478,6 +619,35 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
             .withAuth(owner.id!!, Role.USER)
             .contentType(MediaType.APPLICATION_JSON)
             .content(mergeNodesBody(keep, drop, typeProperties, transferLinkIds, keepUpdatedAt, dropUpdatedAt))
+    )
+
+    private fun postMergeLinks(
+        keep: Links,
+        drop: Links,
+        typeProperties: Map<String, Any?> = emptyMap(),
+        keepUpdatedAt: Instant = keep.updatedAt ?: keep.createdAt!!,
+        dropUpdatedAt: Instant = drop.updatedAt ?: drop.createdAt!!
+    ) = mockMvc.perform(
+        post("/api/v1/models/${model.id}/validation/merge-links")
+            .withAuth(owner.id!!, Role.USER)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(mergeLinksBody(keep, drop, typeProperties, keepUpdatedAt, dropUpdatedAt))
+    )
+
+    private fun mergeLinksBody(
+        keep: Links,
+        drop: Links,
+        typeProperties: Map<String, Any?> = emptyMap(),
+        keepUpdatedAt: Instant = keep.updatedAt ?: keep.createdAt!!,
+        dropUpdatedAt: Instant = drop.updatedAt ?: drop.createdAt!!
+    ): String = objectMapper.writeValueAsString(
+        mapOf(
+            "keepId" to keep.id,
+            "dropId" to drop.id,
+            "typeProperties" to typeProperties,
+            "keepUpdatedAt" to keepUpdatedAt.toString(),
+            "dropUpdatedAt" to dropUpdatedAt.toString()
+        )
     )
 
     private fun mergeNodesBody(
@@ -557,7 +727,8 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
         source: Nodes,
         target: Nodes,
         type: LinkTypes,
-        attrs: String? = null
+        attrs: String? = null,
+        updatedAt: Instant = NODE_STAMP
     ): Links = linksRepository.save(
         Links(
             stableId = UUID.randomUUID(),
@@ -567,6 +738,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
             source = source,
             target = target,
             createdAt = Instant.now(),
+            updatedAt = updatedAt,
             attrs = attrs
         )
     )

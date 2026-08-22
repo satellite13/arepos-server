@@ -94,3 +94,16 @@ data class MergeNodesResponse(
     val keepId: UUID,
     val dropId: UUID
 )
+
+data class MergeLinksRequest(
+    val keepId: UUID,
+    val dropId: UUID,
+    val typeProperties: Map<String, Any?> = emptyMap(),
+    val keepUpdatedAt: Instant,
+    val dropUpdatedAt: Instant
+)
+
+data class MergeLinksResponse(
+    val keepId: UUID,
+    val dropId: UUID
+)

@@ -11,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.DiagramRef
 import ru.kavader.arepos.dto.model.MergeLinksPreviewResponse
+import ru.kavader.arepos.dto.model.MergeLinksRequest
+import ru.kavader.arepos.dto.model.MergeLinksResponse
 import ru.kavader.arepos.dto.model.MergeNodesPreviewResponse
 import ru.kavader.arepos.dto.model.MergeNodesRequest
 import ru.kavader.arepos.dto.model.MergeNodesResponse
@@ -271,6 +273,89 @@ class ModelValidationMergeService(
         )
     }
 
+    @Transactional
+    fun mergeLinks(modelId: UUID, request: MergeLinksRequest): MergeLinksResponse {
+        val model = modelsRepository.findById(modelId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Model $modelId not found")
+        }
+        accessService.requireCanEditModel(model)
+        if (request.keepId == request.dropId) {
+            throw notADuplicatePair()
+        }
+        val links = linksRepository.findByModel_IdAndIdIn(modelId, listOf(request.keepId, request.dropId))
+            .associateBy { requireNotNull(it.id) }
+        val keep = links[request.keepId] ?: throw linkNotFound(request.keepId)
+        val drop = links[request.dropId] ?: throw ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "Link ${request.dropId} not found"
+        )
+        if (!isDuplicateLinkPair(keep, drop)) {
+            throw notADuplicatePair()
+        }
+        if (request.keepUpdatedAt != entityTimestamp(keep.updatedAt, keep.createdAt) ||
+            request.dropUpdatedAt != entityTimestamp(drop.updatedAt, drop.createdAt)
+        ) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Concurrent modification")
+        }
+
+        val affectedDiagramIds = linkedSetOf<UUID>()
+        diagramsForLink(modelId, keep.id!!).forEach { affectedDiagramIds.add(it.diagramId) }
+        diagramsForLink(modelId, drop.id!!).forEach { affectedDiagramIds.add(it.diagramId) }
+
+        val now = Instant.now()
+        val currentUserId = CurrentUser.getId()
+        for (diagramId in affectedDiagramIds) {
+            val lock = diagramEditLocksRepository.findActiveWithDiagram(diagramId, now) ?: continue
+            if (lock.lockedBy.id != currentUserId) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, DIAGRAM_LOCK_HELD_BY_ANOTHER_USER)
+            }
+        }
+
+        keep.attrs = replaceTypeProperties(keep.attrs, request.typeProperties)
+        linksRepository.save(keep)
+
+        val modelDiagrams = diagramsRepository.findAllActiveByModelId(modelId)
+        val mutatedDiagramIds = mutableListOf<UUID>()
+        for (diagram in modelDiagrams) {
+            if (diagram.id !in affectedDiagramIds) continue
+            val attrs = remapDropLinkEdgesToKeep(diagram.attrs, drop.id!!, keep.id!!)
+            if (attrs != diagram.attrs) {
+                diagram.attrs = attrs
+                diagramsRepository.save(diagram)
+                mutatedDiagramIds.add(diagram.id!!)
+            }
+        }
+        diagramsRepository.flush()
+        linksRepository.delete(drop)
+
+        val events = mutableListOf<ModelSyncEntityEvent>()
+        events.add(
+            ModelSyncEntityEvent(
+                ModelSyncEventType.LINK_UPDATED.wireValue,
+                ModelSyncEventType.LINK_UPDATED.entity,
+                keep.id!!
+            )
+        )
+        events.add(
+            ModelSyncEntityEvent(
+                ModelSyncEventType.LINK_DELETED.wireValue,
+                ModelSyncEventType.LINK_DELETED.entity,
+                drop.id!!
+            )
+        )
+        for (diagramId in mutatedDiagramIds) {
+            events.add(
+                ModelSyncEntityEvent(
+                    ModelSyncEventType.DIAGRAM_UPDATED.wireValue,
+                    ModelSyncEventType.DIAGRAM_UPDATED.entity,
+                    diagramId
+                )
+            )
+        }
+        modelSyncBroadcaster.broadcastModelChanged(modelId, "validation_merge_links", events)
+        return MergeLinksResponse(keepId = keep.id!!, dropId = drop.id!!)
+    }
+
     private fun requireViewableModel(modelId: UUID) {
         val model = modelsRepository.findById(modelId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Model $modelId not found")
@@ -364,6 +449,34 @@ class ModelValidationMergeService(
             for (node in nodes) {
                 if (node is ObjectNode && node.path("modelNodeId").asText(null) == from) {
                     node.put("modelNodeId", to)
+                    changed = true
+                }
+            }
+        }
+        remap(root)
+        val instances = root.get("instances")
+        if (instances is ObjectNode) {
+            remap(instances)
+        }
+        return if (changed) objectMapper.writeValueAsString(root) else attrs
+    }
+
+    private fun remapDropLinkEdgesToKeep(attrs: String?, dropId: UUID, keepId: UUID): String? {
+        if (attrs.isNullOrBlank()) return attrs
+        val root = try {
+            objectMapper.readTree(attrs) as? ObjectNode ?: return attrs
+        } catch (_: Exception) {
+            return attrs
+        }
+        val from = dropId.toString()
+        val to = keepId.toString()
+        var changed = false
+        fun remap(container: ObjectNode?) {
+            val edges = container?.get("edges") ?: return
+            if (!edges.isArray) return
+            for (edge in edges) {
+                if (edge is ObjectNode && edge.path("modelLinkId").asText(null) == from) {
+                    edge.put("modelLinkId", to)
                     changed = true
                 }
             }

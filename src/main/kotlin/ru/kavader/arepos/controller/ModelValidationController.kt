@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import ru.kavader.arepos.dto.model.MergeLinksPreviewResponse
+import ru.kavader.arepos.dto.model.MergeLinksRequest
+import ru.kavader.arepos.dto.model.MergeLinksResponse
 import ru.kavader.arepos.dto.model.MergeNodesPreviewResponse
 import ru.kavader.arepos.dto.model.MergeNodesRequest
 import ru.kavader.arepos.dto.model.MergeNodesResponse
@@ -52,4 +54,11 @@ class ModelValidationController(
         @PathVariable modelId: UUID,
         @RequestBody request: MergeNodesRequest
     ): MergeNodesResponse = mergeService.mergeNodes(modelId, request)
+
+    @PostMapping("/validation/merge-links")
+    @Operation(summary = "Merge a duplicate directed link pair")
+    fun mergeLinks(
+        @PathVariable modelId: UUID,
+        @RequestBody request: MergeLinksRequest
+    ): MergeLinksResponse = mergeService.mergeLinks(modelId, request)
 }
