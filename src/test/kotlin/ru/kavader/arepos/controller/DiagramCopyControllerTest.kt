@@ -92,6 +92,81 @@ class DiagramCopyControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.canCommit").value(true))
             .andExpect(jsonPath("$.nodes[0].autoMatchTargetId").value(targetNode.id.toString()))
             .andExpect(jsonPath("$.nodes[0].autoMatchReason").value("STABLE_ID"))
+            .andExpect(jsonPath("$.nodes[0].effectiveAction").value("MATCH"))
+            .andExpect(jsonPath("$.nodes[0].effectiveTargetId").value(targetNode.id.toString()))
+    }
+
+    @Test
+    fun `commit creates nodes under mirrored source folder path`() {
+        val fixture = fixture()
+        val directoryType = nodeTypesRepository.save(
+            NodeTypes(name = "Directory", owner = fixture.owner, createdAt = Instant.now())
+        )
+        val componentType = fixture.nodeType
+        val sourceRoot = nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "__model_tree_root__",
+                model = fixture.sourceModel,
+                owner = fixture.owner,
+                nodeType = directoryType,
+                attrs = """{"system":{"hiddenTreeRoot":true}}""",
+                createdAt = Instant.now()
+            )
+        )
+        val sourceFolder = nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "Business area",
+                model = fixture.sourceModel,
+                owner = fixture.owner,
+                nodeType = directoryType,
+                parentNode = sourceRoot,
+                createdAt = Instant.now()
+            )
+        )
+        val sourceNode = nodesRepository.save(
+            Nodes(
+                stableId = UUID.randomUUID(),
+                name = "Service",
+                model = fixture.sourceModel,
+                owner = fixture.owner,
+                nodeType = componentType,
+                parentNode = sourceFolder,
+                createdAt = Instant.now()
+            )
+        )
+        val sourceDiagram = fixture.diagramWithNodes(sourceNode)
+
+        val response = mockMvc.perform(
+            post("/api/v1/models/${fixture.targetModel.id}/diagram-copies/commit")
+                .withAuth(fixture.owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        fixture.commitRequest(
+                            sourceDiagram,
+                            resolutions = listOf(fixture.create(sourceNode.id!!, DiagramCopyEntityKind.NODE))
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.createdNodeIds.length()").value(2))
+            .andReturn()
+            .response
+            .contentAsString
+
+        val createdNodeIds = objectMapper.readTree(response)["createdNodeIds"]
+            .map { UUID.fromString(it.asText()) }
+            .toSet()
+        val createdNodes = nodesRepository.findAllById(createdNodeIds)
+        val folder = createdNodes.single { it.nodeType.id == directoryType.id }
+        val service = createdNodes.single { it.name == "Service" }
+
+        assertEquals("Business area", folder.name)
+        assertEquals(fixture.targetRoot.id, folder.parentNode?.id)
+        assertEquals(folder.id, service.parentNode?.id)
     }
 
     @Test

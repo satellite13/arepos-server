@@ -50,6 +50,7 @@ class DiagramCopyService(
     private val ownerResolutionService: OwnerResolutionService,
     private val typeUsageAuthorization: TypeUsageAuthorization,
     private val matcher: DiagramCopyMatcher,
+    private val folderAllocator: DiagramCopyFolderAllocator,
     private val notationRemapper: DiagramCopyNotationRemapper,
     private val diagramAttrsRemapper: DiagramAttrsRemapper,
     private val modelMapper: ModelMapper,
@@ -158,10 +159,24 @@ class DiagramCopyService(
         val diagramNode = request.nodeId?.let { nodeId ->
             targetNodesById[nodeId] ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Diagram node $nodeId is not in target model")
         }
+        val allSourceNodesById = nodesRepository.findByModelIdOrdered(
+            requireNotNull(context.sourceDiagram.model.id),
+            Pageable.unpaged()
+        ).content.associateBy { requireNotNull(it.id) }
+        val mutableTargetNodesById = targetNodesById.toMutableMap()
 
         val nodeIdMap = matchedNodes.toMutableMap()
         val createdNodes = mutableListOf<Nodes>()
         val occupiedNodeStableIds = context.targetNodes.mapTo(mutableSetOf()) { it.stableId }
+        val folderSession = folderAllocator.openSession(
+            targetModel = context.targetModel,
+            createBaseParent = parent,
+            allSourceNodesById = allSourceNodesById,
+            targetNodesById = mutableTargetNodesById,
+            owner = owner,
+            now = now,
+            occupiedStableIds = occupiedNodeStableIds
+        )
         nodesToCreate.forEach { preview ->
                 val source = sourceNodesById[preview.sourceId]
                     ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Source node ${preview.sourceId} is unavailable")
@@ -180,7 +195,7 @@ class DiagramCopyService(
                         createdAt = now,
                         updatedAt = now,
                         attrs = remappedAttrs.attrs,
-                        parentNode = parent,
+                        parentNode = folderSession.parentForCreatedNode(source),
                         model = context.targetModel,
                         owner = owner,
                         nodeType = source.nodeType
@@ -188,10 +203,11 @@ class DiagramCopyService(
                 )
                 nodeIdMap[preview.sourceId] = requireNotNull(saved.id)
                 createdNodes += saved
+                mutableTargetNodesById[requireNotNull(saved.id)] = saved
             }
+        createdNodes += folderSession.createdFolders
 
-        val nodesByTargetId = targetNodesById.toMutableMap()
-        createdNodes.forEach { nodesByTargetId[requireNotNull(it.id)] = it }
+        val nodesByTargetId = mutableTargetNodesById
         validateMatchedLinkEndpoints(
             matchedLinks = matchedLinks,
             sourceLinksById = sourceLinksById,
