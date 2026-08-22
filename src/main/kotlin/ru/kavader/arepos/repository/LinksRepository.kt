@@ -14,6 +14,17 @@ interface GraphNeighborIdProjection {
     fun getNodeId(): UUID
 }
 
+interface DuplicateLinkMemberProjection {
+    fun getSourceId(): UUID
+    fun getSourceName(): String
+    fun getTargetId(): UUID
+    fun getTargetName(): String
+    fun getLinkTypeId(): UUID
+    fun getLinkTypeName(): String
+    fun getGroupCount(): Long
+    fun getId(): UUID
+}
+
 @Repository
 interface LinksRepository : JpaRepository<Links, UUID> {
     fun findByModelOrderByIdAsc(model: Models, pageable: Pageable): Page<Links>
@@ -192,6 +203,56 @@ interface LinksRepository : JpaRepository<Links, UUID> {
         @Param("q") q: String,
         pageable: Pageable
     ): Page<Links>
+
+    @Query(
+        value = """
+            WITH duplicate_groups AS (
+                SELECT l.source, l.target, l.link_type, COUNT(*) AS cnt
+                FROM links l
+                WHERE l.model = :modelId
+                GROUP BY l.source, l.target, l.link_type
+                HAVING COUNT(*) > 1
+            ),
+            ranked AS (
+                SELECT
+                    l.id,
+                    l.source AS source_id,
+                    s.name AS source_name,
+                    l.target AS target_id,
+                    tg.name AS target_name,
+                    l.link_type AS link_type_id,
+                    lt.name AS link_type_name,
+                    g.cnt,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY l.source, l.target, l.link_type
+                        ORDER BY l.id ASC
+                    ) AS rn
+                FROM links l
+                JOIN duplicate_groups g
+                  ON g.source = l.source
+                 AND g.target = l.target
+                 AND g.link_type = l.link_type
+                JOIN nodes s ON s.id = l.source
+                JOIN nodes tg ON tg.id = l.target
+                JOIN link_types lt ON lt.id = l.link_type
+                WHERE l.model = :modelId
+            )
+            SELECT
+                r.source_id AS "sourceId",
+                r.source_name AS "sourceName",
+                r.target_id AS "targetId",
+                r.target_name AS "targetName",
+                r.link_type_id AS "linkTypeId",
+                r.link_type_name AS "linkTypeName",
+                r.cnt AS "groupCount",
+                r.id AS id
+            FROM ranked r
+            WHERE r.rn <= 50
+            ORDER BY r.source_id, r.target_id, r.link_type_id, r.id
+        """,
+        nativeQuery = true
+    )
+    fun findDuplicateLinkMembers(@Param("modelId") modelId: UUID): List<DuplicateLinkMemberProjection>
 }
 
 

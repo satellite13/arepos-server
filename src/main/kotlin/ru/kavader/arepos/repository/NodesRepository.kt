@@ -43,6 +43,17 @@ interface NodeAncestorProjection {
     fun getCycle(): Boolean
 }
 
+interface DuplicateNodeMemberProjection {
+    fun getNodeTypeId(): UUID
+    fun getNodeTypeName(): String
+    fun getNameKey(): String
+    fun getGroupCount(): Long
+    fun getId(): UUID
+    fun getName(): String
+    fun getParentId(): UUID?
+    fun getParentName(): String?
+}
+
 @Repository
 interface NodesRepository : JpaRepository<Nodes, UUID> {
     fun findByModel(model: Models, pageable: Pageable): Page<Nodes>
@@ -328,6 +339,71 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
         @Param("q") q: String,
         pageable: Pageable
     ): Page<Nodes>
+
+    @Query(
+        value = """
+            WITH duplicate_groups AS (
+                SELECT n.node_type AS node_type_id,
+                       lower(trim(n.name)) AS name_key,
+                       COUNT(*) AS cnt
+                FROM nodes n
+                JOIN node_types t ON t.id = n.node_type
+                WHERE n.model = :modelId
+                  AND lower(t.name) <> 'directory'
+                GROUP BY n.node_type, lower(trim(n.name))
+                HAVING COUNT(*) > 1
+            ),
+            ranked AS (
+                SELECT
+                    n.id,
+                    n.name,
+                    n.node_type AS node_type_id,
+                    t.name AS node_type_name,
+                    n.parent_node AS parent_id,
+                    p.name AS parent_name,
+                    p.attrs AS parent_attrs,
+                    g.name_key,
+                    g.cnt,
+                    m.attrs AS model_attrs,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY n.node_type, g.name_key
+                        ORDER BY n.id ASC
+                    ) AS rn
+                FROM nodes n
+                JOIN duplicate_groups g
+                  ON g.node_type_id = n.node_type
+                 AND g.name_key = lower(trim(n.name))
+                JOIN node_types t ON t.id = n.node_type
+                JOIN models m ON m.id = n.model
+                LEFT JOIN nodes p ON p.id = n.parent_node
+                WHERE n.model = :modelId
+            )
+            SELECT
+                r.node_type_id AS "nodeTypeId",
+                r.node_type_name AS "nodeTypeName",
+                r.name_key AS "nameKey",
+                r.cnt AS "groupCount",
+                r.id AS id,
+                r.name AS name,
+                CASE
+                    WHEN r.parent_id IS NULL THEN NULL
+                    WHEN r.parent_id::text = NULLIF(TRIM(r.model_attrs ->> 'treeRootNodeId'), '') THEN NULL
+                    WHEN LOWER(COALESCE(r.parent_attrs #>> '{system,hiddenTreeRoot}', 'false')) = 'true' THEN NULL
+                    ELSE r.parent_id
+                END AS "parentId",
+                CASE
+                    WHEN r.parent_id IS NULL THEN NULL
+                    WHEN r.parent_id::text = NULLIF(TRIM(r.model_attrs ->> 'treeRootNodeId'), '') THEN NULL
+                    WHEN LOWER(COALESCE(r.parent_attrs #>> '{system,hiddenTreeRoot}', 'false')) = 'true' THEN NULL
+                    ELSE r.parent_name
+                END AS "parentName"
+            FROM ranked r
+            WHERE r.rn <= 50
+            ORDER BY r.node_type_id, r.name_key, r.id
+        """,
+        nativeQuery = true
+    )
+    fun findDuplicateNodeMembers(@Param("modelId") modelId: UUID): List<DuplicateNodeMemberProjection>
 }
 
 
