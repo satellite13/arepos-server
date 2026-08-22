@@ -93,6 +93,37 @@ class ModelsControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `rejects model versions that are not storage SemVer`() {
+        val owner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "invalid-version-owner@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+
+        listOf("01.0.0", "1.01.0", "1.0.01", "1.0.0-alpha.01").forEachIndexed { index, version ->
+            mockMvc.perform(
+                post("/api/v1/models")
+                    .withAuth(owner.id!!)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            ModelRequest(
+                                name = "invalid-version-$index",
+                                version = version,
+                                ownerId = owner.id
+                            )
+                        )
+                    )
+            )
+                .andExpect(status().isBadRequest)
+                .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("version"))
+        }
+    }
+
+    @Test
     fun `lists models`() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(

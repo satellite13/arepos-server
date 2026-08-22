@@ -3,6 +3,7 @@ package ru.kavader.arepos.dto.import
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
+import ru.kavader.arepos.dto.validation.StorageSemver
 import java.util.*
 
 data class NotationImportRequest(
@@ -46,6 +47,7 @@ data class NotationImportMeta(
     val name: String,
     @field:NotBlank
     @field:Size(max = 64)
+    @field:StorageSemver
     val version: String = "1.0.0",
     @field:Size(max = 100000)
     val attrs: String? = null
@@ -84,6 +86,7 @@ data class ImportedComponent(
     @field:Size(max = 255)
     val nodeTypeId: String,
     @field:Size(max = 64)
+    @field:StorageSemver
     val version: String? = null,
     @field:Size(max = 100000)
     val attrs: String? = null
@@ -100,6 +103,7 @@ data class ImportedRelation(
     @field:Size(max = 255)
     val linkTypeId: String,
     @field:Size(max = 64)
+    @field:StorageSemver
     val version: String? = null,
     @field:Size(max = 100000)
     val attrs: String? = null

@@ -1,8 +1,11 @@
 package ru.kavader.arepos.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
@@ -11,12 +14,19 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import ru.kavader.arepos.dto.apikey.ApiKeyGrantDto
+import ru.kavader.arepos.dto.apikey.ApiKeyModes
+import ru.kavader.arepos.dto.apikey.ApiKeyScopes
 import ru.kavader.arepos.dto.model.NodeRequest
 import ru.kavader.arepos.dto.model.NodeUpdateRequest
+import ru.kavader.arepos.model.ResourceShares
 import ru.kavader.arepos.model.Role
+import ru.kavader.arepos.model.SharePermission
+import ru.kavader.arepos.model.ShareResourceType
 import ru.kavader.arepos.repository.ModelsRepository
 import ru.kavader.arepos.repository.NodeTypesRepository
 import ru.kavader.arepos.repository.NodesRepository
+import ru.kavader.arepos.repository.ResourceSharesRepository
 import ru.kavader.arepos.repository.UsersRepository
 import java.time.Instant
 import java.util.*
@@ -43,6 +53,9 @@ class NodesControllerTest : ControllerIntegrationTest() {
 
     @Autowired
     lateinit var nodesRepository: NodesRepository
+
+    @Autowired
+    lateinit var resourceSharesRepository: ResourceSharesRepository
 
     private lateinit var owner: ru.kavader.arepos.model.Users
     private lateinit var model: ru.kavader.arepos.model.Models
@@ -127,6 +140,235 @@ class NodesControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.page.totalElements").value(2))
+    }
+
+    @Test
+    fun `lists configured and legacy root children with lazy tree semantics`() {
+        val directoryType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "Directory",
+                createdAt = Instant.now(),
+                owner = owner
+            )
+        )
+        val hiddenRoot = saveNode("__model_tree_root__", directoryType, attrs = """{"system":{"hiddenTreeRoot":true}}""")
+        val first = saveNode("First", directoryType, hiddenRoot, """{"treeOrder":1}""")
+        saveNode("Second", nodeType, hiddenRoot, """{"treeOrder":2}""")
+        saveNode("Grandchild", nodeType, first)
+        model.attrs = """{"treeRootNodeId":"${hiddenRoot.id}"}"""
+        modelsRepository.save(model)
+
+        mockMvc.perform(
+            get("/api/v1/nodes?modelId=${model.id}&parentId=root&page=0&size=10")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.totalElements").value(2))
+            .andExpect(jsonPath("$.content[0].id").value(first.id.toString()))
+            .andExpect(jsonPath("$.content[0].stableId").value(first.stableId.toString()))
+            .andExpect(jsonPath("$.content[0].name").value(first.name))
+            .andExpect(jsonPath("$.content[0].modelId").value(model.id.toString()))
+            .andExpect(jsonPath("$.content[0].parentNodeId").value(hiddenRoot.id.toString()))
+            .andExpect(jsonPath("$.content[0].attrs").value(containsString("\"treeOrder\"")))
+            .andExpect(jsonPath("$.content[0].hasChildren").value(true))
+
+        val legacyModel = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "legacy-${UUID.randomUUID()}",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = owner,
+                attrs = "{}"
+            )
+        )
+        val legacyRoot = saveNode("Legacy root", nodeType, targetModel = legacyModel)
+
+        mockMvc.perform(
+            get("/api/v1/nodes?modelId=${legacyModel.id}&parentId=root")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(legacyRoot.id.toString()))
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            """{"treeRootNodeId":null}""",
+            """{"treeRootNodeId":""}""",
+            """{"treeRootNodeId":{}}""",
+            """{"treeRootNodeId":[]}""",
+            """{"treeRootNodeId":"not-a-uuid"}"""
+        ]
+    )
+    fun `rejects present invalid tree root configuration`(attrs: String) {
+        model.attrs = attrs
+        modelsRepository.save(model)
+
+        mockMvc.perform(
+            get("/api/v1/nodes?modelId=${model.id}&parentId=root")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `validates lazy tree parent scope and preserves unscoped list`() {
+        val foreignModel = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "foreign-${UUID.randomUUID()}",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+        val foreignParent = saveNode("Foreign parent", nodeType, targetModel = foreignModel)
+
+        mockMvc.perform(get("/api/v1/nodes?parentId=root").withAuth(owner.id!!))
+            .andExpect(status().isBadRequest)
+        mockMvc.perform(
+            get("/api/v1/nodes?modelId=${model.id}&parentId=${foreignParent.id}")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isNotFound)
+
+        model.attrs = """{"treeRootNodeId":"${UUID.randomUUID()}"}"""
+        modelsRepository.save(model)
+        mockMvc.perform(
+            get("/api/v1/nodes?modelId=${model.id}&parentId=root")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isConflict)
+
+        mockMvc.perform(get("/api/v1/nodes?page=0&size=10").withAuth(owner.id!!))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.totalElements").value(1))
+    }
+
+    @Test
+    fun `lazy tree filters folders and system nodes and caps pages`() {
+        val directoryType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "dIrEcToRy",
+                createdAt = Instant.now(),
+                owner = owner
+            )
+        )
+        val parent = saveNode("Parent", directoryType)
+        val folder = saveNode("Folder", directoryType, parent)
+        saveNode("Regular", nodeType, parent)
+        saveNode("Hidden", directoryType, parent, """{"system":{"hiddenTreeRoot":true}}""")
+        saveNode("Folder child", directoryType, folder)
+
+        mockMvc.perform(
+            get(
+                "/api/v1/nodes?modelId=${model.id}&parentId=${parent.id}" +
+                    "&foldersOnly=true&excludeSystem=true&size=1000"
+            ).withAuth(owner.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.size").value(500))
+            .andExpect(jsonPath("$.page.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(folder.id.toString()))
+            .andExpect(jsonPath("$.content[0].hasChildren").value(true))
+    }
+
+    @Test
+    fun `lazy tree applies model ACL before pagination for all allowed callers`() {
+        val viewer = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "viewer-${UUID.randomUUID()}@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val stranger = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "stranger-${UUID.randomUUID()}@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin-${UUID.randomUUID()}@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        resourceSharesRepository.save(
+            ResourceShares(
+                resourceType = ShareResourceType.MODEL,
+                resourceId = model.id!!,
+                granteeUser = viewer,
+                grantedByUser = owner,
+                permission = SharePermission.VIEW,
+                createdAt = Instant.now()
+            )
+        )
+        val parent = saveNode("Parent", nodeType)
+        val first = saveNode("First", nodeType, parent, """{"treeOrder":1}""")
+        val second = saveNode("Second", nodeType, parent, """{"treeOrder":2}""")
+        val expectedIds = listOf(first.id.toString(), second.id.toString())
+        val ownerIds = lazyTreeIds(owner.id!!, Role.USER, model.id!!, parent.id!!)
+        val sharedIds = lazyTreeIds(viewer.id!!, Role.USER, model.id!!, parent.id!!)
+        val adminIds = lazyTreeIds(admin.id!!, Role.ADMIN, model.id!!, parent.id!!)
+        val mcpToken = jwtTokenProvider.generateMcpAccessToken(
+            owner.id!!,
+            Role.USER.name,
+            ApiKeyModes.GRANTS,
+            null,
+            listOf(ApiKeyGrantDto(model.id!!, listOf(ApiKeyScopes.MODELS_READ)))
+        )
+        val mcpResult = mockMvc.perform(
+            get("/api/v1/nodes?modelId=${model.id}&parentId=${parent.id}&size=1")
+                .header("Authorization", "Bearer $mcpToken")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.totalElements").value(2))
+            .andReturn()
+        val mcpIds = objectMapper.readTree(mcpResult.response.contentAsString)
+            .path("content")
+            .map { it.path("id").asText() }
+
+        assertEquals(expectedIds, ownerIds)
+        assertEquals(ownerIds, sharedIds)
+        assertEquals(ownerIds, adminIds)
+        assertEquals(expectedIds.take(1), mcpIds)
+
+        mockMvc.perform(
+            get("/api/v1/nodes?modelId=${model.id}&parentId=${parent.id}")
+                .withAuth(stranger.id!!, Role.USER)
+        )
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `honors requested page size up to configured max of 25000`() {
+        mockMvc.perform(
+            get("/api/v1/nodes?page=0&size=25000")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.size").value(25000))
+
+        mockMvc.perform(
+            get("/api/v1/nodes?page=0&size=30000")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.size").value(25000))
+    }
+
+    @Test
+    fun `uses configured default page size when size is omitted`() {
+        mockMvc.perform(
+            get("/api/v1/nodes")
+                .withAuth(owner.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.size").value(50))
     }
 
     @Test
@@ -344,5 +586,42 @@ class NodesControllerTest : ControllerIntegrationTest() {
 
         val reloaded = nodesRepository.findById(node.id!!).orElseThrow()
         assertEquals(newOwner.id, reloaded.owner.id)
+    }
+
+    private fun saveNode(
+        name: String,
+        type: ru.kavader.arepos.model.NodeTypes,
+        parent: ru.kavader.arepos.model.Nodes? = null,
+        attrs: String? = null,
+        targetModel: ru.kavader.arepos.model.Models = model
+    ): ru.kavader.arepos.model.Nodes = nodesRepository.save(
+        ru.kavader.arepos.model.Nodes(
+            stableId = UUID.randomUUID(),
+            name = name,
+            model = targetModel,
+            owner = targetModel.owner,
+            nodeType = type,
+            parentNode = parent,
+            attrs = attrs,
+            createdAt = Instant.now()
+        )
+    )
+
+    private fun lazyTreeIds(
+        userId: UUID,
+        role: Role,
+        modelId: UUID,
+        parentId: UUID
+    ): List<String> {
+        val result = mockMvc.perform(
+            get("/api/v1/nodes?modelId=$modelId&parentId=$parentId&size=10")
+                .withAuth(userId, role)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page.totalElements").value(2))
+            .andReturn()
+        return objectMapper.readTree(result.response.contentAsString)
+            .path("content")
+            .map { it.path("id").asText() }
     }
 }

@@ -2,6 +2,7 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -66,7 +67,7 @@ class ModelPackageController(
     @ResponseStatus(HttpStatus.ACCEPTED)
     fun retryImportJob(
         @PathVariable jobId: UUID,
-        @RequestBody request: PackageImportJobRetryRequest
+        @RequestBody @Valid request: PackageImportJobRetryRequest
     ): PackageImportJobAcceptedResponse {
         return importJobService.retryJob(jobId, accessService.currentUserId(), request)
     }

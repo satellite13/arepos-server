@@ -515,3 +515,35 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 055-large-model-link-read-indexes
+      author: Nikolay Groznykh
+      runInTransaction: false
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/055-large-model-link-read-indexes.sql
+            encoding: UTF-8
+            splitStatements: true
+            endDelimiter: ;
+
+  - changeSet:
+      id: 056-diagram-reference-indexes
+      author: Nikolay Groznykh
+      runInTransaction: false
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/056-diagram-reference-indexes.sql
+            encoding: UTF-8
+            splitStatements: true
+            endDelimiter: ;
+
+  - changeSet:
+      id: 057-strict-semver-version-domain
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/057-strict-semver-version-domain.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

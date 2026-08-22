@@ -1,5 +1,6 @@
 package ru.kavader.arepos.dto.modelpackage
 
+import ru.kavader.arepos.dto.validation.StorageSemver
 import java.time.Instant
 import java.util.UUID
 
@@ -118,7 +119,7 @@ data class ModelPackageImportOverrides(
 
 data class PackageImportJobRetryRequest(
     val targetModelName: String? = null,
-    val targetModelVersion: String? = null
+    @field:StorageSemver val targetModelVersion: String? = null
 )
 
 data class PackageImportJobStatusResponse(

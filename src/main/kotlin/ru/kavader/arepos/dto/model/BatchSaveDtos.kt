@@ -5,6 +5,7 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import ru.kavader.arepos.util.BatchDeleteListDeserializer
+import ru.kavader.arepos.dto.validation.StorageSemver
 import java.time.Instant
 import java.util.*
 
@@ -127,6 +128,7 @@ data class BatchDiagramCreate(
     val name: String,
     @field:NotBlank
     @field:Size(max = 64)
+    @field:StorageSemver
     val version: String,
     val notationId: UUID,
     @field:Size(max = 255)
@@ -143,6 +145,7 @@ data class BatchDiagramUpdate(
     val name: String,
     @field:NotBlank
     @field:Size(max = 64)
+    @field:StorageSemver
     val version: String,
     val notationId: UUID,
     @field:Size(max = 255)

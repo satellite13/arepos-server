@@ -57,7 +57,7 @@ class ModelMapper(
         updatedAt = diagram.updatedAt
     )
 
-    fun toResponse(node: Nodes): NodeResponse = NodeResponse(
+    fun toResponse(node: Nodes, hasChildren: Boolean? = null): NodeResponse = NodeResponse(
         id = requireNotNull(node.id),
         stableId = node.stableId,
         name = node.name,
@@ -67,7 +67,8 @@ class ModelMapper(
         parentNodeId = node.parentNode?.id,
         attrs = node.attrs,
         createdAt = node.createdAt,
-        updatedAt = node.updatedAt
+        updatedAt = node.updatedAt,
+        hasChildren = hasChildren
     )
 
     fun toResponse(link: Links): LinkResponse = LinkResponse(

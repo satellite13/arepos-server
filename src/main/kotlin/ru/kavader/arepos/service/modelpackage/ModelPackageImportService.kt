@@ -41,6 +41,7 @@ import ru.kavader.arepos.service.ModelAttrsService
 import ru.kavader.arepos.service.NotationImportService
 import ru.kavader.arepos.service.SystemRootNodeTypeService
 import ru.kavader.arepos.service.modelbatch.DiagramAttrsRemapper
+import ru.kavader.arepos.util.VersionUtils
 import java.io.ByteArrayInputStream
 import java.time.Instant
 import java.util.UUID
@@ -121,11 +122,15 @@ class ModelPackageImportService(
                 "Package exceeds notation limit of ${ModelPackageLimits.MAX_NOTATIONS}"
             )
         }
+        val notationPackages = notationPaths.map { path ->
+            path to parseNotationPackage(path, entries.getValue(path))
+        }
+        validatePackagePayload(packagedModel, notationPackages)
 
         if (notationPaths.isEmpty()) {
             progress?.onProgress(PackageImportStages.IMPORTING_NOTATIONS, 40, "No notations to import")
         }
-        notationPaths.forEachIndexed { index, path ->
+        notationPackages.forEachIndexed { index, (path, request) ->
             val pct = 15 + ((index + 1) * 30) / notationPaths.size
             val label = "Importing notation ${index + 1}/${notationPaths.size}"
             progress?.onProgress(PackageImportStages.IMPORTING_NOTATIONS, pct, label)
@@ -136,11 +141,6 @@ class ModelPackageImportService(
                 entries.getValue(path).size
             )
             val startedAt = System.nanoTime()
-            val request = try {
-                objectMapper.readValue<NotationImportRequest>(entries.getValue(path))
-            } catch (ex: Exception) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid notation package: $path", ex)
-            }
             val reused = notationPackageReuseResolver.tryReuse(request, owner)
             val result = if (reused != null) {
                 reuseWarnings += reused.warning
@@ -280,6 +280,43 @@ class ModelPackageImportService(
             objectMapper.readValue<PackagedModel>(bytes)
         } catch (ex: Exception) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid model.json", ex)
+        }
+    }
+
+    private fun parseNotationPackage(path: String, bytes: ByteArray): NotationImportRequest =
+        try {
+            objectMapper.readValue<NotationImportRequest>(bytes)
+        } catch (ex: Exception) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid notation package: $path", ex)
+        }
+
+    private fun validatePackagePayload(
+        model: PackagedModel,
+        notationPackages: List<Pair<String, NotationImportRequest>>
+    ) {
+        validateStorageSemver("model.version", model.version)
+        model.diagrams.forEachIndexed { index, diagram ->
+            validateStorageSemver("diagrams[$index].version", diagram.version)
+        }
+        notationPackages.forEach { (path, request) ->
+            val notationId = path.removePrefix("notations/").removeSuffix(".json")
+            val prefix = "notations[$notationId]"
+            validateStorageSemver("$prefix.notation.version", request.notation.version)
+            request.components.forEachIndexed { index, component ->
+                component.version?.let { validateStorageSemver("$prefix.components[$index].version", it) }
+            }
+            request.relations.forEachIndexed { index, relation ->
+                relation.version?.let { validateStorageSemver("$prefix.relations[$index].version", it) }
+            }
+        }
+    }
+
+    private fun validateStorageSemver(path: String, version: String) {
+        if (!VersionUtils.isValidStorageSemver(version)) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Invalid package semantic version at $path: '$version'"
+            )
         }
     }
 

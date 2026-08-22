@@ -4,19 +4,20 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.validation.constraints.AssertTrue
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import ru.kavader.arepos.dto.validation.StorageSemver
 import java.time.Instant
 import java.util.*
 
 data class ModelRequest(
     @field:NotBlank val name: String,
-    @field:NotBlank val version: String,
+    @field:NotBlank @field:StorageSemver val version: String,
     val ownerId: UUID? = null,
     val attrs: String? = null
 )
 
 data class ModelUpdateRequest(
     val name: String? = null,
-    val version: String? = null,
+    @field:StorageSemver val version: String? = null,
     val ownerId: UUID? = null,
     val attrs: String? = null
 )
@@ -71,7 +72,8 @@ data class NodeResponse(
     val parentNodeId: UUID?,
     val attrs: String?,
     val createdAt: Instant?,
-    val updatedAt: Instant?
+    val updatedAt: Instant?,
+    val hasChildren: Boolean? = null
 )
 
 data class EnsureNodeResponse(
@@ -127,7 +129,7 @@ data class LinkResponse(
 
 data class DiagramRequest(
     @field:NotBlank val name: String,
-    @field:NotBlank val version: String = "1.0.0",
+    @field:NotBlank @field:StorageSemver val version: String = "1.0.0",
     val ownerId: UUID? = null,
     @field:NotNull var modelId: UUID,
     val nodeId: UUID? = null,
@@ -142,7 +144,7 @@ data class EnsureDiagramResponse(
 
 data class DiagramUpdateRequest(
     val name: String? = null,
-    val version: String? = null,
+    @field:StorageSemver val version: String? = null,
     val ownerId: UUID? = null,
     val modelId: UUID? = null,
     val nodeId: UUID? = null,

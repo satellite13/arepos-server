@@ -9,6 +9,11 @@ import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.*
 import java.util.*
 
+interface GraphNeighborIdProjection {
+    fun getLinkId(): UUID
+    fun getNodeId(): UUID
+}
+
 @Repository
 interface LinksRepository : JpaRepository<Links, UUID> {
     fun findByModelOrderByIdAsc(model: Models, pageable: Pageable): Page<Links>
@@ -18,6 +23,73 @@ interface LinksRepository : JpaRepository<Links, UUID> {
     fun findByLinkType(linkType: LinkTypes, pageable: Pageable): Page<Links>
     fun findByModelAndOwnerOrderByIdAsc(model: Models, owner: Users, pageable: Pageable): Page<Links>
     fun existsByLinkTypeId(linkTypeId: UUID): Boolean
+
+    fun findByModel_IdAndIdIn(modelId: UUID, ids: Collection<UUID>): List<Links>
+
+    @Query(
+        value = """
+            SELECT
+                l.id AS "linkId",
+                CASE
+                    WHEN l.source = :nodeId THEN l.target
+                    ELSE l.source
+                END AS "nodeId"
+            FROM links l
+            WHERE l.model = :modelId
+              AND (
+                  (:direction = 'OUT' AND l.source = :nodeId)
+                  OR (:direction = 'IN' AND l.target = :nodeId)
+                  OR (:direction = 'BOTH' AND (l.source = :nodeId OR l.target = :nodeId))
+              )
+              AND (:linkTypeId IS NULL OR l.link_type = :linkTypeId)
+            ORDER BY l.id, "nodeId"
+        """,
+        countQuery = """
+            SELECT COUNT(*)
+            FROM links l
+            WHERE l.model = :modelId
+              AND (
+                  (:direction = 'OUT' AND l.source = :nodeId)
+                  OR (:direction = 'IN' AND l.target = :nodeId)
+                  OR (:direction = 'BOTH' AND (l.source = :nodeId OR l.target = :nodeId))
+              )
+              AND (:linkTypeId IS NULL OR l.link_type = :linkTypeId)
+        """,
+        nativeQuery = true
+    )
+    fun findGraphNeighborIds(
+        @Param("modelId") modelId: UUID,
+        @Param("nodeId") nodeId: UUID,
+        @Param("direction") direction: String,
+        @Param("linkTypeId") linkTypeId: UUID?,
+        pageable: Pageable
+    ): Page<GraphNeighborIdProjection>
+
+    @Query(
+        """
+        SELECT l.id FROM Links l
+        WHERE l.model.id = :modelId
+          AND l.id IN :linkIds
+        """
+    )
+    fun findIdsByModelIdAndIdIn(
+        @Param("modelId") modelId: UUID,
+        @Param("linkIds") linkIds: Collection<UUID>
+    ): List<UUID>
+
+    @Query(
+        """
+        SELECT l.id FROM Links l
+        WHERE l.model.id = :modelId
+          AND (l.source.id IN :endpointNodeIds OR l.target.id IN :endpointNodeIds)
+        ORDER BY l.id ASC
+        """
+    )
+    fun findIdsByModelIdAndEndpointNodeIds(
+        @Param("modelId") modelId: UUID,
+        @Param("endpointNodeIds") endpointNodeIds: Collection<UUID>,
+        pageable: Pageable
+    ): List<UUID>
 
     fun findByModel_IdAndSource_IdAndTarget_IdAndLinkType_Id(
         modelId: UUID,

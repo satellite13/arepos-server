@@ -1,5 +1,6 @@
 package ru.kavader.arepos.service
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -30,7 +31,9 @@ class SearchService(
     private val diagramsRepository: DiagramsRepository,
     private val componentsRepository: ComponentsRepository,
     private val relationsRepository: RelationsRepository,
-    private val accessService: ResourceAccessService
+    private val accessService: ResourceAccessService,
+    private val modelSearchPathEnricher: ModelSearchPathEnricher,
+    private val objectMapper: ObjectMapper
 ) {
     companion object {
         const val DEFAULT_LIMIT = 20
@@ -105,29 +108,34 @@ class SearchService(
         val q = normalizeQuery(qRaw)
         val limit = normalizeLimit(limitRaw)
         val kinds = parseKinds(kindsRaw, MODEL_KINDS)
-        val pageable = PageRequest.of(0, limit)
+        val pageable = PageRequest.of(0, MAX_LIMIT)
 
         val hits = mutableListOf<ModelSearchHit>()
+        val nodeHits = mutableListOf<ModelSearchHit>()
+        val linkHits = mutableListOf<ModelSearchHit>()
+        val diagramHits = mutableListOf<ModelSearchHit>()
         var totalEstimate = 0
 
         if ("nodes" in kinds) {
             val page = nodesRepository.searchByModelIdAndName(modelId, q, pageable)
             totalEstimate += page.totalElements.toInt()
-            hits += page.content.map { node ->
+            nodeHits += page.content.map { node ->
                 ModelSearchHit(
                     kind = "node",
                     id = node.id!!,
                     name = node.name,
                     typeName = node.nodeType.name,
+                    nodeTypeId = node.nodeType.id,
                     parentId = node.parentNode?.id
                 )
             }
+            hits += nodeHits
         }
 
         if ("links" in kinds) {
             val page = linksRepository.searchByModelIdAndEndpointNames(modelId, q, pageable)
             totalEstimate += page.totalElements.toInt()
-            hits += page.content.map { link ->
+            linkHits += page.content.map { link ->
                 ModelSearchHit(
                     kind = "link",
                     id = link.id!!,
@@ -139,26 +147,33 @@ class SearchService(
                     targetName = link.target.name
                 )
             }
+            hits += linkHits
         }
 
         if ("diagrams" in kinds) {
-            val page = diagramsRepository.findByFilters(
-                null,
+            val treeRootNodeId = configuredTreeRootNodeId(modelId, model.attrs)
+            val page = diagramsRepository.searchLatestActiveByModelIdAndName(
                 modelId,
-                null,
-                null,
                 q,
-                pageable
+                PageRequest.of(0, limit)
             )
             totalEstimate += page.totalElements.toInt()
-            hits += page.content.map { diagram ->
+            diagramHits += page.content.map { diagram ->
                 ModelSearchHit(
                     kind = "diagram",
-                    id = diagram.id!!,
-                    name = diagram.name,
-                    notationName = diagram.notation.name
+                    id = diagram.getId(),
+                    name = diagram.getName(),
+                    parentId = diagram.getNodeId()?.takeUnless { it == treeRootNodeId },
+                    notationName = diagram.getNotationName()
                 )
             }
+            hits += diagramHits
+        }
+
+        val orderedHits = if ("nodes" in kinds && "diagrams" in kinds) {
+            fairTreeHits(nodeHits, diagramHits, linkHits, limit)
+        } else {
+            hits.take(limit)
         }
 
         return ModelSearchResponse(
@@ -166,7 +181,7 @@ class SearchService(
             q = q,
             limit = limit,
             totalEstimate = totalEstimate,
-            hits = hits.take(limit)
+            hits = modelSearchPathEnricher.enrich(modelId, model.attrs, orderedHits)
         )
     }
 
@@ -221,6 +236,54 @@ class SearchService(
             hits = hits.take(limit)
         )
     }
+
+    private fun configuredTreeRootNodeId(modelId: UUID, attrs: String?): UUID? {
+        val rootNodeId = try {
+            attrs?.let(objectMapper::readTree)?.get("treeRootNodeId") ?: return null
+        } catch (_: Exception) {
+            invalidTreeRootConfiguration()
+        }
+        if (!rootNodeId.isTextual) {
+            invalidTreeRootConfiguration()
+        }
+        val rawRootId = rootNodeId.asText().trim()
+        if (rawRootId.isEmpty()) {
+            invalidTreeRootConfiguration()
+        }
+        return try {
+            UUID.fromString(rawRootId)
+        } catch (_: IllegalArgumentException) {
+            invalidTreeRootConfiguration()
+        }.also { treeRootNodeId ->
+            val treeRoot = nodesRepository.findById(treeRootNodeId).orElse(null)
+            if (treeRoot?.model?.id != modelId) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Configured model tree root is missing")
+            }
+        }
+    }
+
+    private fun invalidTreeRootConfiguration(): Nothing {
+        throw ResponseStatusException(HttpStatus.CONFLICT, "Model tree root configuration is invalid")
+    }
+
+    private fun fairTreeHits(
+        nodeHits: List<ModelSearchHit>,
+        diagramHits: List<ModelSearchHit>,
+        linkHits: List<ModelSearchHit>,
+        limit: Int
+    ): List<ModelSearchHit> {
+        val quota = limit / 2
+        val allocated = nodeHits.take(quota) + diagramHits.take(quota)
+        val remaining = (nodeHits.drop(quota) + diagramHits.drop(quota) + linkHits)
+            .sortedWith(modelHitOrder)
+            .take(limit - allocated.size)
+        return (allocated + remaining).sortedWith(modelHitOrder)
+    }
+
+    private val modelHitOrder = compareBy<ModelSearchHit> {
+        (it.name ?: it.sourceName ?: it.targetName ?: "").lowercase()
+    }
+        .thenBy { it.id.toString() }
 
     private fun normalizeQuery(qRaw: String?): String {
         val q = qRaw?.trim().orEmpty()

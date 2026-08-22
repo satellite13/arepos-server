@@ -486,6 +486,25 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"))
     }
 
+    @Test
+    fun `retry rejects invalid target model version before requeue`() {
+        val owner = usersRepository.save(
+            Users(email = "model-package-retry-invalid-semver@test.com", role = Role.USER, createdAt = Instant.now())
+        )
+
+        mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                "/api/v1/models/package/jobs/${UUID.randomUUID()}/retry"
+            )
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"targetModelVersion":"01.0.0"}""")
+                .withAuth(owner.id!!, Role.USER)
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.fieldErrors[0].field").value("targetModelVersion"))
+    }
+
     private data class ImportJobPoll(val status: String)
 
     private fun awaitImportJob(ownerId: UUID, jobId: String, timeoutMs: Long = 30_000): ImportJobPoll {

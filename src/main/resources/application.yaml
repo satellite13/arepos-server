@@ -17,7 +17,8 @@ spring:
   data:
     web:
       pageable:
-        # Large OEF models need one-shot / few-page loads; default Spring max is 2000.
+        # Read by PageableWebConfig: @EnableSpringDataWebSupport turns off Boot's
+        # spring.data.web.pageable.* binder (default max stays 2000).
         max-page-size: ${PAGEABLE_MAX_PAGE_SIZE:25000}
         default-page-size: ${PAGEABLE_DEFAULT_PAGE_SIZE:50}
   jpa:

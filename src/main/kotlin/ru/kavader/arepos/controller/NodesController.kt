@@ -28,6 +28,7 @@ import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
 import ru.kavader.arepos.service.MdFileLinkValidator
 import ru.kavader.arepos.service.ModelSyncBroadcaster
+import ru.kavader.arepos.service.ModelTreeQueryService
 import ru.kavader.arepos.service.NodeEnsureService
 import java.time.Instant
 import java.util.*
@@ -48,7 +49,8 @@ class NodesController(
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val typeUsageAuthorization: TypeUsageAuthorization,
     private val modelMapper: ModelMapper,
-    private val nodeEnsureService: NodeEnsureService
+    private val nodeEnsureService: NodeEnsureService,
+    private val modelTreeQueryService: ModelTreeQueryService
 ) {
 
     @GetMapping
@@ -57,8 +59,25 @@ class NodesController(
         pageable: Pageable,
         @RequestParam(required = false) modelId: UUID?,
         @RequestParam(required = false) ownerId: UUID?,
-        @RequestParam(required = false) name: String?
+        @RequestParam(required = false) name: String?,
+        @RequestParam(required = false) parentId: String?,
+        @RequestParam(defaultValue = "true") excludeSystem: Boolean,
+        @RequestParam(defaultValue = "false") foldersOnly: Boolean
     ): Page<NodeResponse> {
+        if (parentId != null) {
+            val scopedModelId = modelId ?: throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "modelId is required when parentId is provided"
+            )
+            return modelTreeQueryService.listChildren(
+                modelId = scopedModelId,
+                parentRef = parentId,
+                excludeSystem = excludeSystem,
+                foldersOnly = foldersOnly,
+                pageable = pageable
+            )
+        }
+
         val normalizedName = name.trimmedOrNull()
         if (!accessService.canViewAdminPanel()) {
             return nodesRepository.findAccessibleByFiltersForUser(
