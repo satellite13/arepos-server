@@ -2,6 +2,7 @@ package ru.kavader.arepos.dto.model
 
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import ru.kavader.arepos.dto.validation.StorageSemver
 import java.util.UUID
 
 enum class DiagramCopyMatchReason { STABLE_ID, NAME_AND_TYPE, ENDPOINTS_AND_TYPE }
@@ -27,7 +28,7 @@ data class DiagramCopyCommitRequest(
     @field:NotNull val sourceDiagramId: UUID,
     @field:NotNull val targetNotationId: UUID,
     @field:NotBlank val name: String,
-    @field:NotBlank val version: String,
+    @field:NotBlank @field:StorageSemver val version: String,
     val nodeId: UUID? = null, // diagram folder in target tree
     val createParentNodeId: UUID? = null, // parent for created nodes (v1 folder/root)
     @field:NotNull val resolutions: List<DiagramCopyResolution>

@@ -549,6 +549,91 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     }
 
     @Test
+    fun `import rejects invalid model version before persistence`() {
+        val owner = persistUser(email = "package-import-invalid-model-semver@test.com")
+        authAs(owner.id!!, Role.USER)
+        val beforeModels = modelsRepository.count()
+
+        val ex = assertThrows<ResponseStatusException> {
+            importService.importPackage(
+                buildZip(
+                    mapOf(
+                        "manifest.json" to manifestBytes(),
+                        "model.json" to minimalModelBytes(version = "01.0.0")
+                    )
+                ),
+                owner
+            )
+        }
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertEquals("Invalid package semantic version at model.version: '01.0.0'", ex.reason)
+        assertEquals(beforeModels, modelsRepository.count())
+    }
+
+    @Test
+    fun `import rejects invalid diagram prerelease version before persistence`() {
+        val owner = persistUser(email = "package-import-invalid-diagram-semver@test.com")
+        authAs(owner.id!!, Role.USER)
+        val notationId = UUID.randomUUID()
+        val beforeModels = modelsRepository.count()
+        val beforeNotations = notationsRepository.count()
+
+        val ex = assertThrows<ResponseStatusException> {
+            importService.importPackage(
+                buildZip(
+                    mapOf(
+                        "manifest.json" to manifestBytes(notationIds = listOf(notationId)),
+                        "model.json" to minimalModelBytes(
+                            diagramCount = 1,
+                            notationId = notationId,
+                            diagramVersion = "1.0.0-alpha.01"
+                        ),
+                        "notations/$notationId.json" to notationBytes(version = "1.0.0")
+                    )
+                ),
+                owner
+            )
+        }
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertEquals(
+            "Invalid package semantic version at diagrams[0].version: '1.0.0-alpha.01'",
+            ex.reason
+        )
+        assertEquals(beforeModels, modelsRepository.count())
+        assertEquals(beforeNotations, notationsRepository.count())
+    }
+
+    @Test
+    fun `import rejects invalid notation version before persistence`() {
+        val owner = persistUser(email = "package-import-invalid-notation-semver@test.com")
+        authAs(owner.id!!, Role.USER)
+        val notationId = UUID.randomUUID()
+        val beforeNotations = notationsRepository.count()
+
+        val ex = assertThrows<ResponseStatusException> {
+            importService.importPackage(
+                buildZip(
+                    mapOf(
+                        "manifest.json" to manifestBytes(notationIds = listOf(notationId)),
+                        "model.json" to minimalModelBytes(),
+                        "notations/$notationId.json" to notationBytes(version = "1.0.0-alpha.01")
+                    )
+                ),
+                owner
+            )
+        }
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertEquals(
+            "Invalid package semantic version at notations[$notationId].notation.version: '1.0.0-alpha.01'",
+            ex.reason
+        )
+        assertEquals(beforeNotations, notationsRepository.count())
+    }
+
+    @Test
     fun `import rejects empty zip`() {
         val owner = persistUser(email = "package-import-empty-zip@test.com")
         authAs(owner.id!!, Role.USER)
@@ -643,12 +728,14 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
 
     private fun minimalModelBytes(
         diagramCount: Int = 0,
-        notationId: UUID = UUID.randomUUID()
+        notationId: UUID = UUID.randomUUID(),
+        version: String = "1.0.0",
+        diagramVersion: String = "1.0.0"
     ): ByteArray {
         val rootId = UUID.randomUUID()
         val model = PackagedModel(
             name = "Limit Test Model",
-            version = "1.0.0",
+            version = version,
             nodes = listOf(
                 PackagedNode(
                     id = rootId,
@@ -662,13 +749,16 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
                 PackagedDiagram(
                     id = UUID.randomUUID(),
                     name = "Diagram $index",
-                    version = "1.0.0",
+                    version = diagramVersion,
                     notationId = notationId
                 )
             }
         )
         return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(model)
     }
+
+    private fun notationBytes(version: String): ByteArray =
+        """{"notation":{"name":"Imported Notation","version":"$version"}}""".toByteArray()
 
     private fun buildZip(entries: Map<String, ByteArray>): ByteArray {
         ByteArrayOutputStream().use { baos ->

@@ -2,19 +2,20 @@ package ru.kavader.arepos.dto.notation
 
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import ru.kavader.arepos.dto.validation.StorageSemver
 import java.time.Instant
 import java.util.*
 
 data class NotationRequest(
     @field:NotBlank val name: String,
-    @field:NotBlank val version: String,
+    @field:NotBlank @field:StorageSemver val version: String,
     val ownerId: UUID? = null,
     val attrs: String? = null
 )
 
 data class NotationUpdateRequest(
     val name: String? = null,
-    val version: String? = null,
+    @field:StorageSemver val version: String? = null,
     val ownerId: UUID? = null,
     val attrs: String? = null
 )
@@ -45,7 +46,7 @@ data class NotationMetaResponse(
 
 data class ComponentRequest(
     @field:NotBlank val name: String,
-    @field:NotBlank val version: String,
+    @field:NotBlank @field:StorageSemver val version: String,
     @field:NotNull val notationId: UUID,
     val ownerId: UUID? = null,
     @field:NotNull val nodeTypeId: UUID,
@@ -54,7 +55,7 @@ data class ComponentRequest(
 
 data class ComponentUpdateRequest(
     override val name: String? = null,
-    override val version: String? = null,
+    @field:StorageSemver override val version: String? = null,
     val notationId: UUID? = null,
     val ownerId: UUID? = null,
     val nodeTypeId: UUID? = null,
@@ -75,7 +76,7 @@ data class ComponentResponse(
 
 data class RelationRequest(
     @field:NotBlank val name: String,
-    @field:NotBlank val version: String,
+    @field:NotBlank @field:StorageSemver val version: String,
     @field:NotNull val notationId: UUID,
     val ownerId: UUID? = null,
     @field:NotNull val linkTypeId: UUID,
@@ -84,7 +85,7 @@ data class RelationRequest(
 
 data class RelationUpdateRequest(
     override val name: String? = null,
-    override val version: String? = null,
+    @field:StorageSemver override val version: String? = null,
     val notationId: UUID? = null,
     val ownerId: UUID? = null,
     val linkTypeId: UUID? = null,

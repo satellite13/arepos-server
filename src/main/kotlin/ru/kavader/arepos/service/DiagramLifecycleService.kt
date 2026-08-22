@@ -109,15 +109,11 @@ class DiagramLifecycleService(
     }
 
     fun compareDiagramVersions(a: Diagrams, b: Diagrams): Int {
-        val aSemver = VersionUtils.parseSemver(a.version)
-        val bSemver = VersionUtils.parseSemver(b.version)
-        if (aSemver != null && bSemver != null) {
-            val majorCmp = aSemver.first.compareTo(bSemver.first)
-            if (majorCmp != 0) return majorCmp
-            val minorCmp = aSemver.second.compareTo(bSemver.second)
-            if (minorCmp != 0) return minorCmp
-            val patchCmp = aSemver.third.compareTo(bSemver.third)
-            if (patchCmp != 0) return patchCmp
+        val semverComparison = VersionUtils.compareSemver(a.version, b.version)
+        if (semverComparison != null) {
+            if (semverComparison != 0) return semverComparison
+        } else {
+            return a.version.compareTo(b.version)
         }
         val aUpdated = a.updatedAt ?: a.createdAt ?: Instant.EPOCH
         val bUpdated = b.updatedAt ?: b.createdAt ?: Instant.EPOCH

@@ -18,6 +18,14 @@ interface DiagramReferenceProjection {
     fun getNodeId(): UUID?
 }
 
+interface ModelDiagramSearchProjection {
+    fun getId(): UUID
+    fun getName(): String
+    fun getVersion(): String
+    fun getNotationName(): String
+    fun getNodeId(): UUID?
+}
+
 @Repository
 interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
 
@@ -79,6 +87,74 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
         name: String,
         pageable: Pageable
     ): Page<Diagrams>
+
+    @Query(
+        value = """
+            WITH matching AS (
+                SELECT
+                    d.id,
+                    d.name,
+                    d.version,
+                    n.name AS notation_name,
+                    d.node_id,
+                    string_to_array(split_part(split_part(d.version, '+', 1), '-', 1), '.')::numeric[] AS core,
+                    substring(split_part(d.version, '+', 1) FROM '-(.*)$') AS prerelease
+                FROM diagrams d
+                JOIN notations n ON n.id = d.notation_id
+                WHERE d.model = :modelId
+                  AND d.deleted = false
+                  AND d.name ILIKE CONCAT('%', :q, '%')
+            ),
+            latest AS (
+                SELECT DISTINCT ON (name)
+                    id,
+                    name,
+                    version,
+                    notation_name,
+                    node_id
+                FROM matching m
+                ORDER BY
+                    name,
+                    core DESC,
+                    (prerelease IS NULL) DESC,
+                    (
+                        SELECT jsonb_agg(
+                            jsonb_build_object(
+                                CASE WHEN identifier ~ '^[0-9]+$' THEN '0' ELSE '1' END,
+                                CASE
+                                    WHEN identifier ~ '^[0-9]+$' THEN to_jsonb(identifier::numeric)
+                                    ELSE to_jsonb(identifier)
+                                END
+                            )
+                            ORDER BY ordinal
+                        )
+                        FROM regexp_split_to_table(prerelease, '\.') WITH ORDINALITY AS part(identifier, ordinal)
+                    ) DESC NULLS LAST,
+                    id ASC
+            )
+            SELECT
+                id,
+                name,
+                version,
+                notation_name AS "notationName",
+                node_id AS "nodeId"
+            FROM latest
+            ORDER BY name ASC, id ASC
+        """,
+        countQuery = """
+            SELECT COUNT(DISTINCT d.name)
+            FROM diagrams d
+            WHERE d.model = :modelId
+              AND d.deleted = false
+              AND d.name ILIKE CONCAT('%', :q, '%')
+        """,
+        nativeQuery = true
+    )
+    fun searchLatestActiveByModelIdAndName(
+        modelId: UUID,
+        q: String,
+        pageable: Pageable
+    ): Page<ModelDiagramSearchProjection>
 
     @Query(
         "SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END " +
