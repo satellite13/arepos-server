@@ -295,6 +295,50 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `live patch envelope from lock holder returns 200`() {
+        val s = createDiagramFixture()
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))
+            .andExpect(status().isOk)
+
+        val body = """
+            {
+              "v": 1,
+              "kind": "patch",
+              "seq": 1,
+              "upsertNodes": [{ "id": "n1", "modelNodeId": "00000000-0000-0000-0000-000000000001", "x": 1, "y": 2 }],
+              "upsertEdges": [],
+              "removeNodeIds": [],
+              "removeEdgeIds": []
+            }
+        """.trimIndent()
+
+        mockMvc.perform(
+            post("/api/v1/diagram-locks/${s.diagramId}/live")
+                .withAuth(s.ownerId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+        )
+            .andExpect(status().isOk)
+    }
+
+    @Test
+    fun `live payload larger than 512 KB returns 413`() {
+        val s = createDiagramFixture()
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))
+            .andExpect(status().isOk)
+
+        val oversized = objectMapper.createObjectNode().put("pad", "x".repeat(512 * 1024 + 64))
+        mockMvc.perform(
+            post("/api/v1/diagram-locks/${s.diagramId}/live")
+                .withAuth(s.ownerId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(oversized))
+        )
+            .andExpect(status().isPayloadTooLarge)
+            .andExpect(jsonPath("$.message").value("instances payload too large"))
+    }
+
+    @Test
     fun `heartbeat by holder returns 200`() {
         val s = createDiagramFixture()
         mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(s.ownerId))

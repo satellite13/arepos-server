@@ -25,7 +25,7 @@ Base path: `/api/v1/diagram-locks`
 | `POST` | `/{diagramId}/spectate` | Start spectating → **204** |
 | `POST` | `/{diagramId}/spectate/ping` | Keep spectate session alive |
 | `DELETE` | `/{diagramId}/spectate` | Leave spectate |
-| `POST` | `/{diagramId}/live` | Relay live canvas instances (JSON body) |
+| `POST` | `/{diagramId}/live` | Relay one live message. Body is a wArchi envelope (`v=1`, `kind=patch` or `snapshot-chunk`, `seq`, `upsert*` / `remove*`, optional `chunkIndex` / `chunkCount`) or legacy `{ nodes, edges }`. Server does not interpret the envelope: lock check plus broadcast into STOMP `instances`. HTTP **413** `instances payload too large` if **one** body exceeds 512 KB — a per-message DoS cap, not a diagram-size limit; the client splits chunks. |
 | `POST` | `/{diagramId}/pointer` | Relay collaborator pointer |
 
 HTTP **409** may still appear from the lock service on rare races; clients should treat `LOCKED_BY_OTHER` on **200** as the primary “blocked editor” signal.
