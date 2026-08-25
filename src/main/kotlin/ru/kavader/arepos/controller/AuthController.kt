@@ -145,6 +145,7 @@ class AuthController(
         @RequestBody @Valid request: AdminRegisterRequest,
         response: HttpServletResponse
     ): AuthResponse {
+        ensureRegistrationEnabled()
         if (adminSecret.isBlank()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Admin registration is not configured")
         }
