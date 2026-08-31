@@ -1,5 +1,9 @@
 # Code review: Papirus 0.9.13
 
+Документ сохранён в `arepos-server` (сестринский проект): у cloud-agent не было прав
+на push в `satellite13/papirus` (HTTP 403). Имеет смысл перенести файл в
+`papirus/docs/code-review-0.9.13.md` при наличии write-доступа.
+
 **Дата:** 2026-08-31  
 **Пакет:** `@ngroznykh/papirus` 0.9.13  
 **Репозиторий:** https://github.com/satellite13/papirus  
