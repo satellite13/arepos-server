@@ -19,9 +19,32 @@ interface AuditLogRepository : JpaRepository<AuditLog, UUID> {
     fun findByRowId(rowId: UUID, pageable: Pageable): Page<AuditLog>
     fun findByTableNameAndRowId(tableName: String, rowId: UUID, pageable: Pageable): Page<AuditLog>
 
+    fun findByChangedByAndTableNameAndRowId(
+        changedBy: Users,
+        tableName: String,
+        rowId: UUID,
+        pageable: Pageable
+    ): Page<AuditLog>
+
+    fun findByChangedByAndTableName(
+        changedBy: Users,
+        tableName: String,
+        pageable: Pageable
+    ): Page<AuditLog>
+
+    fun findByChangedByAndOperation(
+        changedBy: Users,
+        operation: String,
+        pageable: Pageable
+    ): Page<AuditLog>
+
+    fun findByChangedByAndRowId(
+        changedBy: Users,
+        rowId: UUID,
+        pageable: Pageable
+    ): Page<AuditLog>
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from AuditLog a where a.changedAt < :cutoff")
     fun deleteByChangedAtBefore(cutoff: Instant): Int
 }
-
-

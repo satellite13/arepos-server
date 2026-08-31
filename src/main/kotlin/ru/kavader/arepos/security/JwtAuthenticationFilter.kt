@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import ru.kavader.arepos.config.AuditInterceptor
 import ru.kavader.arepos.dto.apikey.ApiKeyModes
+import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.repository.UsersRepository
 
 @Component
@@ -83,7 +84,12 @@ class JwtAuthenticationFilter(
             return
         }
 
-        val role = user.role.name
+        // MCP tokens must not inherit ADMIN/EDITOR Cerbos privileges (admin_panel, user_admin, …).
+        val role = if (tokenType == TokenType.MCP_ACCESS) {
+            Role.USER.name
+        } else {
+            user.role.name
+        }
         log.debug(
             "JWT filter: authenticated userId={}, role={}, tokenType={}, path={} {}",
             userId,

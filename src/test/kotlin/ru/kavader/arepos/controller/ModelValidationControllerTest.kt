@@ -315,22 +315,31 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
-    fun `merge remaps drop instances to keep and leaves both figures`() {
+    fun `merge remaps drop-only instances and removes extras when keep is already on canvas`() {
         val keep = saveNode(model, "CRM", applicationComponentType)
         val drop = saveNode(model, "CRM", applicationComponentType)
-        val diagram = saveDiagram(
+        val diagramBoth = saveDiagram(
             model,
             "two-figures",
             """{"instances":{"nodes":[{"id":"i1","modelNodeId":"${drop.id}"},{"id":"i2","modelNodeId":"${keep.id}"}],"edges":[]}}"""
         )
+        val diagramDropOnly = saveDiagram(
+            model,
+            "drop-only",
+            """{"nodes":[{"id":"root1","modelNodeId":"${drop.id}"}],"instances":{"nodes":[{"id":"i3","modelNodeId":"${drop.id}"}],"edges":[]}}"""
+        )
 
         postMerge(keep, drop).andExpect(status().isOk)
 
-        val root = objectMapper.readTree(diagramsRepository.findById(diagram.id!!).orElseThrow().attrs)
-        val nodes = root.path("instances").path("nodes")
-        assertEquals(2, nodes.size())
-        assertEquals(keep.id.toString(), nodes[0].path("modelNodeId").asText())
-        assertEquals(keep.id.toString(), nodes[1].path("modelNodeId").asText())
+        val both = objectMapper.readTree(diagramsRepository.findById(diagramBoth.id!!).orElseThrow().attrs)
+        val bothNodes = both.path("instances").path("nodes")
+        assertEquals(1, bothNodes.size())
+        assertEquals("i2", bothNodes[0].path("id").asText())
+        assertEquals(keep.id.toString(), bothNodes[0].path("modelNodeId").asText())
+
+        val dropOnly = objectMapper.readTree(diagramsRepository.findById(diagramDropOnly.id!!).orElseThrow().attrs)
+        assertEquals(keep.id.toString(), dropOnly.path("nodes")[0].path("modelNodeId").asText())
+        assertEquals(keep.id.toString(), dropOnly.path("instances").path("nodes")[0].path("modelNodeId").asText())
     }
 
     @Test
@@ -369,6 +378,21 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
         saveNode(model, "child", applicationComponentType, parent = drop)
 
         postMerge(keep, drop).andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `merge rejects drop that still has documents`() {
+        val keep = saveNode(model, "CRM", applicationComponentType)
+        val drop = saveNode(
+            model,
+            "CRM",
+            applicationComponentType,
+            attrs = """{"documentFileId":"11111111-1111-1111-1111-111111111111"}"""
+        )
+
+        postMerge(keep, drop)
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.message").value("Drop node has documents; transfer or clear them before merge"))
     }
 
     @Test

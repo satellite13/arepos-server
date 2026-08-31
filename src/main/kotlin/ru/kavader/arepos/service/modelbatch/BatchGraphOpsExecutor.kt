@@ -94,7 +94,7 @@ class BatchGraphOpsExecutor(
             nodeIdMap
         )
 
-        val diagramsDeleted = deleteDiagrams(request.diagrams.delete, requireNotNull(model.id))
+        val diagramsDeleted = deleteDiagrams(request.diagrams.delete, model)
         val replaceDeletedIds = requireUniqueDiagramNameVersions(
             request.diagrams.create,
             request.diagrams.update,
@@ -142,9 +142,10 @@ class BatchGraphOpsExecutor(
     ): Int {
         for (upd in updates) {
             val node = findNodeOrThrow(upd.id)
+            requireBelongsToModel(node, model)
             val nodeType = findNodeTypeOrThrow(upd.nodeTypeId)
             typeUsageAuthorization.requireCanUseNodeTypeForModel(nodeType, model)
-            val parentNode = resolveParentNode(upd.parentNodeId, nodeIdMap)
+            val parentNode = resolveParentNode(upd.parentNodeId, nodeIdMap, model)
             node.name = upd.name
             node.nodeType = nodeType
             node.parentNode = parentNode
@@ -185,6 +186,9 @@ class BatchGraphOpsExecutor(
                         }
                         findNodeOrThrow(parentUuid, "Parent node $parentRef not found")
                     }
+                }
+                if (parentNode != null) {
+                    requireBelongsToModel(parentNode, model)
                 }
                 val nodeType = findNodeTypeOrThrow(item.nodeTypeId)
                 typeUsageAuthorization.requireCanUseNodeTypeForModel(nodeType, model)
@@ -254,7 +258,7 @@ class BatchGraphOpsExecutor(
         nodeIdMap: Map<String, UUID>, linkIdMap: MutableMap<String, UUID>
     ): Int {
         for (item in creates) {
-            val endpoints = resolveLinkEndpoints(item.sourceId, item.targetId, nodeIdMap)
+            val endpoints = resolveLinkEndpoints(item.sourceId, item.targetId, nodeIdMap, model)
             val linkType = authorizedLinkType(item.linkTypeId, model)
             val saved = linksRepository.save(
                 Links(
@@ -280,9 +284,10 @@ class BatchGraphOpsExecutor(
     ): Int {
         for (upd in updates) {
             val link = findLinkOrThrow(upd.id)
+            requireBelongsToModel(link, model)
             applyLinkFields(
                 link = link,
-                endpoints = resolveLinkEndpoints(upd.sourceId, upd.targetId, nodeIdMap),
+                endpoints = resolveLinkEndpoints(upd.sourceId, upd.targetId, nodeIdMap, model),
                 linkTypeId = upd.linkTypeId,
                 attrs = upd.attrs,
                 model = model,
@@ -385,6 +390,7 @@ class BatchGraphOpsExecutor(
     ): Int {
         for (upd in updates) {
             val diagram = findDiagramOrThrow(upd.id)
+            requireBelongsToModel(diagram, model)
             val fields = prepareDiagramFields(
                 notationId = upd.notationId,
                 nodeId = upd.nodeId,
@@ -407,9 +413,14 @@ class BatchGraphOpsExecutor(
         return updates.size
     }
 
-    private fun deleteDiagrams(entries: List<BatchDeleteEntry>, modelId: UUID): Int {
+    private fun deleteDiagrams(entries: List<BatchDeleteEntry>, model: Models): Int {
         if (entries.isEmpty()) return 0
-        val diagrams = entries.map { findDiagramOrThrow(it.id) }
+        val modelId = requireNotNull(model.id) { "Model id required" }
+        val diagrams = entries.map { entry ->
+            val diagram = findDiagramOrThrow(entry.id)
+            requireBelongsToModel(diagram, model)
+            diagram
+        }
         for (diagram in diagrams) {
             diagramsRepository.softDeleteById(requireNotNull(diagram.id))
         }
@@ -433,10 +444,12 @@ class BatchGraphOpsExecutor(
             UUID.randomUUID()
         }
 
-    private fun resolveParentNode(ref: String?, nodeIdMap: Map<String, UUID>): Nodes? {
+    private fun resolveParentNode(ref: String?, nodeIdMap: Map<String, UUID>, model: Models): Nodes? {
         if (ref == null) return null
         val uuid = resolveRef(ref, nodeIdMap, "parent node")
-        return findNodeOrThrow(uuid, "Parent node $ref not found")
+        val parent = findNodeOrThrow(uuid, "Parent node $ref not found")
+        requireBelongsToModel(parent, model)
+        return parent
     }
 
     private data class LinkEndpoints(val source: Nodes, val target: Nodes)
@@ -444,14 +457,46 @@ class BatchGraphOpsExecutor(
     private fun resolveLinkEndpoints(
         sourceRef: String,
         targetRef: String,
-        nodeIdMap: Map<String, UUID>
+        nodeIdMap: Map<String, UUID>,
+        model: Models
     ): LinkEndpoints {
         val sourceId = resolveRef(sourceRef, nodeIdMap, "source node")
         val targetId = resolveRef(targetRef, nodeIdMap, "target node")
-        return LinkEndpoints(
-            source = findNodeOrThrow(sourceId, "Source node $sourceRef not found"),
-            target = findNodeOrThrow(targetId, "Target node $targetRef not found")
-        )
+        val source = findNodeOrThrow(sourceId, "Source node $sourceRef not found")
+        val target = findNodeOrThrow(targetId, "Target node $targetRef not found")
+        requireBelongsToModel(source, model)
+        requireBelongsToModel(target, model)
+        return LinkEndpoints(source = source, target = target)
+    }
+
+    private fun requireBelongsToModel(node: Nodes, model: Models) {
+        val modelId = requireNotNull(model.id) { "Model id required" }
+        if (node.model.id != modelId) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Node ${node.id} does not belong to model $modelId"
+            )
+        }
+    }
+
+    private fun requireBelongsToModel(link: Links, model: Models) {
+        val modelId = requireNotNull(model.id) { "Model id required" }
+        if (link.model.id != modelId) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Link ${link.id} does not belong to model $modelId"
+            )
+        }
+    }
+
+    private fun requireBelongsToModel(diagram: Diagrams, model: Models) {
+        val modelId = requireNotNull(model.id) { "Model id required" }
+        if (diagram.model.id != modelId) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Diagram ${diagram.id} does not belong to model $modelId"
+            )
+        }
     }
 
     private fun authorizedLinkType(linkTypeId: UUID, model: Models): LinkTypes {

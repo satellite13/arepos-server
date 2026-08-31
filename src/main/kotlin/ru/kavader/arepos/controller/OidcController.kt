@@ -9,7 +9,9 @@ import ru.kavader.arepos.dto.auth.UserInfoResponse
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.security.AuthCookieService
+import ru.kavader.arepos.security.CurrentUser
 import ru.kavader.arepos.security.OidcAuthService
+import ru.kavader.arepos.security.OidcException
 import ru.kavader.arepos.security.OidcProperties
 import ru.kavader.arepos.security.OidcStateToken
 import ru.kavader.arepos.service.AuthTokenService
@@ -58,12 +60,22 @@ class OidcController(
     @GetMapping("/authorize")
     fun authorize(@RequestParam(required = false) linkUserId: String?): Map<String, String> {
         requireOidcEnabled()
-        val state = if (linkUserId != null) {
-            oidcStateToken.generateStateToken(UUID.fromString(linkUserId))
+        val issued = if (linkUserId != null) {
+            val sessionUserId = CurrentUser.getId()
+                ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+            val requested = try {
+                UUID.fromString(linkUserId)
+            } catch (_: IllegalArgumentException) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid linkUserId")
+            }
+            if (requested != sessionUserId) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "linkUserId must match the signed-in user")
+            }
+            oidcStateToken.generateLinkState(sessionUserId)
         } else {
-            oidcStateToken.generateStateToken(UUID.randomUUID())
+            oidcStateToken.generateLoginState()
         }
-        val authUrl = oidcService.buildAuthorizationUrl(state)
+        val authUrl = oidcService.buildAuthorizationUrl(issued.state, issued.codeChallenge, issued.nonce)
         return mapOf("url" to authUrl)
     }
 
@@ -73,10 +85,9 @@ class OidcController(
         response: HttpServletResponse
     ): OidcLinkResponse {
         requireOidcEnabled()
-        val tokens = oidcService.exchangeCodeForTokens(request.code)
-        val claims = oidcService.extractClaimsFromIdToken(tokens.idToken)
-        val user = oidcService.syncUser(claims)
-        return buildResponse(user, response)
+        val state = oidcStateToken.validateLoginState(request.state)
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired state")
+        return completeOidcLogin(request.code, state.codeVerifier, state.nonce, response)
     }
 
     @PostMapping("/link/callback")
@@ -85,31 +96,44 @@ class OidcController(
         response: HttpServletResponse
     ): OidcLinkResponse {
         requireOidcEnabled()
-        val userId = oidcStateToken.validateStateToken(request.state)
+        val sessionUserId = CurrentUser.getId()
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
+        val state = oidcStateToken.validateLinkState(request.state)
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired state")
-
-        val tokens = oidcService.exchangeCodeForTokens(request.code)
-        val claims = oidcService.extractClaimsFromIdToken(tokens.idToken)
-        val email = oidcService.extractEmail(claims)
-        val oidcSub = oidcService.extractOidcSub(claims)
-
-        val existingLinked = userRepository.findByOidcSub(oidcSub)
-        if (existingLinked != null && existingLinked.id != userId) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "OIDC account is linked to another user")
+        if (state.subjectId != sessionUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "State does not match signed-in user")
         }
 
-        val currentUser = userRepository.findById(userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
+        try {
+            val tokens = oidcService.exchangeCodeForTokens(request.code, state.codeVerifier)
+            val claims = oidcService.extractClaimsFromIdToken(tokens.idToken)
+            oidcService.verifyNonce(claims, state.nonce)
+            val email = oidcService.extractEmail(claims)
+            val oidcSub = oidcService.extractOidcSub(claims)
 
-        if (!currentUser.email.equals(email, ignoreCase = true)) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "OIDC email does not match your account email")
+            val existingLinked = userRepository.findByOidcSub(oidcSub)
+            if (existingLinked != null && existingLinked.id != sessionUserId) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "OIDC account is linked to another user")
+            }
+
+            val currentUser = userRepository.findById(sessionUserId)
+                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
+
+            if (!currentUser.email.equals(email, ignoreCase = true)) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "OIDC email does not match your account email")
+            }
+            if (!oidcService.isEmailVerified(claims)) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "OIDC email is not verified")
+            }
+
+            currentUser.oidcSub = oidcSub
+            currentUser.updatedAt = Instant.now()
+            userRepository.save(currentUser)
+
+            return buildResponse(currentUser, response)
+        } catch (e: OidcException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message)
         }
-
-        currentUser.oidcSub = oidcSub
-        currentUser.updatedAt = Instant.now()
-        userRepository.save(currentUser)
-
-        return buildResponse(currentUser, response)
     }
 
     @DeleteMapping("/unlink")
@@ -142,6 +166,23 @@ class OidcController(
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
 
         return OidcStatusResponse(linked = user.oidcSub != null, oidcSub = user.oidcSub)
+    }
+
+    private fun completeOidcLogin(
+        code: String,
+        codeVerifier: String,
+        nonce: String,
+        response: HttpServletResponse
+    ): OidcLinkResponse {
+        try {
+            val tokens = oidcService.exchangeCodeForTokens(code, codeVerifier)
+            val claims = oidcService.extractClaimsFromIdToken(tokens.idToken)
+            oidcService.verifyNonce(claims, nonce)
+            val user = oidcService.syncUser(claims)
+            return buildResponse(user, response)
+        } catch (e: OidcException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message)
+        }
     }
 
     private fun requireOidcEnabled() {

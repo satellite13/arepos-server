@@ -270,6 +270,8 @@ env: []
 #   value: "openid profile email"
 # - name: OIDC_DISPLAY_NAME
 #   value: "SSO"
+# - name: OIDC_STATE_SECRET
+#   value: "..."   # optional; defaults to JWT_SECRET
 # Put OIDC_CLIENT_SECRET in envSecret / external secret store.
 
 # Restrict arepos-server traffic (enable after warchi release name/labels are confirmed).

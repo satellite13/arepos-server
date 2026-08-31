@@ -470,7 +470,7 @@ class ResourceAccessService(
         topLevelAccess.validationScriptAccessPermissions(scripts, ::canViewAdminPanel)
 
     private fun isCommonType(owner: Users): Boolean =
-        owner.email.equals("system@arepos.local", ignoreCase = true) || !owner.isActive
+        owner.email.equals("system@arepos.local", ignoreCase = true)
 
     private fun requireAllowed(allowed: Boolean) {
         if (!allowed) {

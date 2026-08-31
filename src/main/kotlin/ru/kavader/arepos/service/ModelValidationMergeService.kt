@@ -114,6 +114,12 @@ class ModelValidationMergeService(
         if (nodesRepository.existsByParentNode_Id(drop.id!!)) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Drop node still has children")
         }
+        if (hasDocuments(drop.attrs)) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Drop node has documents; transfer or clear them before merge"
+            )
+        }
 
         val keepIncidentLinks = linksRepository.findByModelIdAndEndpointNodeId(modelId, keep.id!!)
         val dropIncidentLinks = linksRepository.findByModelIdAndEndpointNodeId(modelId, drop.id!!)
@@ -447,11 +453,30 @@ class ModelValidationMergeService(
         fun remap(container: ObjectNode?) {
             val nodes = container?.get("nodes") ?: return
             if (!nodes.isArray) return
-            for (node in nodes) {
-                if (node is ObjectNode && node.path("modelNodeId").asText(null) == from) {
-                    node.put("modelNodeId", to)
-                    changed = true
+            val nodesArray = nodes as ArrayNode
+            val hasKeep = nodesArray.any { node ->
+                node is ObjectNode && node.path("modelNodeId").asText(null) == to
+            }
+            val next = objectMapper.createArrayNode()
+            var localChanged = false
+            for (node in nodesArray) {
+                if (node !is ObjectNode) {
+                    next.add(node)
+                    continue
                 }
+                if (node.path("modelNodeId").asText(null) == from) {
+                    if (hasKeep) {
+                        localChanged = true
+                        continue
+                    }
+                    node.put("modelNodeId", to)
+                    localChanged = true
+                }
+                next.add(node)
+            }
+            if (localChanged) {
+                container.replace("nodes", next)
+                changed = true
             }
         }
         remap(root)

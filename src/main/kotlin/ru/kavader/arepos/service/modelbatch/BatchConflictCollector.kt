@@ -91,9 +91,13 @@ class BatchConflictCollector(
         entityModelId: (T) -> UUID?
     ) {
         for (change in changes) {
-            val base = change.baseUpdatedAt ?: continue
             val entity = load(change.id) ?: continue
             if (entityModelId(entity) != modelId) continue
+            val base = change.baseUpdatedAt
+            if (base == null) {
+                add(BatchConflictItem(kind, change.id, updatedAt(entity), null))
+                continue
+            }
             if (isVersionConflict(updatedAt(entity), base)) {
                 add(BatchConflictItem(kind, change.id, updatedAt(entity), base))
             }
