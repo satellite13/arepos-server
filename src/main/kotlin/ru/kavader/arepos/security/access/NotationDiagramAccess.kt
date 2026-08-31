@@ -25,15 +25,20 @@ class NotationDiagramAccess(
         if (notations.isEmpty()) {
             return emptyList()
         }
-        val direct = topLevelAccess.canViewNotationsDirect(notations)
+        val live = notations.filter { !it.deleted }
+        if (live.isEmpty()) {
+            return emptyList()
+        }
+        val direct = topLevelAccess.canViewNotationsDirect(live)
         val userId = currentUserId()
-        return notations.filter { notation ->
+        return live.filter { notation ->
             val id = notation.id ?: return@filter false
             direct[id] == true || diagramsRepository.existsViewableModelDiagramWithNotation(id, userId)
         }
     }
 
     fun canViewNotation(notation: Notations): Boolean {
+        if (notation.deleted) return false
         val id = notation.id ?: return false
         return topLevelAccess.canViewNotationDirect(notation) ||
             diagramsRepository.existsViewableModelDiagramWithNotation(id, currentUserId())

@@ -2,7 +2,7 @@ package ru.kavader.arepos.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -47,29 +47,31 @@ class AuditLogController(
             }
             val auditLogs = when {
                 tableName != null && rowId != null -> {
-                    auditLogRepository.findByTableNameAndRowId(tableName, rowId, pageable)
+                    auditLogRepository.findByChangedByAndTableNameAndRowId(
+                        currentUser,
+                        tableName,
+                        rowId,
+                        pageable
+                    )
                 }
 
                 tableName != null -> {
-                    auditLogRepository.findByTableName(tableName, pageable)
+                    auditLogRepository.findByChangedByAndTableName(currentUser, tableName, pageable)
                 }
 
                 operation != null -> {
-                    auditLogRepository.findByOperation(operation, pageable)
+                    auditLogRepository.findByChangedByAndOperation(currentUser, operation, pageable)
                 }
 
                 rowId != null -> {
-                    auditLogRepository.findByRowId(rowId, pageable)
+                    auditLogRepository.findByChangedByAndRowId(currentUser, rowId, pageable)
                 }
 
                 else -> {
                     auditLogRepository.findByChangedBy(currentUser, pageable)
                 }
             }
-            val filtered = auditLogs.content.filter { it.changedBy?.id == currentUserId }
-            return PageImpl(filtered, pageable, filtered.size.toLong())
-                .map { auditMapper.toResponse(it) }
-                .toListResponse()
+            return auditLogs.map { auditMapper.toResponse(it) }.toListResponse()
         }
 
         val auditLogs = when {
@@ -90,7 +92,7 @@ class AuditLogController(
                 if (changedBy != null) {
                     auditLogRepository.findByChangedBy(changedBy, pageable)
                 } else {
-                    auditLogRepository.findAll(pageable)
+                    Page.empty(pageable)
                 }
             }
 
@@ -124,6 +126,4 @@ class AuditLogController(
             throw ResponseStatusException(HttpStatus.FORBIDDEN, ACCESS_DENIED)
         }
     }
-
-
 }

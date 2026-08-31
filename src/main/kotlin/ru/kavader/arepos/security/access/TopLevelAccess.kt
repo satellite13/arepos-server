@@ -18,30 +18,55 @@ class TopLevelAccess(
     private val shareResolver: ShareResolver,
     private val batchEvaluator: BatchEvaluator
 ) {
-    fun canEditModel(model: Models): Boolean =
-        canEdit(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
+    fun canEditModel(model: Models): Boolean {
+        if (model.deleted) return false
+        return canEdit(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
+    }
 
-    fun canViewModel(model: Models): Boolean =
-        canView(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
+    fun canViewModel(model: Models): Boolean {
+        if (model.deleted) return false
+        return canView(model.owner.id!!, ShareResourceType.MODEL, model.id!!)
+    }
 
-    fun canViewModels(models: Collection<Models>): Map<UUID, Boolean> =
-        evaluate(models.mapEntries(ShareResourceType.MODEL) { it.owner.id!! to it.id }, CerbosAction.VIEW)
+    fun canViewModels(models: Collection<Models>): Map<UUID, Boolean> {
+        val live = models.filter { !it.deleted }
+        val decisions = evaluate(
+            live.mapEntries(ShareResourceType.MODEL) { it.owner.id!! to it.id },
+            CerbosAction.VIEW
+        )
+        return models.mapNotNull { model ->
+            val id = model.id ?: return@mapNotNull null
+            id to (!model.deleted && decisions[id] == true)
+        }.toMap()
+    }
 
     fun filterViewableModels(models: Collection<Models>): List<Models> {
         val decisions = canViewModels(models)
         return models.filter { model -> model.id?.let { decisions[it] } == true }
     }
 
-    fun canEditNotation(notation: Notations): Boolean =
-        canEdit(notation.owner.id!!, ShareResourceType.NOTATION, notation.id!!)
+    fun canEditNotation(notation: Notations): Boolean {
+        if (notation.deleted) return false
+        return canEdit(notation.owner.id!!, ShareResourceType.NOTATION, notation.id!!)
+    }
 
     fun canViewNotationDirect(notation: Notations): Boolean {
+        if (notation.deleted) return false
         val id = notation.id ?: return false
         return canView(notation.owner.id!!, ShareResourceType.NOTATION, id)
     }
 
-    fun canViewNotationsDirect(notations: Collection<Notations>): Map<UUID, Boolean> =
-        evaluate(notations.mapEntries(ShareResourceType.NOTATION) { it.owner.id!! to it.id }, CerbosAction.VIEW)
+    fun canViewNotationsDirect(notations: Collection<Notations>): Map<UUID, Boolean> {
+        val live = notations.filter { !it.deleted }
+        val decisions = evaluate(
+            live.mapEntries(ShareResourceType.NOTATION) { it.owner.id!! to it.id },
+            CerbosAction.VIEW
+        )
+        return notations.mapNotNull { notation ->
+            val id = notation.id ?: return@mapNotNull null
+            id to (!notation.deleted && decisions[id] == true)
+        }.toMap()
+    }
 
     fun canEditNodeType(nodeType: NodeTypes): Boolean =
         canEdit(nodeType.owner.id!!, ShareResourceType.NODE_TYPE, nodeType.id!!)

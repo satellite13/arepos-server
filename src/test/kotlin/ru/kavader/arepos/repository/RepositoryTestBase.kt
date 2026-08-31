@@ -232,7 +232,8 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
     protected fun persistAuditLog(
         tableName: String = "users",
         operation: String = "INSERT",
-        rowId: UUID = persistUser().id!!
+        rowId: UUID = persistUser().id!!,
+        changedBy: Users = persistUser()
     ): AuditLog = auditLogRepository.save(
         AuditLog(
             tableName = tableName,
@@ -240,7 +241,7 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
             rowId = rowId,
             oldValues = null,
             newValues = """{"status":"created"}""",
-            changedBy = persistUser(),
+            changedBy = changedBy,
             changedAt = Instant.now()
         )
     )
