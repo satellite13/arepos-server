@@ -5,24 +5,25 @@ Optional single sign-on for wArchi via a Keycloak-compatible OpenID Connect prov
 ## How it works
 
 1. wArchi calls `GET /api/v1/auth/sso/config` → `{ enabled, displayName }`.
-2. User clicks the SSO button → `GET /api/v1/auth/sso/authorize` → browser redirects to the IdP.
+2. User clicks the SSO button → `GET /api/v1/auth/sso/authorize` → browser redirects to the IdP (authorization code + **PKCE S256** + **nonce**).
 3. IdP redirects back to wArchi `OIDC_REDIRECT_URI` with `code` and `state`.
-4. Frontend posts to `POST /api/v1/auth/sso/callback`; the server exchanges the code, validates the ID token, syncs the user, and sets the usual auth cookies.
+4. Frontend posts to `POST /api/v1/auth/sso/callback`; the server validates signed `state`, exchanges the code with `code_verifier`, **verifies the ID token signature via JWKS**, checks `nonce`, syncs the user, and sets the usual auth cookies.
 
 User sync rules:
 
 - Match by `oidc_sub` if already linked.
-- Else match by email (case-insensitive) and auto-link `oidc_sub`.
-- Else create a new `USER` with profile claims (`given_name` / `family_name` / …) when present.
+- Else match by email (case-insensitive) and auto-link `oidc_sub` **only when `email_verified=true`**.
+- Else create a new `USER` when `email_verified=true` (profile claims `given_name` / `family_name` / … when present).
+- Unverified email cannot auto-link or create accounts — use authenticated profile link instead.
 - Deactivated users cannot sign in via SSO.
 
-Profile linking (signed-in user):
+Profile linking (signed-in user; session required):
 
-- `GET /api/v1/auth/sso/authorize?linkUserId=…`
-- `POST /api/v1/auth/sso/link/callback`
+- `GET /api/v1/auth/sso/authorize?linkUserId=<currentUserId>` — `linkUserId` must equal the authenticated user (cookie/Bearer).
+- `POST /api/v1/auth/sso/link/callback` — requires the same authenticated session; state must be a link-purpose token for that user.
 - `GET /api/v1/auth/sso/status`, `DELETE /api/v1/auth/sso/unlink`
 
-Link requires the IdP email to match the current account email; an `oidc_sub` already linked to another user is rejected.
+Link requires verified IdP email matching the account email; an `oidc_sub` already linked to another user is rejected.
 
 ## Enable / disable
 
@@ -47,25 +48,27 @@ Leave the variables empty (or `OIDC_ENABLED=false`) to keep SSO off.
 | `OIDC_SCOPE` | no | Default `openid profile email` |
 | `OIDC_POST_LOGOUT_URI` | no | Optional post-logout URL (reserved for logout UX) |
 | `OIDC_FRONTEND_URL` | no | Optional frontend base URL |
+| `OIDC_STATE_SECRET` | no | HMAC secret for `state` tokens; defaults to `JWT_SECRET` (needed for multi-instance) |
 
 \*Required for SSO to become active in `auto` mode.
 
-`OIDC_ISSUER_URI` must end with `/` because the server builds:
+`OIDC_ISSUER_URI` should end with `/` because the server builds:
 
 - `{issuer}protocol/openid-connect/auth`
 - `{issuer}protocol/openid-connect/token`
+- `{issuer}protocol/openid-connect/certs` (JWKS)
 
-ID token `iss` is validated against the issuer **without** the trailing slash.
+ID token `iss` is validated against the issuer **without** the trailing slash. Signature algorithms are taken from the JWKS document.
 
 ## Keycloak client checklist
 
 1. Create a **confidential** client (Client authentication: ON).
-2. Enable **Standard flow** (authorization code).
+2. Enable **Standard flow** (authorization code). PKCE is sent by the server (`S256`).
 3. Set **Valid redirect URIs** to at least:
    - `https://<warchi-host>/auth/oidc/callback`
    - optionally `https://<warchi-host>/auth/oidc/link-callback` if you use the dedicated link route
 4. Copy the client secret into `OIDC_CLIENT_SECRET`.
-5. Ensure the client (or realm) mappers expose **email** and preferably **profile** claims (`email`, `sub`, `given_name`, `family_name`).
+5. Ensure the client (or realm) mappers expose **email**, **email_verified**, and preferably **profile** claims (`email`, `sub`, `given_name`, `family_name`).
 6. Set arepos-server env as above; restart / roll the deployment.
 7. Confirm `GET /api/v1/auth/sso/config` returns `{ "enabled": true, "displayName": "…" }`.
 
@@ -114,9 +117,9 @@ No extra frontend env vars are required; wArchi discovers SSO via `/auth/sso/con
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | GET | `/api/v1/auth/sso/config` | public | `{ enabled, displayName }` |
-| GET | `/api/v1/auth/sso/authorize` | public | `{ url }` — IdP authorize URL (`linkUserId` optional) |
-| POST | `/api/v1/auth/sso/callback` | public | Exchange code → session cookies |
-| POST | `/api/v1/auth/sso/link/callback` | public (+ valid state) | Link IdP to existing user |
+| GET | `/api/v1/auth/sso/authorize` | public (login) / session (link) | `{ url }` — IdP authorize URL; `linkUserId` requires matching session |
+| POST | `/api/v1/auth/sso/callback` | public + valid login `state` | Exchange code → session cookies |
+| POST | `/api/v1/auth/sso/link/callback` | session + valid link `state` | Link IdP to signed-in user |
 | GET | `/api/v1/auth/sso/status` | session | Link status |
 | DELETE | `/api/v1/auth/sso/unlink` | session | Clear `oidc_sub` |
 
@@ -129,9 +132,12 @@ CSRF is not required for `/api/v1/auth/sso/**` (same exemption family as login/r
 | SSO button missing | Config incomplete (`auto`) or `OIDC_ENABLED=false`; check `/auth/sso/config` |
 | `503` «OIDC SSO is not configured» | SSO forced off / not effectively enabled |
 | Token exchange / invalid issuer | Wrong `OIDC_ISSUER_URI` (missing trailing `/`, wrong realm) |
-| Invalid audience | `OIDC_CLIENT_ID` not in ID token `aud` |
+| Invalid audience / signature | `OIDC_CLIENT_ID` / JWKS mismatch; IdP not reachable for certs |
+| Invalid or expired state | Missing/tampered `state`, clock skew, or multi-instance without shared `JWT_SECRET`/`OIDC_STATE_SECRET` |
+| Email not verified | IdP `email_verified` is false — auto-link/create blocked |
 | Redirect URI mismatch | Keycloak Valid redirect URI ≠ `OIDC_REDIRECT_URI` exactly |
 | Account deactivated | User exists but `isActive=false` |
 | Link conflict | Email differs from account, or `oidc_sub` already linked elsewhere |
+| Link authorize 401/403 | Not signed in, or `linkUserId` ≠ current user |
 
 Русская версия: `docs/oidc.ru.md`.

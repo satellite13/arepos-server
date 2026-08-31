@@ -124,6 +124,8 @@ arepos:
     frontend-url: ${OIDC_FRONTEND_URL:}
     scope: ${OIDC_SCOPE:openid profile email}
     display-name: ${OIDC_DISPLAY_NAME:SSO}
+    # Optional; falls back to JWT_SECRET for multi-instance state HMAC.
+    state-secret: ${OIDC_STATE_SECRET:}
   files:
     storage: ${FILE_STORAGE:minio}
     minio:

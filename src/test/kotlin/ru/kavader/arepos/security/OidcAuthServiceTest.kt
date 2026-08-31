@@ -1,24 +1,29 @@
 package ru.kavader.arepos.security
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.nimbusds.jwt.JWTClaimsSet
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.*
-import ru.kavader.arepos.service.UserProfileAttrsService
+import org.mockito.Mockito.lenient
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.verify
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.UsersRepository
+import ru.kavader.arepos.service.UserProfileAttrsService
 import java.time.Instant
-import java.util.*
+import java.util.Date
+import java.util.UUID
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class OidcAuthServiceTest {
 
     private val usersRepository = mock(UsersRepository::class.java)
     private val jwtTokenProvider = mock(JwtTokenProvider::class.java)
     private val userProfileAttrsService = mock(UserProfileAttrsService::class.java)
+    private val idTokenVerifier = mock(OidcIdTokenVerifier::class.java)
 
     private lateinit var service: OidcAuthService
     private lateinit var oidcProperties: OidcProperties
@@ -29,7 +34,7 @@ class OidcAuthServiceTest {
     @BeforeEach
     fun setup() {
         oidcProperties = OidcProperties(
-            issuerUri = testIssuer,
+            issuerUri = "$testIssuer/",
             clientId = testClientId,
             clientSecret = "secret",
             redirectUri = "http://localhost:5173/auth/oidc/callback",
@@ -42,21 +47,26 @@ class OidcAuthServiceTest {
             oidcProperties,
             usersRepository,
             jwtTokenProvider,
-            userProfileAttrsService
+            userProfileAttrsService,
+            idTokenVerifier,
+            ObjectMapper()
         )
     }
 
     @Test
-    fun `buildAuthorizationUrl encodes redirect_uri properly`() {
-        val url = service.buildAuthorizationUrl("state-value")
+    fun `buildAuthorizationUrl encodes redirect_uri and pkce`() {
+        val url = service.buildAuthorizationUrl("state-value", "challenge123", "nonce-1")
         assertTrue(url.contains("redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fauth%2Foidc%2Fcallback"))
         assertTrue(url.contains("client_id=$testClientId"))
         assertTrue(url.contains("response_type=code"))
+        assertTrue(url.contains("code_challenge=challenge123"))
+        assertTrue(url.contains("code_challenge_method=S256"))
+        assertTrue(url.contains("nonce=nonce-1"))
     }
 
     @Test
     fun `buildAuthorizationUrl uses %20 for spaces instead of +`() {
-        val url = service.buildAuthorizationUrl("state")
+        val url = service.buildAuthorizationUrl("state", "c", "n")
         assertFalse(url.contains("scope=openid+email"))
         assertTrue(url.contains("scope=openid%20email%20profile"))
     }
@@ -64,17 +74,14 @@ class OidcAuthServiceTest {
     @Test
     fun `buildAuthorizationUrl encodes pipe in state as %7C`() {
         val stateWithPipe = "uuid-123|1700000000.sig"
-        val url = service.buildAuthorizationUrl(stateWithPipe)
+        val url = service.buildAuthorizationUrl(stateWithPipe, "c", "n")
         assertTrue(url.contains("%7C"))
         assertFalse(url.contains("state=uuid-123|"))
     }
 
     @Test
     fun `extractEmail returns email from claims`() {
-        val claims = buildClaims(
-            subject = "sub123",
-            email = "user@example.com"
-        )
+        val claims = buildClaims(subject = "sub123", email = "user@example.com")
         assertEquals("user@example.com", service.extractEmail(claims))
     }
 
@@ -105,6 +112,7 @@ class OidcAuthServiceTest {
             .expirationTime(Date.from(Instant.now().plusSeconds(3600)))
             .issueTime(Date.from(Instant.now()))
             .claim("email", "x@y.com")
+            .claim("email_verified", true)
             .build()
 
         var thrown: OidcException? = null
@@ -141,7 +149,7 @@ class OidcAuthServiceTest {
     }
 
     @Test
-    fun `syncUser auto-links existing user by email`() {
+    fun `syncUser auto-links existing user by email when verified`() {
         val existingUser = testUser(
             id = UUID.randomUUID(),
             email = "user@example.com",
@@ -153,13 +161,40 @@ class OidcAuthServiceTest {
 
         val claims = buildClaims(
             subject = "kc-sub-123",
-            email = "user@example.com"
+            email = "user@example.com",
+            emailVerified = true
         )
 
         val synced = service.syncUser(claims)
 
         assertEquals("kc-sub-123", synced.oidcSub)
         assertEquals("user@example.com", synced.email)
+    }
+
+    @Test
+    fun `syncUser refuses auto-link when email not verified`() {
+        val existingUser = testUser(
+            id = UUID.randomUUID(),
+            email = "user@example.com",
+            role = Role.USER
+        )
+        lenient().`when`(usersRepository.findByOidcSub("kc-sub-123")).thenReturn(null)
+        lenient().`when`(usersRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(existingUser)
+
+        val claims = buildClaims(
+            subject = "kc-sub-123",
+            email = "user@example.com",
+            emailVerified = false
+        )
+
+        var thrown: OidcException? = null
+        try {
+            service.syncUser(claims)
+        } catch (e: OidcException) {
+            thrown = e
+        }
+        requireNotNull(thrown)
+        assertTrue(thrown.message!!.contains("not verified", ignoreCase = true))
     }
 
     @Test
@@ -175,7 +210,8 @@ class OidcAuthServiceTest {
 
         val claims = buildClaims(
             subject = "kc-sub-456",
-            email = "user@example.com"
+            email = "user@example.com",
+            emailVerified = true
         )
 
         val synced = service.syncUser(claims)
@@ -196,7 +232,8 @@ class OidcAuthServiceTest {
 
         val claims = buildClaims(
             subject = "existing-kc-sub",
-            email = "user@example.com"
+            email = "user@example.com",
+            emailVerified = false
         )
 
         val synced = service.syncUser(claims)
@@ -219,7 +256,8 @@ class OidcAuthServiceTest {
 
         val claims = buildClaims(
             subject = "kc",
-            email = "inactive@example.com"
+            email = "inactive@example.com",
+            emailVerified = true
         )
 
         var thrown: OidcException? = null
@@ -232,12 +270,17 @@ class OidcAuthServiceTest {
         assertTrue(thrown.message!!.contains("deactivated", ignoreCase = true))
     }
 
-    private fun buildClaims(subject: String?, email: String?): JWTClaimsSet {
+    private fun buildClaims(
+        subject: String?,
+        email: String?,
+        emailVerified: Boolean = true
+    ): JWTClaimsSet {
         val builder = JWTClaimsSet.Builder()
             .issuer(testIssuer)
             .audience(testClientId)
             .expirationTime(Date.from(Instant.now().plusSeconds(3600)))
             .issueTime(Date.from(Instant.now()))
+            .claim("email_verified", emailVerified)
 
         if (subject != null) builder.subject(subject)
         if (email != null) builder.claim("email", email)

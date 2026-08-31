@@ -10,11 +10,33 @@ import org.springframework.web.filter.OncePerRequestFilter
 import ru.kavader.arepos.dto.apikey.ApiKeyScopes
 
 /**
- * Enforces API-key scopes for MCP access tokens.
+ * Enforces API-key scopes for MCP access tokens and confines them to model APIs.
  * Regular access tokens are unaffected.
  */
 @Component
 class McpScopeFilter : OncePerRequestFilter() {
+
+    companion object {
+        /** Paths MCP tokens may call (prefix match). Auth/actuator/ws are excluded via shouldNotFilter. */
+        private val ALLOWED_PREFIXES = listOf(
+            "/api/v1/models",
+            "/api/v1/nodes",
+            "/api/v1/links",
+            "/api/v1/diagrams",
+            "/api/v1/diagram-locks",
+            "/api/v1/notations",
+            "/api/v1/node-types",
+            "/api/v1/link-types",
+            "/api/v1/components",
+            "/api/v1/relations",
+            "/api/v1/relation-rules",
+            "/api/v1/node-shapes",
+            "/api/v1/validation-scripts",
+            "/api/v1/files",
+            "/api/v1/documents",
+            "/api/v1/library-icons"
+        )
+    }
 
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
         val path = request.requestURI
@@ -40,6 +62,11 @@ class McpScopeFilter : OncePerRequestFilter() {
             return
         }
 
+        if (!isAllowedPath(path)) {
+            writeForbidden(response, "path_not_allowed", "MCP tokens cannot access this endpoint")
+            return
+        }
+
         val method = request.method.uppercase()
         val requiredScope = when (method) {
             HttpMethod.GET.name(), HttpMethod.HEAD.name(), HttpMethod.OPTIONS.name() -> ApiKeyScopes.MODELS_READ
@@ -53,6 +80,9 @@ class McpScopeFilter : OncePerRequestFilter() {
 
         filterChain.doFilter(request, response)
     }
+
+    private fun isAllowedPath(path: String): Boolean =
+        ALLOWED_PREFIXES.any { prefix -> path == prefix || path.startsWith("$prefix/") }
 
     private fun writeForbidden(response: HttpServletResponse, code: String, message: String) {
         response.status = HttpServletResponse.SC_FORBIDDEN

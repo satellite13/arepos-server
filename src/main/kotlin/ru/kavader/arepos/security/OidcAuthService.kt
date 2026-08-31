@@ -1,7 +1,8 @@
 package ru.kavader.arepos.security
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.nimbusds.jwt.JWTClaimsSet
-import com.nimbusds.jwt.SignedJWT
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
 import org.springframework.http.HttpHeaders
@@ -18,27 +19,32 @@ import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.service.UserProfileAttrsService
 import java.net.URI
 import java.time.Instant
-import java.util.*
+import java.util.UUID
 
 @Service
 class OidcAuthService(
     private val oidcProperties: OidcProperties,
     private val usersRepository: UsersRepository,
     private val jwtTokenProvider: JwtTokenProvider,
-    private val userProfileAttrsService: UserProfileAttrsService
+    private val userProfileAttrsService: UserProfileAttrsService,
+    private val idTokenVerifier: OidcIdTokenVerifier,
+    private val objectMapper: ObjectMapper
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(OidcAuthService::class.java)
     }
 
-    fun buildAuthorizationUrl(state: String): String {
-        val authUrl = "${oidcProperties.issuerUri}protocol/openid-connect/auth"
+    fun buildAuthorizationUrl(state: String, codeChallenge: String, nonce: String): String {
+        val authUrl = "${normalizeIssuerBase()}protocol/openid-connect/auth"
         val params = listOf(
             "client_id" to oidcProperties.clientId,
             "response_type" to "code",
             "redirect_uri" to oidcProperties.redirectUri,
             "scope" to oidcProperties.scope,
-            "state" to state
+            "state" to state,
+            "code_challenge" to codeChallenge,
+            "code_challenge_method" to "S256",
+            "nonce" to nonce
         )
         val qs = params.joinToString("&") { (k, v) ->
             "$k=${java.net.URLEncoder.encode(v, Charsets.UTF_8).replace("+", "%20")}"
@@ -46,8 +52,8 @@ class OidcAuthService(
         return "$authUrl?$qs"
     }
 
-    fun exchangeCodeForTokens(code: String): OidcTokens {
-        val tokenUrl = "${oidcProperties.issuerUri}protocol/openid-connect/token"
+    fun exchangeCodeForTokens(code: String, codeVerifier: String): OidcTokens {
+        val tokenUrl = "${normalizeIssuerBase()}protocol/openid-connect/token"
         val restTemplate = RestTemplate()
         val headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_FORM_URLENCODED
@@ -58,6 +64,7 @@ class OidcAuthService(
             .queryParam("grant_type", "authorization_code")
             .queryParam("code", code)
             .queryParam("redirect_uri", oidcProperties.redirectUri)
+            .queryParam("code_verifier", codeVerifier)
             .build()
             .toUriString()
 
@@ -76,34 +83,11 @@ class OidcAuthService(
         return parseTokenResponse(response.body ?: throw OidcException("Empty token response"))
     }
 
-    fun extractClaimsFromIdToken(idToken: String): JWTClaimsSet {
-        try {
-            val signedJwt = SignedJWT.parse(idToken)
-            val claims = signedJwt.jwtClaimsSet
+    fun extractClaimsFromIdToken(idToken: String): JWTClaimsSet =
+        idTokenVerifier.verify(idToken)
 
-            val issuer = oidcProperties.issuerUri.removeSuffix("/")
-            if (claims.issuer != issuer) {
-                log.error("ID token issuer mismatch: {} != {}", claims.issuer, issuer)
-                throw OidcException("Invalid issuer")
-            }
-
-            if (oidcProperties.clientId !in claims.audience) {
-                log.error("ID token audience mismatch")
-                throw OidcException("Invalid audience")
-            }
-
-            if (claims.expirationTime != null && claims.expirationTime.before(Date())) {
-                log.error("ID token expired")
-                throw OidcException("Expired ID token")
-            }
-
-            return claims
-        } catch (e: OidcException) {
-            throw e
-        } catch (e: Exception) {
-            log.error("Failed to decode ID token", e)
-            throw OidcException("Invalid ID token: ${e.message}")
-        }
+    fun verifyNonce(claims: JWTClaimsSet, expectedNonce: String) {
+        idTokenVerifier.verifyNonce(claims, expectedNonce)
     }
 
     fun extractEmail(claims: JWTClaimsSet): String {
@@ -114,10 +98,14 @@ class OidcAuthService(
         return claims.subject ?: throw OidcException("No sub claim in ID token")
     }
 
+    fun isEmailVerified(claims: JWTClaimsSet): Boolean =
+        claims.getBooleanClaim("email_verified") == true
+
     @Transactional
     fun syncUser(claims: JWTClaimsSet): Users {
         val email = extractEmail(claims)
         val oidcSub = extractOidcSub(claims)
+        val emailVerified = isEmailVerified(claims)
 
         var user = usersRepository.findByOidcSub(oidcSub)
 
@@ -125,6 +113,15 @@ class OidcAuthService(
             user = usersRepository.findByEmailIgnoreCase(email)
 
             if (user != null) {
+                if (!emailVerified) {
+                    log.warn(
+                        "Refusing OIDC auto-link for unverified email: userId={} email={}",
+                        user.id, user.email
+                    )
+                    throw OidcException(
+                        "Email is not verified; sign in and link SSO from your profile"
+                    )
+                }
                 log.info(
                     "Auto-linking OIDC to existing user: userId={} email={} oidcSub={}",
                     user.id, user.email, oidcSub
@@ -141,6 +138,10 @@ class OidcAuthService(
                     throw OidcException("Account is deactivated")
                 }
                 return user
+            }
+
+            if (!emailVerified) {
+                throw OidcException("Email is not verified; cannot create account via SSO")
             }
 
             log.info(
@@ -189,29 +190,39 @@ class OidcAuthService(
         return jwtTokenProvider.generateRefreshToken(user.id!!)
     }
 
-    private fun parseTokenResponse(body: String): OidcTokens {
-        fun getStringValue(json: String, key: String): String? {
-            val searchKey = "\"$key\""
-            val idx = json.indexOf(searchKey)
-            if (idx == -1) return null
-            val afterKey = json.substring(idx + searchKey.length)
-            val colonIdx = afterKey.indexOf(':')
-            if (colonIdx == -1) return null
-            val afterColon = afterKey.substring(colonIdx + 1).trimStart()
-            if (!afterColon.startsWith("\"")) return null
-            val rest = afterColon.substring(1)
-            val endQuote = rest.indexOf("\"")
-            if (endQuote == -1) return null
-            return rest.substring(0, endQuote)
+    private fun normalizeIssuerBase(): String {
+        val raw = oidcProperties.issuerUri.trim()
+        return when {
+            raw.isEmpty() -> throw OidcException("OIDC issuer is not configured")
+            raw.endsWith("/") -> raw
+            else -> "$raw/"
         }
+    }
 
+    private fun parseTokenResponse(body: String): OidcTokens {
+        val parsed = try {
+            objectMapper.readValue(body, OidcTokenResponseBody::class.java)
+        } catch (e: Exception) {
+            log.error("Failed to parse OIDC token response", e)
+            throw OidcException("Invalid token response")
+        }
         return OidcTokens(
-            accessToken = getStringValue(body, "access_token") ?: throw OidcException("No access_token in response"),
-            idToken = getStringValue(body, "id_token") ?: throw OidcException("No id_token in response"),
-            tokenType = getStringValue(body, "token_type") ?: "Bearer"
+            accessToken = parsed.accessToken ?: throw OidcException("No access_token in response"),
+            idToken = parsed.idToken ?: throw OidcException("No id_token in response"),
+            tokenType = parsed.tokenType ?: "Bearer"
         )
     }
 }
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class OidcTokenResponseBody(
+    @com.fasterxml.jackson.annotation.JsonProperty("access_token")
+    val accessToken: String? = null,
+    @com.fasterxml.jackson.annotation.JsonProperty("id_token")
+    val idToken: String? = null,
+    @com.fasterxml.jackson.annotation.JsonProperty("token_type")
+    val tokenType: String? = null
+)
 
 data class OidcTokens(
     val accessToken: String,
