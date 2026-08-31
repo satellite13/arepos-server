@@ -941,4 +941,211 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         assertTrue(keptAttrs.contains("i1"))
         assertTrue(keptAttrs.contains(requireNotNull(folder.id).toString()))
     }
+
+    @Test
+    fun `batch save create returns 409 when diagram name and version already exist`() {
+        val owner = usersRepository.save(
+            Users(
+                email = "batch-owner-diagram-dup@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "m-diagram-dup",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+        val notation = notationsRepository.save(
+            Notations(
+                name = "notation-diagram-dup",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        diagramsRepository.save(
+            Diagrams(
+                name = "Sales Price Calculator",
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                attrs = """{"instances":{"nodes":[],"edges":[]}}""",
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+
+        val payload = mapOf(
+            "diagrams" to mapOf(
+                "create" to listOf(
+                    mapOf(
+                        "tempId" to "temp-diagram",
+                        "name" to "Sales Price Calculator",
+                        "version" to "1.0.0",
+                        "notationId" to notation.id.toString(),
+                        "attrs" to """{"instances":{"nodes":[],"edges":[]}}"""
+                    )
+                )
+            )
+        )
+
+        mockMvc.perform(
+            post("/api/v1/models/${model.id}/batch-save")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.error").value("DIAGRAM_NAME_VERSION_EXISTS"))
+            .andExpect(
+                jsonPath("$.message").value(
+                    "Diagram with name 'Sales Price Calculator' and version '1.0.0' already exists"
+                )
+            )
+            .andExpect(jsonPath("$.name").value("Sales Price Calculator"))
+            .andExpect(jsonPath("$.version").value("1.0.0"))
+            .andExpect(jsonPath("$.suggestedVersion").value("1.1.0"))
+    }
+
+    @Test
+    fun `batch save create returns 409 when a deleted diagram occupies the same name and version`() {
+        val owner = usersRepository.save(
+            Users(
+                email = "batch-owner-diagram-deleted-dup@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "m-diagram-deleted-dup",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+        val notation = notationsRepository.save(
+            Notations(
+                name = "notation-diagram-deleted-dup",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val deleted = diagramsRepository.save(
+            Diagrams(
+                name = "Sales Price Calculator",
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                deleted = true,
+                attrs = """{"instances":{"nodes":[],"edges":[]}}""",
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+
+        val payload = mapOf(
+            "diagrams" to mapOf(
+                "create" to listOf(
+                    mapOf(
+                        "tempId" to "temp-diagram",
+                        "name" to "Sales Price Calculator",
+                        "version" to "1.0.0",
+                        "notationId" to notation.id.toString(),
+                        "attrs" to """{"instances":{"nodes":[],"edges":[]}}"""
+                    )
+                )
+            )
+        )
+
+        mockMvc.perform(
+            post("/api/v1/models/${model.id}/batch-save")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.error").value("DIAGRAM_NAME_VERSION_IN_TRASH"))
+            .andExpect(jsonPath("$.name").value("Sales Price Calculator"))
+            .andExpect(jsonPath("$.version").value("1.0.0"))
+            .andExpect(jsonPath("$.deletedDiagramId").value(deleted.id.toString()))
+            .andExpect(jsonPath("$.suggestedVersion").value("1.1.0"))
+    }
+
+    @Test
+    fun `batch save create replaces a deleted diagram when replaceDeletedId is sent`() {
+        val owner = usersRepository.save(
+            Users(
+                email = "batch-owner-diagram-replace@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            Models(
+                name = "m-diagram-replace",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+        val notation = notationsRepository.save(
+            Notations(
+                name = "notation-diagram-replace",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val deleted = diagramsRepository.save(
+            Diagrams(
+                name = "Sales Price Calculator",
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                deleted = true,
+                attrs = """{"instances":{"nodes":[],"edges":[]}}""",
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+
+        val payload = mapOf(
+            "diagrams" to mapOf(
+                "create" to listOf(
+                    mapOf(
+                        "tempId" to "temp-diagram",
+                        "name" to "Sales Price Calculator",
+                        "version" to "1.0.0",
+                        "notationId" to notation.id.toString(),
+                        "attrs" to """{"instances":{"nodes":[{"id":"n1"}]}}""",
+                        "replaceDeletedId" to deleted.id.toString()
+                    )
+                )
+            )
+        )
+
+        mockMvc.perform(
+            post("/api/v1/models/${model.id}/batch-save")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.diagramsCreated").value(1))
+
+        assertTrue(diagramsRepository.findById(requireNotNull(deleted.id)).isEmpty)
+        val created = diagramsRepository.findByModelAndNameAndVersion(model, "Sales Price Calculator", "1.0.0")
+        assertNotNull(created)
+        assertEquals(false, created.deleted)
+        assertTrue(created.attrs!!.contains("n1"))
+    }
 }

@@ -19,6 +19,7 @@ import ru.kavader.arepos.dto.model.AmbiguousNotationElementException
 import ru.kavader.arepos.dto.model.BatchConflictItem
 import ru.kavader.arepos.dto.model.BatchSaveConflictException
 import ru.kavader.arepos.dto.model.DiagramConflictException
+import ru.kavader.arepos.dto.model.DiagramNameVersionConflictException
 import ru.kavader.arepos.dto.site.RoadmapConflictException
 import ru.kavader.arepos.dto.site.RoadmapConflictItem
 import ru.kavader.arepos.security.ACCESS_DENIED
@@ -69,6 +70,16 @@ class GlobalExceptionHandler {
         val message: String?,
         val traceId: String,
         val candidates: List<AmbiguousNodeCandidate>
+    )
+
+    data class DiagramNameVersionConflictErrorBody(
+        val error: String,
+        val message: String?,
+        val traceId: String,
+        val name: String,
+        val version: String,
+        val deletedDiagramId: UUID?,
+        val suggestedVersion: String?
     )
 
     data class DiagramConflictErrorBody(
@@ -221,6 +232,27 @@ class GlobalExceptionHandler {
                     message = ex.message,
                     traceId = traceId,
                     candidates = ex.candidates
+                )
+            )
+    }
+
+    @ExceptionHandler(DiagramNameVersionConflictException::class)
+    fun handleDiagramNameVersionConflict(
+        ex: DiagramNameVersionConflictException
+    ): ResponseEntity<DiagramNameVersionConflictErrorBody> {
+        val traceId = newTraceId()
+        log.warn("Diagram name/version conflict [{}]: {}", traceId, ex.message)
+        return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(
+                DiagramNameVersionConflictErrorBody(
+                    error = ex.error,
+                    message = ex.message,
+                    traceId = traceId,
+                    name = ex.name,
+                    version = ex.version,
+                    deletedDiagramId = ex.deletedDiagramId,
+                    suggestedVersion = ex.suggestedVersion
                 )
             )
     }

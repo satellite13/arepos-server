@@ -7,7 +7,11 @@ import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.system.ModelSyncChangeType
 import ru.kavader.arepos.dto.system.ModelSyncEntityEvent
 import ru.kavader.arepos.dto.system.ModelSyncEventType
+import ru.kavader.arepos.dto.model.DIAGRAM_NAME_VERSION_EXISTS
+import ru.kavader.arepos.dto.model.DIAGRAM_NAME_VERSION_IN_TRASH
+import ru.kavader.arepos.dto.model.DiagramNameVersionAvailabilityResponse
 import ru.kavader.arepos.model.Diagrams
+import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.util.VersionUtils
 import java.time.Instant
@@ -98,6 +102,45 @@ class DiagramLifecycleService(
                 "Only latest diagram version can be $action. Latest version is '${latest.version}'."
             )
         }
+    }
+
+    fun nameVersionAvailability(model: Models, name: String, version: String): DiagramNameVersionAvailabilityResponse {
+        val existing = diagramsRepository.findByModelAndNameAndVersion(model, name, version)
+        val suggested = suggestUnusedVersion(model, name, version)
+        if (existing == null) {
+            return DiagramNameVersionAvailabilityResponse(
+                status = "available",
+                name = name,
+                version = version,
+                suggestedVersion = suggested
+            )
+        }
+        if (existing.deleted) {
+            return DiagramNameVersionAvailabilityResponse(
+                status = DIAGRAM_NAME_VERSION_IN_TRASH,
+                name = name,
+                version = version,
+                deletedDiagramId = existing.id,
+                suggestedVersion = suggested
+            )
+        }
+        return DiagramNameVersionAvailabilityResponse(
+            status = DIAGRAM_NAME_VERSION_EXISTS,
+            name = name,
+            version = version,
+            suggestedVersion = suggested
+        )
+    }
+
+    fun suggestUnusedVersion(model: Models, name: String, version: String): String? {
+        var candidate = bumpMinorVersion(version) ?: return null
+        repeat(20) {
+            if (!diagramsRepository.existsByModelAndNameAndVersion(model, name, candidate)) {
+                return candidate
+            }
+            candidate = bumpMinorVersion(candidate) ?: return null
+        }
+        return null
     }
 
     fun bumpMinorVersion(version: String): String? {

@@ -162,6 +162,13 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
     )
     fun existsByModelAndNameAndVersion(model: Models, name: String, version: String): Boolean
 
+    @Query("SELECT d FROM Diagrams d WHERE d.model.id = :#{#model.id} AND d.name = :name AND d.version = :version")
+    fun findByModelAndNameAndVersion(model: Models, name: String, version: String): Diagrams?
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM Diagrams d WHERE d.id = :id")
+    fun hardDeleteById(id: UUID): Int
+
     @Query(
         "SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END " +
                 "FROM Diagrams d WHERE d.model.id = :#{#model.id} AND d.name = :name AND d.version = :version AND d.id != :id"

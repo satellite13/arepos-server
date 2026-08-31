@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.*
+import ru.kavader.arepos.service.DiagramLifecycleService
 import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.*
 import ru.kavader.arepos.security.ResourceAccessService
@@ -50,7 +51,8 @@ class BatchGraphOpsExecutor(
     private val diagramCanvasInstancesCleanupService: DiagramCanvasInstancesCleanupService,
     private val diagramOnlyOrphanCleanupService: DiagramOnlyOrphanCleanupService,
     private val typeUsageAuthorization: TypeUsageAuthorization,
-    private val diagramAttrsRemapper: DiagramAttrsRemapper
+    private val diagramAttrsRemapper: DiagramAttrsRemapper,
+    private val diagramLifecycleService: DiagramLifecycleService
 ) {
     fun execute(request: BatchSaveRequest, model: Models, owner: Users, now: Instant): BatchGraphExecutionResult {
         val nodeIdMap = mutableMapOf<String, UUID>()
@@ -93,6 +95,14 @@ class BatchGraphOpsExecutor(
         )
 
         val diagramsDeleted = deleteDiagrams(request.diagrams.delete, requireNotNull(model.id))
+        val replaceDeletedIds = requireUniqueDiagramNameVersions(
+            request.diagrams.create,
+            request.diagrams.update,
+            model
+        )
+        for (id in replaceDeletedIds) {
+            diagramsRepository.hardDeleteById(id)
+        }
         val diagramsCreated = createDiagrams(
             request.diagrams.create, model, owner, now, nodeIdMap, linkIdMap, diagramIdMap
         )
@@ -282,6 +292,59 @@ class BatchGraphOpsExecutor(
         }
         return updates.size
     }
+
+    private fun requireUniqueDiagramNameVersions(
+        creates: List<BatchDiagramCreate>,
+        updates: List<BatchDiagramUpdate>,
+        model: Models
+    ): Set<UUID> {
+        val claimed = mutableSetOf<Pair<String, String>>()
+        val replaceIds = mutableSetOf<UUID>()
+        fun claim(name: String, version: String) {
+            if (!claimed.add(name to version)) {
+                throw liveNameVersionConflict(model, name, version)
+            }
+        }
+        for (item in creates) {
+            claim(item.name, item.version)
+            val existing = diagramsRepository.findByModelAndNameAndVersion(model, item.name, item.version)
+                ?: continue
+            if (!existing.deleted) {
+                throw liveNameVersionConflict(model, item.name, item.version)
+            }
+            val existingId = requireNotNull(existing.id)
+            if (item.replaceDeletedId == existingId) {
+                replaceIds.add(existingId)
+                continue
+            }
+            throw DiagramNameVersionConflictException(
+                error = DIAGRAM_NAME_VERSION_IN_TRASH,
+                name = item.name,
+                version = item.version,
+                deletedDiagramId = existingId,
+                suggestedVersion = diagramLifecycleService.suggestUnusedVersion(model, item.name, item.version)
+            )
+        }
+        for (upd in updates) {
+            claim(upd.name, upd.version)
+            if (diagramsRepository.existsByModelAndNameAndVersionAndIdNot(model, upd.name, upd.version, upd.id)) {
+                throw liveNameVersionConflict(model, upd.name, upd.version)
+            }
+        }
+        return replaceIds
+    }
+
+    private fun liveNameVersionConflict(
+        model: Models,
+        name: String,
+        version: String
+    ): DiagramNameVersionConflictException =
+        DiagramNameVersionConflictException(
+            error = DIAGRAM_NAME_VERSION_EXISTS,
+            name = name,
+            version = version,
+            suggestedVersion = diagramLifecycleService.suggestUnusedVersion(model, name, version)
+        )
 
     private fun createDiagrams(
         creates: List<BatchDiagramCreate>, model: Models, owner: Users, now: Instant,

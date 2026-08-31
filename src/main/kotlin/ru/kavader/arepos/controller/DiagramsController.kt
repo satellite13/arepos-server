@@ -43,6 +43,25 @@ class DiagramsController(
     private val diagramInstancesMergeService: DiagramInstancesMergeService,
     private val diagramEnsureService: DiagramEnsureService
 ) {
+    @GetMapping("/name-version-availability")
+    @Operation(summary = "Check whether a diagram name and version are free, live, or in soft-delete")
+    fun nameVersionAvailability(
+        @RequestParam modelId: UUID,
+        @RequestParam name: String,
+        @RequestParam version: String
+    ): DiagramNameVersionAvailabilityResponse {
+        val model = modelsRepository.findById(modelId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Model $modelId not found")
+        }
+        accessService.requireCanEditModel(model)
+        val trimmedName = name.trim()
+        val trimmedVersion = version.trim()
+        if (trimmedName.isEmpty() || trimmedVersion.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "name and version are required")
+        }
+        return diagramLifecycleService.nameVersionAvailability(model, trimmedName, trimmedVersion)
+    }
+
     @GetMapping
     @Operation(summary = "List diagrams")
     fun listDiagrams(

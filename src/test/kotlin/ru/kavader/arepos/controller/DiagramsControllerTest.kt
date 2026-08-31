@@ -811,4 +811,86 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
                 )
             )
     }
+
+    @Test
+    fun `name-version-availability distinguishes free live and trash keys`() {
+        val owner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "owner-diagram-availability@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "model-for-availability",
+                createdAt = Instant.now(),
+                version = "1.0.0",
+                owner = owner
+            )
+        )
+        val notation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "notation-for-availability",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val live = diagramsRepository.save(
+            ru.kavader.arepos.model.Diagrams(
+                name = "Sales Price Calculator",
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                createdAt = Instant.now()
+            )
+        )
+        val deleted = diagramsRepository.save(
+            ru.kavader.arepos.model.Diagrams(
+                name = "Sales Price Calculator",
+                version = "2.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                deleted = true,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/diagrams/name-version-availability")
+                .withAuth(owner.id!!)
+                .param("modelId", model.id.toString())
+                .param("name", "Free Name")
+                .param("version", "1.0.0")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("available"))
+            .andExpect(jsonPath("$.suggestedVersion").value("1.1.0"))
+
+        mockMvc.perform(
+            get("/api/v1/diagrams/name-version-availability")
+                .withAuth(owner.id!!)
+                .param("modelId", model.id.toString())
+                .param("name", live.name)
+                .param("version", live.version)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("DIAGRAM_NAME_VERSION_EXISTS"))
+            .andExpect(jsonPath("$.suggestedVersion").value("1.1.0"))
+
+        mockMvc.perform(
+            get("/api/v1/diagrams/name-version-availability")
+                .withAuth(owner.id!!)
+                .param("modelId", model.id.toString())
+                .param("name", deleted.name)
+                .param("version", deleted.version)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("DIAGRAM_NAME_VERSION_IN_TRASH"))
+            .andExpect(jsonPath("$.deletedDiagramId").value(deleted.id.toString()))
+            .andExpect(jsonPath("$.suggestedVersion").value("2.1.0"))
+    }
 }

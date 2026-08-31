@@ -135,7 +135,8 @@ data class BatchDiagramCreate(
     val nodeId: String? = null,
     // Large OEF views pack many node/edge instances into one JSON attrs blob.
     @field:Size(max = 5_000_000)
-    val attrs: String? = null
+    val attrs: String? = null,
+    val replaceDeletedId: UUID? = null
 )
 
 data class BatchDiagramUpdate(
@@ -184,3 +185,28 @@ class BatchSaveConflictException(
         require(conflicts.isNotEmpty()) { "BatchConflictItem list must not be empty" }
     }
 }
+
+const val DIAGRAM_NAME_VERSION_EXISTS = "DIAGRAM_NAME_VERSION_EXISTS"
+const val DIAGRAM_NAME_VERSION_IN_TRASH = "DIAGRAM_NAME_VERSION_IN_TRASH"
+
+data class DiagramNameVersionAvailabilityResponse(
+    val status: String,
+    val name: String,
+    val version: String,
+    val deletedDiagramId: UUID? = null,
+    val suggestedVersion: String? = null
+)
+
+class DiagramNameVersionConflictException(
+    val error: String,
+    val name: String,
+    val version: String,
+    val deletedDiagramId: UUID? = null,
+    val suggestedVersion: String? = null
+) : RuntimeException(
+    if (error == DIAGRAM_NAME_VERSION_IN_TRASH) {
+        "A deleted diagram with name '$name' and version '$version' still occupies this key"
+    } else {
+        "Diagram with name '$name' and version '$version' already exists"
+    }
+)

@@ -21,6 +21,7 @@ import ru.kavader.arepos.repository.NotationsRepository
 import ru.kavader.arepos.security.ResourceAccessService
 import ru.kavader.arepos.security.TypeUsageAuthorization
 import ru.kavader.arepos.service.DiagramCanvasInstancesCleanupService
+import ru.kavader.arepos.service.DiagramLifecycleService
 import ru.kavader.arepos.service.DiagramOnlyOrphanCleanupService
 import java.time.Instant
 import java.util.UUID
@@ -43,7 +44,8 @@ class BatchGraphOpsExecutorTest {
         diagramCanvasInstancesCleanupService = mock(DiagramCanvasInstancesCleanupService::class.java),
         diagramOnlyOrphanCleanupService = mock(DiagramOnlyOrphanCleanupService::class.java),
         typeUsageAuthorization = mock(TypeUsageAuthorization::class.java),
-        diagramAttrsRemapper = mock(DiagramAttrsRemapper::class.java)
+        diagramAttrsRemapper = mock(DiagramAttrsRemapper::class.java),
+        diagramLifecycleService = mock(DiagramLifecycleService::class.java)
     )
     private val owner = Users(id = UUID.randomUUID(), email = "batch-owner@test.com")
     private val model = Models(
