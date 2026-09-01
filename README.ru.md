@@ -107,12 +107,14 @@ charts/arepos-server/
 ## Команды сборки
 
 ```bash
-./gradlew build                      # полная сборка
+./gradlew build                      # полная сборка + тесты
 ./gradlew test                       # все тесты
 ./gradlew test --tests "*RepositoryTest"
 ./gradlew bootBuildImage             # сборка OCI-образа
 docker build -f Dockerfile -t arch/arepos-server:dev .  # сборка через Dockerfile
 ```
+
+CI (GitHub Actions): `.github/workflows/ci.yml` — build/test, Cerbos-only checks, Helm lint, сборка Docker-образа.
 
 ## API
 
