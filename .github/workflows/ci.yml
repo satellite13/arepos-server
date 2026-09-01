@@ -107,12 +107,14 @@ jobs:
             'clusters: []' \
             'contexts: []' \
             'users: []' > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
           helm lint ./charts/arepos-server
           helm template ci-arepos ./charts/arepos-server \
             --values ./charts/arepos-server/values.yaml \
             --namespace arch \
             > /tmp/arepos-manifests.yaml
-          kubectl apply --dry-run=client -f /tmp/arepos-manifests.yaml
+          # --validate=false: no live cluster / OpenAPI endpoint on CI runners
+          kubectl apply --dry-run=client --validate=false -f /tmp/arepos-manifests.yaml
           bash -n ./scripts/deploy.sh
           bash -n ./scripts/undeploy.sh
           bash -n ./scripts/helmCheck.sh
