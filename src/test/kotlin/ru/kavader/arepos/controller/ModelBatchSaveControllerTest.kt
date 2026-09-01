@@ -412,7 +412,12 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
 
         val payload = mapOf(
             "nodes" to mapOf(
-                "delete" to listOf(nodeId.toString())
+                "delete" to listOf(
+                    mapOf(
+                        "id" to nodeId.toString(),
+                        "baseUpdatedAt" to node.updatedAt.toString()
+                    )
+                )
             )
         )
 
@@ -502,7 +507,12 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
 
         val payload = mapOf(
             "nodes" to mapOf(
-                "delete" to listOf(source.id.toString())
+                "delete" to listOf(
+                    mapOf(
+                        "id" to source.id.toString(),
+                        "baseUpdatedAt" to source.updatedAt.toString()
+                    )
+                )
             ),
             "links" to mapOf(
                 "update" to listOf(
@@ -827,7 +837,12 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
 
         val payload = mapOf(
             "nodes" to mapOf(
-                "delete" to listOf(deletedNode.id.toString())
+                "delete" to listOf(
+                    mapOf(
+                        "id" to deletedNode.id.toString(),
+                        "baseUpdatedAt" to deletedNode.updatedAt.toString()
+                    )
+                )
             )
         )
 

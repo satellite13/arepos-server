@@ -37,6 +37,16 @@ class McpScopeFilterTest {
     }
 
     @Test
+    fun `mcp allows search catalog with read scope`() {
+        withMcp(setOf(ApiKeyScopes.MODELS_READ)) {
+            val request = MockHttpServletRequest("GET", "/api/v1/search/catalog")
+            val response = MockHttpServletResponse()
+            filter.doFilter(request, response, MockFilterChain())
+            assertEquals(200, response.status)
+        }
+    }
+
+    @Test
     fun `mcp denies admin and audit paths`() {
         withMcp(setOf(ApiKeyScopes.MODELS_READ, ApiKeyScopes.MODELS_WRITE)) {
             val request = MockHttpServletRequest("GET", "/api/v1/audit-log")

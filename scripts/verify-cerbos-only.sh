@@ -67,8 +67,8 @@ main() {
     "charts" \
     "no legacy cerbos mode/shadow/fail-open flags in charts"
   assert_no_matches "cerbos\\.mode|cerbosShadowEnabled|cerbosEnforceEnabled|cerbosFailOpen|fail-open|CERBOS_SHADOW|CERBOS_ENFORCE|CERBOS_OFF" \
-    "deploy.sh" \
-    "no legacy cerbos mode/shadow/fail-open flags in deploy.sh"
+    "scripts/deploy.sh" \
+    "no legacy cerbos mode/shadow/fail-open flags in scripts/deploy.sh"
   assert_no_matches "cerbos\\.mode|cerbosShadowEnabled|cerbosEnforceEnabled|cerbosFailOpen|fail-open|CERBOS_SHADOW|CERBOS_ENFORCE|CERBOS_OFF" \
     "scripts/release-cerbos-policies.sh" \
     "no legacy cerbos mode/shadow/fail-open flags in release script"

@@ -34,7 +34,8 @@ class McpScopeFilter : OncePerRequestFilter() {
             "/api/v1/validation-scripts",
             "/api/v1/files",
             "/api/v1/documents",
-            "/api/v1/library-icons"
+            "/api/v1/library-icons",
+            "/api/v1/search"
         )
     }
 

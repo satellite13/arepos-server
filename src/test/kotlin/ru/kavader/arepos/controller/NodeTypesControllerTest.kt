@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.dto.notation.NodeTypeRequest
 import ru.kavader.arepos.model.*
 import ru.kavader.arepos.repository.*
+import ru.kavader.arepos.service.SystemRootNodeTypeService
 import java.time.Instant
 import kotlin.test.assertEquals
 
@@ -294,15 +295,19 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `directory node type is readable for any user`() {
-        val systemUser = usersRepository.save(
-            ru.kavader.arepos.model.Users(
-                email = "system-public@test.com",
-                role = Role.USER,
-                isActive = false,
-                createdAt = Instant.now()
+        val systemUser = usersRepository.findByEmailIgnoreCase(SystemRootNodeTypeService.SYSTEM_OWNER_EMAIL)
+            ?: usersRepository.save(
+                ru.kavader.arepos.model.Users(
+                    email = SystemRootNodeTypeService.SYSTEM_OWNER_EMAIL,
+                    role = Role.USER,
+                    isActive = false,
+                    createdAt = Instant.now()
+                )
             )
-        )
-        val directoryType = nodeTypesRepository.save(
+        val directoryType = nodeTypesRepository.findByOwnerEmailIgnoreCaseAndNameIgnoreCase(
+            ownerEmail = SystemRootNodeTypeService.SYSTEM_OWNER_EMAIL,
+            name = "Directory"
+        ) ?: nodeTypesRepository.save(
             ru.kavader.arepos.model.NodeTypes(
                 name = "Directory",
                 attrs = """{"system":true,"kind":"directory"}""",

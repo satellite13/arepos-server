@@ -50,10 +50,30 @@ helm lint ./charts/arepos-server
 bash -n ./scripts/deploy.sh
 ```
 
+If your change affects authorization:
+
+```bash
+bash ./scripts/verify-cerbos-only.sh
+```
+
+## Continuous Integration
+
+GitHub Actions workflow `.github/workflows/ci.yml` runs on every pull request and on pushes to `master`:
+
+| Job | What it does |
+|-----|----------------|
+| **Build & test** | JDK 24 + `./gradlew build` (Testcontainers needs Docker) |
+| **Cerbos-only checks** | `scripts/verify-cerbos-only.sh` (static authz invariants + focused tests) |
+| **Helm chart** | `helm lint` / `helm template` + smoke checks + `bash -n` on deploy scripts |
+| **Docker image** | Multi-stage `Dockerfile` build (no push) |
+
+Fix CI failures before merge; local `./gradlew build` should match the main test job.
+
 ## Pull Request Checklist
 
 - [ ] Code builds locally
 - [ ] Tests pass locally
+- [ ] CI is green (or equivalent local checks)
 - [ ] Tests are in place to cover new behavior.
 - [ ] Documentation is updated if needed
 - [ ] No secrets or private data were added
