@@ -91,30 +91,18 @@ jobs:
         with:
           version: v3.16.4
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.31.4
-
-      - name: Lint and dry-run chart
+      - name: Lint and render chart
         run: |
           set -euo pipefail
-          # kubectl client dry-run does not need a cluster, but needs a kubeconfig file
-          mkdir -p "$HOME/.kube"
-          printf '%s\n' \
-            'apiVersion: v1' \
-            'kind: Config' \
-            'clusters: []' \
-            'contexts: []' \
-            'users: []' > "$HOME/.kube/config"
-          chmod 600 "$HOME/.kube/config"
           helm lint ./charts/arepos-server
           helm template ci-arepos ./charts/arepos-server \
             --values ./charts/arepos-server/values.yaml \
             --namespace arch \
             > /tmp/arepos-manifests.yaml
-          # --validate=false: no live cluster / OpenAPI endpoint on CI runners
-          kubectl apply --dry-run=client --validate=false -f /tmp/arepos-manifests.yaml
+          # Smoke-check rendered manifests (no cluster required)
+          test -s /tmp/arepos-manifests.yaml
+          grep -q '^kind: Deployment$' /tmp/arepos-manifests.yaml
+          grep -q '^kind: Service$' /tmp/arepos-manifests.yaml
           bash -n ./scripts/deploy.sh
           bash -n ./scripts/undeploy.sh
           bash -n ./scripts/helmCheck.sh

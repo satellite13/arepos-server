@@ -64,7 +64,7 @@ GitHub Actions workflow `.github/workflows/ci.yml` runs on every pull request an
 |-----|----------------|
 | **Build & test** | JDK 24 + `./gradlew build` (Testcontainers needs Docker) |
 | **Cerbos-only checks** | `scripts/verify-cerbos-only.sh` (static authz invariants + focused tests) |
-| **Helm chart** | `helm lint` / `helm template` + kubectl client dry-run + `bash -n` on deploy scripts |
+| **Helm chart** | `helm lint` / `helm template` + smoke checks + `bash -n` on deploy scripts |
 | **Docker image** | Multi-stage `Dockerfile` build (no push) |
 
 Fix CI failures before merge; local `./gradlew build` should match the main test job.

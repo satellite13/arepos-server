@@ -62,7 +62,7 @@ GitHub Actions (`.github/workflows/ci.yml`) запускается на кажд
 |-----|------------|
 | **Build & test** | JDK 24 + `./gradlew build` (Testcontainers нужен Docker) |
 | **Cerbos-only checks** | `scripts/verify-cerbos-only.sh` |
-| **Helm chart** | `helm lint` / `helm template` + kubectl dry-run + `bash -n` скриптов |
+| **Helm chart** | `helm lint` / `helm template` + smoke-проверки + `bash -n` скриптов |
 | **Docker image** | Сборка multi-stage `Dockerfile` (без push) |
 
 Перед merge CI должен быть зелёным; локальный `./gradlew build` соответствует основному test job.
