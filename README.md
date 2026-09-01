@@ -107,13 +107,14 @@ Important environment variables:
 ## Build Commands
 
 ```bash
-./gradlew build                      # full build
+./gradlew build                      # full build + tests
 ./gradlew test                       # all tests
 ./gradlew test --tests "*RepositoryTest"
 ./gradlew bootBuildImage             # build OCI image
 docker build -f Dockerfile -t arch/arepos-server:dev .  # build via Dockerfile
 ```
 
+CI (GitHub Actions): `.github/workflows/ci.yml` — build/test, Cerbos-only checks, Helm lint, Docker image build.
 ## API
 
 - Swagger UI: `/swagger-ui.html` — interactive API documentation

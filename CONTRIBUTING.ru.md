@@ -48,10 +48,30 @@ helm lint ./charts/arepos-server
 bash -n ./scripts/deploy.sh
 ```
 
+Если меняется авторизация:
+
+```bash
+bash ./scripts/verify-cerbos-only.sh
+```
+
+## Continuous Integration
+
+GitHub Actions (`.github/workflows/ci.yml`) запускается на каждый pull request и на push в `master`:
+
+| Job | Что делает |
+|-----|------------|
+| **Build & test** | JDK 24 + `./gradlew build` (Testcontainers нужен Docker) |
+| **Cerbos-only checks** | `scripts/verify-cerbos-only.sh` |
+| **Helm chart** | `helm lint` / `helm template` + kubectl dry-run + `bash -n` скриптов |
+| **Docker image** | Сборка multi-stage `Dockerfile` (без push) |
+
+Перед merge CI должен быть зелёным; локальный `./gradlew build` соответствует основному test job.
+
 ## Checklist для PR
 
 - [ ] Проект собирается локально
 - [ ] Тесты проходят локально
+- [ ] CI зелёный (или эквивалентные локальные проверки)
 - [ ] Новое поведение покрыто тестами
 - [ ] Документация обновлена при необходимости
 - [ ] В репозиторий не добавлены секреты или приватные данные
