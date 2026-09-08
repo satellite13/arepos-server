@@ -568,7 +568,7 @@ databaseChangeLog:
             endDelimiter: ;
 
   - changeSet:
-      id: 059-diagram-comments
+      id: 060-diagram-comments
       author: Nikolay Groznykh
       runOnChange: true
       changes:
