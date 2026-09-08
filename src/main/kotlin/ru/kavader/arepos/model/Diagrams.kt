@@ -6,6 +6,7 @@ import org.hibernate.annotations.BatchSize
 import org.hibernate.annotations.DynamicUpdate
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
+import ru.kavader.arepos.config.AuditInterceptor
 import java.time.Instant
 import java.util.*
 
@@ -72,12 +73,21 @@ class Diagrams(
     var node: Nodes? = null,
 
     @Column(name = "series_id", nullable = false)
-    var seriesId: UUID? = null
+    var seriesId: UUID? = null,
+
+    /** Пользователь, последним изменивший диаграмму; заполняется автоматически. */
+    @Column(name = "updated_by")
+    var updatedBy: UUID? = null
 ) {
     @PrePersist
     fun ensureSeriesId() {
         if (seriesId == null) {
             seriesId = id ?: UUID.randomUUID()
         }
+    }
+
+    @PreUpdate
+    fun onTouch() {
+        AuditInterceptor.peekCurrentUserId()?.let { updatedBy = it }
     }
 }

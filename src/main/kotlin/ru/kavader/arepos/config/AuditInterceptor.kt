@@ -46,6 +46,12 @@ class AuditInterceptor : PreInsertEventListener, PreUpdateEventListener, PreDele
          * Получает идентификатор текущего пользователя.
          * Приоритет у SecurityContext, чтобы избежать утечек из stale ThreadLocal.
          */
+        /**
+         * Текущий пользователь аудита (SecurityContext или ThreadLocal) без выброса исключений.
+         * Используется entity-колбэками (напр. Diagrams.onTouch) для фиксации автора изменения.
+         */
+        fun peekCurrentUserId(): UUID? = getCurrentUserId()
+
         private fun getCurrentUserId(): UUID? {
             return try {
                 SecurityContextHolder.getContext().authentication?.principal as? UUID

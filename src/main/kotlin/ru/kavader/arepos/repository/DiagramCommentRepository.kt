@@ -78,6 +78,7 @@ interface DiagramCommentRepository : JpaRepository<DiagramComment, UUID> {
         SELECT c.* FROM public.comments c
         JOIN public.comments root ON root.id = COALESCE(c.thread_id, c.id)
         JOIN public.models m ON m.id = c.model_id
+        JOIN public.diagrams d ON d.id = c.diagram_id
         WHERE c.deleted_at IS NULL
           AND root.deleted_at IS NULL
           AND root.is_resolved = false
@@ -89,6 +90,7 @@ interface DiagramCommentRepository : JpaRepository<DiagramComment, UUID> {
                 AND mc.deleted_at IS NULL
                 AND mc.mentions::text LIKE :mentionLike
             )
+            OR d.updated_by = :userId
           )
         ORDER BY c.created_at DESC NULLS LAST
         LIMIT :limit

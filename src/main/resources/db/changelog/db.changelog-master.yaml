@@ -578,3 +578,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+
+  - changeSet:
+      id: 061-diagram-updated-by
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/060-diagram-updated-by.sql
+            encoding: UTF-8
+            splitStatements: true
+            endDelimiter: ;
