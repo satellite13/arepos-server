@@ -188,8 +188,11 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
     override fun existsById(id: UUID): Boolean
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE Diagrams d SET d.deleted = true WHERE d.id = :id")
+    @Query("UPDATE Diagrams d SET d.deleted = true, d.deletedAt = CURRENT_TIMESTAMP WHERE d.id = :id")
     fun softDeleteById(id: UUID): Int
+
+    @Query("SELECT d.id FROM Diagrams d WHERE d.deleted = true AND d.deletedAt IS NOT NULL AND d.deletedAt < :cutoff")
+    fun findDeletedBefore(@org.springframework.data.repository.query.Param("cutoff") cutoff: java.time.Instant): List<UUID>
 
     @Query(
         value = """

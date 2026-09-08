@@ -58,7 +58,9 @@ class BatchGraphOpsExecutorTest {
         diagramOnlyOrphanCleanupService = mock(DiagramOnlyOrphanCleanupService::class.java),
         typeUsageAuthorization = mock(TypeUsageAuthorization::class.java),
         diagramAttrsRemapper = mock(DiagramAttrsRemapper::class.java),
-        diagramLifecycleService = mock(DiagramLifecycleService::class.java)
+        diagramLifecycleService = mock(DiagramLifecycleService::class.java),
+        diagramCommentAutoResolveService =
+            mock(ru.kavader.arepos.service.DiagramCommentAutoResolveService::class.java)
     )
     private val owner = Users(id = UUID.randomUUID(), email = "batch-owner@test.com")
     private val model = Models(

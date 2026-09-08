@@ -34,6 +34,7 @@ class DiagramInstancesMergeService(
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val modelMapper: ModelMapper,
     private val notationBindingService: NotationBindingService,
+    private val diagramCommentAutoResolveService: DiagramCommentAutoResolveService,
     private val objectMapper: ObjectMapper
 ) {
 
@@ -155,9 +156,11 @@ class DiagramInstancesMergeService(
 
         val newAttrs = objectMapper.writeValueAsString(root)
         mdFileLinkValidator.validate(newAttrs)
+        val previousAttrs = diagram.attrs
         diagram.attrs = newAttrs
         diagram.updatedAt = Instant.now()
         val updated = diagramsRepository.save(diagram)
+        diagramCommentAutoResolveService.autoResolveRemovedInstances(updated, previousAttrs, newAttrs)
         modelSyncBroadcaster.broadcastModelChanged(
             requireNotNull(diagram.model.id),
             ModelSyncChangeType.DIAGRAM_UPDATE.wireValue,

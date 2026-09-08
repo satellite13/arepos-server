@@ -135,12 +135,225 @@ class UsersControllerTest : ControllerIntegrationTest() {
         )
 
         mockMvc.perform(
-            get("/api/v1/users?email=john&page=0&size=10")
+            get("/api/v1/users?search=john&page=0&size=10")
                 .withAuth(admin.id!!)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items.length()").value(1))
             .andExpect(jsonPath("$.items[0].email").value("john@test.com"))
+    }
+
+    @Test
+    fun `searches users by oidc_sub`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "linked1@test.com",
+                oidcSub = "kc-abc-123",
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "linked2@test.com",
+                oidcSub = "kc-def-456",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/users?search=abc-123&page=0&size=10")
+                .withAuth(admin.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].oidcSub").value("kc-abc-123"))
+    }
+
+    @Test
+    fun `searches users by partial oidc_sub (case-insensitive)`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "case@test.com",
+                oidcSub = "KC-XYZ-789",
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "other@test.com",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/users?search=xyz&page=0&size=10")
+                .withAuth(admin.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].oidcSub").value("KC-XYZ-789"))
+    }
+
+    @Test
+    fun `search returns empty when oidc_sub not found`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "only-email@test.com",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/users?search=nonexistent&page=0&size=10")
+                .withAuth(admin.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(0))
+    }
+
+    @Test
+    fun `public search finds users by oidc_sub`() {
+        val viewer = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "viewer@test.com",
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "sso-user@test.com",
+                oidcSub = "kc-sso-777",
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "plain@test.com",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/users/public/search?search=sso-777&page=0&size=10")
+                .withAuth(viewer.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].email").value("sso-user@test.com"))
+            .andExpect(jsonPath("$.items[0].oidcSub").value("kc-sso-777"))
+    }
+
+    @Test
+    fun `public search finds admins too`() {
+        val viewer = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "viewer-admin-search@test.com",
+                createdAt = Instant.now()
+            )
+        )
+        usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "root-admin@test.com",
+                oidcSub = "60250007",
+                role = ru.kavader.arepos.model.Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/users/public/search?search=6025&page=0&size=10")
+                .withAuth(viewer.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].email").value("root-admin@test.com"))
+            .andExpect(jsonPath("$.items[0].oidcSub").value("60250007"))
+    }
+
+    @Test
+    fun `public search requires email or search parameter`() {
+        val viewer = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "viewer2@test.com",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/users/public/search?page=0&size=10")
+                .withAuth(viewer.id!!)
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `user response includes oidc_sub field`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val user = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "linked@test.com",
+                oidcSub = "keycloak-sub-uuid",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/users/${user.id}")
+                .withAuth(admin.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.oidcSub").value("keycloak-sub-uuid"))
+    }
+
+    @Test
+    fun `user response oidc_sub is empty when not linked`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val user = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "plain@test.com",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/users/${user.id}")
+                .withAuth(admin.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.oidcSub").isEmpty)
     }
 
     @Test

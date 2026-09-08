@@ -90,20 +90,26 @@ class UsersController(
     }
 
     @GetMapping("/public/search")
-    @Operation(summary = "Search public user profiles")
+    @Operation(summary = "Search public user profiles by email or OIDC id")
     @PreAuthorize("isAuthenticated()")
     fun searchUsersPublic(
         pageable: Pageable,
-        @RequestParam email: String
+        @RequestParam(required = false) email: String?,
+        @RequestParam(required = false) search: String?
     ): ListResponse<UserPublicResponse> {
-        val normalizedEmail = email.trim()
-        if (normalizedEmail.isEmpty()) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required")
+        val normalizedEmail = email?.trim().orEmpty()
+        val normalizedSearch = search?.trim().orEmpty()
+        if (normalizedEmail.isNotEmpty()) {
+            return usersRepository.findByEmailContainingIgnoreCase(normalizedEmail, pageable)
+                .map { userMapper.toPublicResponse(it) }
+                .toListResponse()
         }
-
-        return usersRepository.findByEmailContainingIgnoreCaseAndRoleNot(normalizedEmail, Role.ADMIN, pageable)
-            .map { userMapper.toPublicResponse(it) }
-            .toListResponse()
+        if (normalizedSearch.isNotEmpty()) {
+            return usersRepository.searchByEmailOrOidcSubContaining(normalizedSearch, pageable)
+                .map { userMapper.toPublicResponse(it) }
+                .toListResponse()
+        }
+        throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email or search parameter is required")
     }
 
     @PostMapping("/public/batch")

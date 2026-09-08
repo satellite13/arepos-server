@@ -46,7 +46,8 @@ class UserMapper(
             firstName = profile.firstName,
             lastName = profile.lastName,
             middleName = profile.middleName,
-            position = profile.position
+            position = profile.position,
+            oidcSub = user.oidcSub
         )
     }
 

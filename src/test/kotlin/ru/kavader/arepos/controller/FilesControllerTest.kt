@@ -300,7 +300,11 @@ class FilesControllerTest : ControllerIntegrationTest() {
                 fileStorageService,
                 usersRepository,
                 accessService,
-                documentRefsService
+                documentRefsService,
+                org.mockito.Mockito.mock(
+                    ru.kavader.arepos.repository.DiagramCommentAttachmentRepository::class.java
+                ),
+                org.mockito.Mockito.mock(ru.kavader.arepos.service.DiagramCommentService::class.java)
             )
     }
 }

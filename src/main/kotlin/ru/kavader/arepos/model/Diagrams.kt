@@ -56,6 +56,9 @@ class Diagrams(
     @Column(name = "deleted", nullable = false)
     var deleted: Boolean = false,
 
+    @Column(name = "deleted_at")
+    var deletedAt: Instant? = null,
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "model", nullable = false)
     var model: Models,

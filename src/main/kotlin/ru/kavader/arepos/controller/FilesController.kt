@@ -33,7 +33,9 @@ class FilesController(
     private val fileStorageService: FileStorageService,
     private val usersRepository: UsersRepository,
     private val accessService: ResourceAccessService,
-    private val documentRefsService: DocumentRefsService
+    private val documentRefsService: DocumentRefsService,
+    private val diagramCommentAttachmentRepository: ru.kavader.arepos.repository.DiagramCommentAttachmentRepository,
+    private val diagramCommentService: ru.kavader.arepos.service.DiagramCommentService
 ) {
     companion object {
         internal fun buildInlineContentDisposition(filename: String): String {
@@ -118,7 +120,7 @@ class FilesController(
     fun getFile(@PathVariable id: UUID): ResponseEntity<org.springframework.core.io.Resource> {
         val fileMetadata = fileStorageService.getFileMetadata(id)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
-        accessService.requireCanViewFile(fileMetadata)
+        requireCanViewFileOrCommentAttachment(fileMetadata)
 
         val (file, resource) = fileStorageService.getFile(id)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
@@ -127,6 +129,16 @@ class FilesController(
             .header(HttpHeaders.CONTENT_DISPOSITION, buildInlineContentDisposition(file.filename))
             .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
             .body(resource)
+    }
+
+    /** Вложение комментария могут смотреть все, у кого есть view на модель этого комментария. */
+    private fun requireCanViewFileOrCommentAttachment(file: ru.kavader.arepos.model.Files) {
+        if (diagramCommentAttachmentRepository.existsByFileId(requireNotNull(file.id)) &&
+            diagramCommentService.canViewFileViaComment(file.id)
+        ) {
+            return
+        }
+        accessService.requireCanViewFile(file)
     }
 
     @GetMapping("/{id}/versions")

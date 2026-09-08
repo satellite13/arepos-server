@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.dto.dashboard.DashboardRecentCommentItem
 import ru.kavader.arepos.dto.dashboard.DashboardRecentResponse
 import ru.kavader.arepos.dto.dashboard.DashboardStatsResponse
 import ru.kavader.arepos.mapper.AuditMapper
@@ -27,6 +29,7 @@ class DashboardController(
     private val nodeTypesRepository: NodeTypesRepository,
     private val linkTypesRepository: LinkTypesRepository,
     private val diagramsRepository: DiagramsRepository,
+    private val commentRepository: DiagramCommentRepository,
     private val accessService: ResourceAccessService,
     private val auditMapper: AuditMapper
 ) {
@@ -106,5 +109,56 @@ class DashboardController(
         val ids = recent.map { requireNotNull(it.id) }
         val byId = diagramsRepository.findAllWithModelByIdIn(ids).associateBy { requireNotNull(it.id) }
         return ids.mapNotNull { byId[it] }
+    }
+
+    @GetMapping("/recent-comments")
+    @Operation(summary = "Latest unresolved comments in diagrams authored by the user or where they are mentioned")
+    @Transactional(readOnly = true)
+    fun getRecentComments(@RequestParam(defaultValue = "5") limit: Int): List<DashboardRecentCommentItem> {
+        val currentUserId = accessService.currentUserId()
+        val cappedLimit = limit.coerceIn(1, 20)
+        // Перебор с запасом: часть диаграмм может быть отфильтрована проверкой доступа
+        val candidates = commentRepository.findRecentUnresolvedForDiagramsOfAuthorOrMentioned(
+            userId = currentUserId,
+            mentionLike = "%\"$currentUserId\"%",
+            limit = cappedLimit * 4
+        )
+
+        val items = mutableListOf<DashboardRecentCommentItem>()
+        for (comment in candidates) {
+            if (items.size >= cappedLimit) break
+            val diagram = comment.diagram
+            val canView = try {
+                accessService.requireCanViewDiagram(diagram)
+                true
+            } catch (e: ResponseStatusException) {
+                false
+            }
+            if (!canView) continue
+            val threadId = comment.thread?.id ?: requireNotNull(comment.id)
+            items.add(
+                DashboardRecentCommentItem(
+                    commentId = requireNotNull(comment.id),
+                    threadId = threadId,
+                    isReply = comment.thread != null,
+                    diagramId = requireNotNull(diagram.id),
+                    diagramName = diagram.name,
+                    modelId = requireNotNull(comment.modelId),
+                    modelName = comment.model?.name ?: "",
+                    targetType = comment.targetType,
+                    instanceId = comment.instanceId,
+                    elementName = comment.elementName,
+                    bodyMd = comment.bodyMd.take(RECENT_COMMENT_BODY_LIMIT),
+                    createdAt = comment.createdAt,
+                    authorId = requireNotNull(comment.author.id),
+                    authorName = comment.author.email.substringBefore("@")
+                )
+            )
+        }
+        return items
+    }
+
+    companion object {
+        private const val RECENT_COMMENT_BODY_LIMIT = 400
     }
 }

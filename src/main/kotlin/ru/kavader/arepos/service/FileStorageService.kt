@@ -38,6 +38,28 @@ class FileStorageService(
         private val log = LoggerFactory.getLogger(FileStorageService::class.java)
         private const val MAX_SIZE: Long = 5 * 1024 * 1024 // 5 MB
         private const val VERSION_ID_NULL_SENTINEL = "null"
+        const val COMMENT_ATTACHMENT_MAX_SIZE: Long = 25 * 1024 * 1024 // 25 MB
+
+        /** Mime -> allowed extensions for comment attachments (images, Word, Excel). */
+        val COMMENT_ATTACHMENT_TYPES: Map<String, Set<String>> = mapOf(
+            "image/png" to setOf("png"),
+            "image/jpeg" to setOf("jpg", "jpeg"),
+            "image/gif" to setOf("gif"),
+            "image/webp" to setOf("webp"),
+            "application/msword" to setOf("doc"),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" to setOf("docx"),
+            "application/vnd.ms-excel" to setOf("xls"),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" to setOf("xlsx")
+        )
+
+        fun commentAttachmentExtension(filename: String?): String =
+            filename?.substringAfterLast('.', "")?.lowercase().orEmpty()
+
+        fun isAllowedCommentAttachment(contentType: String, filename: String?): Boolean {
+            val type = contentType.lowercase()
+            val allowed = COMMENT_ATTACHMENT_TYPES[type] ?: return false
+            return commentAttachmentExtension(filename) in allowed
+        }
         private val ALLOWED_IMAGE_TYPES = setOf(
             "image/jpeg",
             "image/png",
@@ -255,6 +277,88 @@ class FileStorageService(
         // Save version info
         saveVersion(saved, result.versionId(), owner, bytes.size.toLong())
 
+        return saved
+    }
+
+    /**
+     * Uploads a comment attachment with its own size/type policy (docs/xlsx/images, 25 MB).
+     * Separate from [upload] so the wiki/files allowlist stays untouched.
+     */
+    fun uploadCommentAttachment(file: MultipartFile, owner: Users): Files {
+        if (file.size > COMMENT_ATTACHMENT_MAX_SIZE) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "File size exceeds ${COMMENT_ATTACHMENT_MAX_SIZE / (1024 * 1024)} MB limit"
+            )
+        }
+        val contentType = (file.contentType ?: "application/octet-stream").lowercase()
+        if (!isAllowedCommentAttachment(contentType, file.originalFilename)) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "File type not allowed for comment attachments: ${file.contentType}. " +
+                    "Allowed: images (png/jpeg/gif/webp), Word (doc/docx), Excel (xls/xlsx)"
+            )
+        }
+
+        val fileId = UUID.randomUUID()
+        val safeFilename = sanitizeFilename(file.originalFilename ?: "file")
+        val objectKey = "comment-attachments/${owner.id!!}/$fileId/$safeFilename"
+
+        val result = minioClient.putObject(
+            PutObjectArgs.builder()
+                .bucket(minioProperties.bucket)
+                .`object`(objectKey)
+                .stream(file.inputStream, file.size, -1)
+                .contentType(contentType)
+                .build()
+        )
+
+        val entity = Files(
+            id = fileId,
+            owner = owner,
+            filename = safeFilename,
+            contentType = contentType,
+            size = file.size,
+            objectKey = objectKey,
+            createdAt = java.time.Instant.now()
+        )
+        val saved = filesRepository.save(entity)
+        saveVersion(saved, result.versionId(), owner, file.size)
+        return saved
+    }
+
+    /** Generic byte upload used by link-preview unfurl (OG images proxied into the bucket). */
+    fun uploadBytes(
+        content: ByteArray,
+        filename: String,
+        contentType: String,
+        owner: Users,
+        keyPrefix: String
+    ): Files {
+        val fileId = UUID.randomUUID()
+        val safeFilename = sanitizeFilename(filename)
+        val objectKey = "$keyPrefix/${owner.id!!}/$fileId/$safeFilename"
+
+        val result = minioClient.putObject(
+            PutObjectArgs.builder()
+                .bucket(minioProperties.bucket)
+                .`object`(objectKey)
+                .stream(ByteArrayInputStream(content), content.size.toLong(), -1)
+                .contentType(contentType)
+                .build()
+        )
+
+        val entity = Files(
+            id = fileId,
+            owner = owner,
+            filename = safeFilename,
+            contentType = contentType,
+            size = content.size.toLong(),
+            objectKey = objectKey,
+            createdAt = java.time.Instant.now()
+        )
+        val saved = filesRepository.save(entity)
+        saveVersion(saved, result.versionId(), owner, content.size.toLong())
         return saved
     }
 

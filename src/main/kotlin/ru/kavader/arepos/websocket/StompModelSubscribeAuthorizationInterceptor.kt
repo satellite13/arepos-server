@@ -24,6 +24,7 @@ class StompModelSubscribeAuthorizationInterceptor(
 ) : ChannelInterceptor {
 
     private val topicModelRegex = Regex("^/topic/models/([0-9a-fA-F-]{36})$")
+    private val userNotificationRegex = Regex("^/user/queue/notifications$")
 
     override fun preSend(message: Message<*>, channel: MessageChannel): Message<*> {
         val accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor::class.java) ?: return message
@@ -41,6 +42,15 @@ class StompModelSubscribeAuthorizationInterceptor(
             StompCommand.SUBSCRIBE -> {
                 val dest = accessor.destination
                     ?: throw SecurityException("SUBSCRIBE without destination")
+                if (userNotificationRegex.matchEntire(dest) != null) {
+                    // Личные уведомления — только аутентифицированная сессия
+                    // (преобразование в /queue/notifications-user{session} делает user-destination resolver,
+                    //  поэтому подписка всегда ведёт в собственную очередь пользователя).
+                    if (accessor.user as? UsernamePasswordAuthenticationToken == null) {
+                        throw SecurityException("Unauthenticated WebSocket session")
+                    }
+                    return message
+                }
                 val match = topicModelRegex.matchEntire(dest)
                     ?: throw SecurityException("Subscription to this destination is not allowed")
                 val modelId = UUID.fromString(match.groupValues[1])

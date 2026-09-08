@@ -32,3 +32,20 @@ data class DashboardRecentDiagramItem(
     val modelName: String,
     val updatedAt: Instant?
 )
+
+data class DashboardRecentCommentItem(
+    val commentId: UUID,
+    val threadId: UUID,
+    val isReply: Boolean,
+    val diagramId: UUID,
+    val diagramName: String,
+    val modelId: UUID,
+    val modelName: String,
+    val targetType: String,
+    val instanceId: String?,
+    val elementName: String?,
+    val bodyMd: String,
+    val createdAt: Instant?,
+    val authorId: UUID,
+    val authorName: String
+)

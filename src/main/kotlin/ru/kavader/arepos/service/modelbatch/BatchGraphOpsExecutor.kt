@@ -52,7 +52,8 @@ class BatchGraphOpsExecutor(
     private val diagramOnlyOrphanCleanupService: DiagramOnlyOrphanCleanupService,
     private val typeUsageAuthorization: TypeUsageAuthorization,
     private val diagramAttrsRemapper: DiagramAttrsRemapper,
-    private val diagramLifecycleService: DiagramLifecycleService
+    private val diagramLifecycleService: DiagramLifecycleService,
+    private val diagramCommentAutoResolveService: ru.kavader.arepos.service.DiagramCommentAutoResolveService
 ) {
     fun execute(request: BatchSaveRequest, model: Models, owner: Users, now: Instant): BatchGraphExecutionResult {
         val nodeIdMap = mutableMapOf<String, UUID>()
@@ -399,6 +400,7 @@ class BatchGraphOpsExecutor(
                 nodeIdMap = nodeIdMap,
                 linkIdMap = linkIdMap
             )
+            val previousAttrs = diagram.attrs
             diagram.name = upd.name
             diagram.version = upd.version
             diagram.notation = fields.notation
@@ -408,7 +410,8 @@ class BatchGraphOpsExecutor(
                 diagram.attrs = fields.attrs
             }
             diagram.updatedAt = now
-            diagramsRepository.save(diagram)
+            val saved = diagramsRepository.save(diagram)
+            diagramCommentAutoResolveService.autoResolveRemovedInstances(saved, previousAttrs, saved.attrs)
         }
         return updates.size
     }

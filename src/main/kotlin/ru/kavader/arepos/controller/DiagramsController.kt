@@ -42,7 +42,8 @@ class DiagramsController(
     private val diagramShareLinkService: DiagramShareLinkService,
     private val diagramInstancesMergeService: DiagramInstancesMergeService,
     private val diagramEnsureService: DiagramEnsureService,
-    private val diagramFavoriteService: DiagramFavoriteService
+    private val diagramFavoriteService: DiagramFavoriteService,
+    private val diagramCommentAutoResolveService: DiagramCommentAutoResolveService
 ) {
     @GetMapping("/name-version-availability")
     @Operation(summary = "Check whether a diagram name and version are free, live, or in soft-delete")
@@ -187,6 +188,7 @@ class DiagramsController(
         }
 
         mdFileLinkValidator.validate(request.attrs)
+        val previousAttrs = diagram.attrs
         diagram.name = newName
         diagram.attrs = request.attrs ?: diagram.attrs
         diagram.version = newVersion
@@ -195,6 +197,7 @@ class DiagramsController(
         diagram.notation = notation
         diagram.node = node
         val updated = diagramsRepository.save(diagram)
+        diagramCommentAutoResolveService.autoResolveRemovedInstances(updated, previousAttrs, updated.attrs)
         modelSyncBroadcaster.broadcastModelChanged(
             requireNotNull(model.id),
             ModelSyncChangeType.DIAGRAM_UPDATE.wireValue,

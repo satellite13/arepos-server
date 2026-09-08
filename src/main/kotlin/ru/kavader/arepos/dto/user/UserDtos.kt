@@ -54,7 +54,8 @@ data class UserPublicResponse(
     val firstName: String?,
     val lastName: String?,
     val middleName: String?,
-    val position: String?
+    val position: String?,
+    val oidcSub: String? = null
 )
 
 data class BatchUserPublicRequest(val ids: List<UUID>)
