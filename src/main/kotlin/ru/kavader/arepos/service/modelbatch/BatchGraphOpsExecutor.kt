@@ -146,11 +146,16 @@ class BatchGraphOpsExecutor(
             requireBelongsToModel(node, model)
             val nodeType = findNodeTypeOrThrow(upd.nodeTypeId)
             typeUsageAuthorization.requireCanUseNodeTypeForModel(nodeType, model)
-            val parentNode = resolveParentNode(upd.parentNodeId, nodeIdMap, model)
             node.name = upd.name
             node.nodeType = nodeType
-            node.parentNode = parentNode
-            node.attrs = upd.attrs
+            // Batch node updates are partial: absent fields keep their stored values.
+            // A rename-only update (no attrs / parentNodeId) must not wipe them.
+            if (upd.parentNodeId != null) {
+                node.parentNode = resolveParentNode(upd.parentNodeId, nodeIdMap, model)
+            }
+            if (upd.attrs != null) {
+                node.attrs = upd.attrs
+            }
             node.updatedAt = now
             nodesRepository.save(node)
         }

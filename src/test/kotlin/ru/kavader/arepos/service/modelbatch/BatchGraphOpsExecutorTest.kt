@@ -1,6 +1,7 @@
 package ru.kavader.arepos.service.modelbatch
 
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
@@ -46,11 +47,12 @@ class BatchGraphOpsExecutorTest {
     private val nodesRepository = mock(NodesRepository::class.java)
     private val linksRepository = mock(LinksRepository::class.java)
     private val diagramsRepository = mock(DiagramsRepository::class.java)
+    private val nodeTypesRepository = mock(NodeTypesRepository::class.java)
     private val executor = BatchGraphOpsExecutor(
         nodesRepository = nodesRepository,
         linksRepository = linksRepository,
         diagramsRepository = diagramsRepository,
-        nodeTypesRepository = mock(NodeTypesRepository::class.java),
+        nodeTypesRepository = nodeTypesRepository,
         linkTypesRepository = mock(LinkTypesRepository::class.java),
         notationsRepository = mock(NotationsRepository::class.java),
         accessService = mock(ResourceAccessService::class.java),
@@ -122,6 +124,105 @@ class BatchGraphOpsExecutorTest {
             exception.reason
         )
         verifyNoInteractions(nodesRepository)
+    }
+
+    @Test
+    fun `rename-only node update without attrs and parentNodeId keeps stored values`() {
+        val nodeType = mock(NodeTypes::class.java)
+        val nodeTypeUuid = UUID.randomUUID()
+        val parent = Nodes(
+            id = UUID.randomUUID(),
+            stableId = UUID.randomUUID(),
+            name = "Parent",
+            model = model,
+            owner = owner,
+            nodeType = nodeType
+        )
+        val node = Nodes(
+            id = UUID.randomUUID(),
+            stableId = UUID.randomUUID(),
+            name = "old-name",
+            attrs = """{"dpc":{"kind":"appApi","id":"api-1"}}""",
+            parentNode = parent,
+            model = model,
+            owner = owner,
+            nodeType = nodeType
+        )
+        val nodeId = requireNotNull(node.id)
+
+        `when`(nodesRepository.findById(nodeId)).thenReturn(Optional.of(node))
+        `when`(nodeTypesRepository.findById(nodeTypeUuid)).thenReturn(Optional.of(nodeType))
+
+        val request = BatchSaveRequest(
+            nodes = BatchNodeOps(
+                update = listOf(
+                    BatchNodeUpdate(id = nodeId, name = "old-name (1.0.3)", nodeTypeId = nodeTypeUuid)
+                )
+            )
+        )
+
+        executor.execute(request, model, owner, Instant.now())
+
+        assertEquals("old-name (1.0.3)", node.name)
+        assertEquals("""{"dpc":{"kind":"appApi","id":"api-1"}}""", node.attrs)
+        assertEquals(parent, node.parentNode)
+    }
+
+    @Test
+    fun `node update with explicit attrs and parentNodeId applies them`() {
+        val nodeType = mock(NodeTypes::class.java)
+        val nodeTypeUuid = UUID.randomUUID()
+        val oldParent = Nodes(
+            id = UUID.randomUUID(),
+            stableId = UUID.randomUUID(),
+            name = "OldParent",
+            model = model,
+            owner = owner,
+            nodeType = nodeType
+        )
+        val newParent = Nodes(
+            id = UUID.randomUUID(),
+            stableId = UUID.randomUUID(),
+            name = "NewParent",
+            model = model,
+            owner = owner,
+            nodeType = nodeType
+        )
+        val node = Nodes(
+            id = UUID.randomUUID(),
+            stableId = UUID.randomUUID(),
+            name = "old-name",
+            attrs = """{"dpc":{"kind":"appApi","id":"api-1"}}""",
+            parentNode = oldParent,
+            model = model,
+            owner = owner,
+            nodeType = nodeType
+        )
+        val nodeId = requireNotNull(node.id)
+
+        `when`(nodesRepository.findById(nodeId)).thenReturn(Optional.of(node))
+        `when`(nodeTypesRepository.findById(nodeTypeUuid)).thenReturn(Optional.of(nodeType))
+        `when`(nodesRepository.findById(newParent.id!!)).thenReturn(Optional.of(newParent))
+
+        val request = BatchSaveRequest(
+            nodes = BatchNodeOps(
+                update = listOf(
+                    BatchNodeUpdate(
+                        id = nodeId,
+                        name = "new-name",
+                        nodeTypeId = nodeTypeUuid,
+                        parentNodeId = newParent.id.toString(),
+                        attrs = """{"dpc":{"kind":"appApi","id":"api-1","version":"1.1.0"}}"""
+                    )
+                )
+            )
+        )
+
+        executor.execute(request, model, owner, Instant.now())
+
+        assertEquals("new-name", node.name)
+        assertEquals("""{"dpc":{"kind":"appApi","id":"api-1","version":"1.1.0"}}""", node.attrs)
+        assertEquals(newParent, node.parentNode)
     }
 
     @Test
