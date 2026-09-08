@@ -172,19 +172,22 @@ data class DiagramShareLinkRequest(
     val latest: Boolean? = null
 ) {
     @get:JsonIgnore
-    @get:AssertTrue(message = "Provide either diagramId or (modelId, diagramName, latest: true)")
+    @get:AssertTrue(
+        message = "Provide diagramId, (diagramId, latest: true), or (modelId, diagramName, latest: true)"
+    )
     val isTargetSelectionValid: Boolean
         get() {
-            val directDiagram = diagramId != null
-            val latestNamedDiagram = modelId != null && !diagramName.isNullOrBlank() && latest == true
-            return directDiagram.xor(latestNamedDiagram)
+            val pinnedDiagram = diagramId != null && latest != true
+            val latestByDiagram = diagramId != null && latest == true
+            val latestByName = modelId != null && !diagramName.isNullOrBlank() && latest == true
+            return listOf(pinnedDiagram, latestByDiagram, latestByName).count { it } == 1
         }
 }
 
 data class DiagramShareLinkResponse(
     val url: String,
     val token: UUID,
-    /** Diagram whose preview SVG the public URL resolves to (pinned id or current latest-by-name). */
+    /** Diagram whose preview SVG the public URL resolves to (pinned id or current series head). */
     val diagramId: UUID
 )
 

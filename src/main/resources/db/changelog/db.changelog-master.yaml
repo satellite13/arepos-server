@@ -547,3 +547,13 @@ databaseChangeLog:
             splitStatements: false
             endDelimiter: ;
 
+  - changeSet:
+      id: 058-diagram-share-latest-by-series
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/058-diagram-share-latest-by-series.sql
+            encoding: UTF-8
+            splitStatements: false
+            endDelimiter: ;
+

@@ -17,14 +17,24 @@ interface DiagramPreviewLinksRepository : JpaRepository<DiagramPreviewLinks, UUI
     @Query(
         """
         SELECT l FROM DiagramPreviewLinks l
-        LEFT JOIN FETCH l.diagram
+        LEFT JOIN FETCH l.diagram d
+        LEFT JOIN FETCH d.model
         LEFT JOIN FETCH l.model
         WHERE l.token = :token
         """
     )
     fun findByTokenWithTargets(@Param("token") token: UUID): Optional<DiagramPreviewLinks>
 
-    fun findByDiagram(diagram: Diagrams): Optional<DiagramPreviewLinks>
+    fun findByDiagramAndLatest(diagram: Diagrams, latest: Boolean): Optional<DiagramPreviewLinks>
+
+    @Query(
+        """
+        SELECT l FROM DiagramPreviewLinks l
+        JOIN l.diagram d
+        WHERE l.latest = true AND d.seriesId = :seriesId
+        """
+    )
+    fun findByLatestTrueAndDiagramSeriesId(@Param("seriesId") seriesId: UUID): Optional<DiagramPreviewLinks>
 
     fun findByModelAndDiagramName(model: Models, diagramName: String): Optional<DiagramPreviewLinks>
 }

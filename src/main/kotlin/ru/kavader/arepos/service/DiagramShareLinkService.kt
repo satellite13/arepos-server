@@ -10,6 +10,7 @@ import ru.kavader.arepos.dto.model.DiagramShareLinkResponse
 import ru.kavader.arepos.model.DiagramPreviewLinks
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Models
+import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.DiagramPreviewLinksRepository
 import ru.kavader.arepos.repository.DiagramsRepository
 import ru.kavader.arepos.repository.ModelsRepository
@@ -42,13 +43,22 @@ class DiagramShareLinkService(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Current user not found")
             }
         return when {
+            request.diagramId != null && request.latest == true -> {
+                val seed = diagramsRepository.findById(request.diagramId)
+                    .orElseThrow {
+                        ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram ${request.diagramId} not found")
+                    }
+                accessService.requireCanViewDiagram(seed)
+                createOrReuseLatestLink(seed, user)
+            }
+
             request.diagramId != null -> {
                 val diagram = diagramsRepository.findById(request.diagramId)
                     .orElseThrow {
                         ResponseStatusException(HttpStatus.NOT_FOUND, "Diagram ${request.diagramId} not found")
                     }
                 accessService.requireCanViewDiagram(diagram)
-                val existing = diagramPreviewLinksRepository.findByDiagram(diagram)
+                val existing = diagramPreviewLinksRepository.findByDiagramAndLatest(diagram, false)
                 val link = if (existing.isPresent) {
                     existing.get()
                 } else {
@@ -58,6 +68,7 @@ class DiagramShareLinkService(
                             diagram = diagram,
                             model = null,
                             diagramName = null,
+                            latest = false,
                             createdAt = Instant.now(),
                             createdBy = user
                         )
@@ -72,28 +83,13 @@ class DiagramShareLinkService(
                         ResponseStatusException(HttpStatus.NOT_FOUND, "Model ${request.modelId} not found")
                     }
                 accessService.requireCanViewModel(model)
-                val latest = resolveLatestDiagram(model, request.diagramName, enforceViewAccess = true)
-                val existing = diagramPreviewLinksRepository.findByModelAndDiagramName(model, request.diagramName)
-                val link = if (existing.isPresent) {
-                    existing.get()
-                } else {
-                    diagramPreviewLinksRepository.save(
-                        DiagramPreviewLinks(
-                            token = UUID.randomUUID(),
-                            diagram = null,
-                            model = model,
-                            diagramName = request.diagramName,
-                            createdAt = Instant.now(),
-                            createdBy = user
-                        )
-                    )
-                }
-                toResponse(link, latest.id!!)
+                val latest = resolveLatestDiagramByName(model, request.diagramName, enforceViewAccess = true)
+                createOrReuseLatestLink(latest, user)
             }
 
             else -> throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "Provide either diagramId or (modelId, diagramName, latest: true)"
+                "Provide diagramId, (diagramId, latest: true), or (modelId, diagramName, latest: true)"
             )
         }
     }
@@ -142,14 +138,50 @@ class DiagramShareLinkService(
         return if (normalizedBase.isBlank()) path else "$normalizedBase$path"
     }
 
-    private fun resolveLatestDiagram(
+    private fun createOrReuseLatestLink(seed: Diagrams, user: Users): DiagramShareLinkResponse {
+        val seriesId = requireSeriesId(seed)
+        val head = resolveLatestDiagramBySeries(seriesId, enforceViewAccess = true)
+        val existing = findExistingLatestLink(seed, head, seriesId)
+        val link = if (existing != null) {
+            existing.diagram = head
+            existing.model = null
+            existing.diagramName = null
+            existing.latest = true
+            diagramPreviewLinksRepository.save(existing)
+        } else {
+            diagramPreviewLinksRepository.save(
+                DiagramPreviewLinks(
+                    token = UUID.randomUUID(),
+                    diagram = head,
+                    model = null,
+                    diagramName = null,
+                    latest = true,
+                    createdAt = Instant.now(),
+                    createdBy = user
+                )
+            )
+        }
+        return toResponse(link, head.id!!)
+    }
+
+    private fun findExistingLatestLink(seed: Diagrams, head: Diagrams, seriesId: UUID): DiagramPreviewLinks? {
+        val bySeries = diagramPreviewLinksRepository.findByLatestTrueAndDiagramSeriesId(seriesId)
+        if (bySeries.isPresent) return bySeries.get()
+        val byHead = diagramPreviewLinksRepository.findByDiagramAndLatest(head, true)
+        if (byHead.isPresent) return byHead.get()
+        val bySeed = diagramPreviewLinksRepository.findByDiagramAndLatest(seed, true)
+        if (bySeed.isPresent) return bySeed.get()
+        val byHeadName = diagramPreviewLinksRepository.findByModelAndDiagramName(head.model, head.name)
+        if (byHeadName.isPresent) return byHeadName.get()
+        return diagramPreviewLinksRepository.findByModelAndDiagramName(seed.model, seed.name).orElse(null)
+    }
+
+    private fun resolveLatestDiagramByName(
         model: Models,
         diagramName: String,
         enforceViewAccess: Boolean
     ): Diagrams {
         val candidates = diagramsRepository.findByModelIdAndNameAndDeletedFalse(model.id!!, diagramName)
-        // Public SVG resolve is anonymous: the share token is the authorization.
-        // Filtering by current-user view access would always empty the list for unauthenticated requests.
         val allByName = if (enforceViewAccess) {
             accessService.filterViewableDiagrams(candidates)
         } else {
@@ -162,18 +194,40 @@ class DiagramShareLinkService(
             )
     }
 
+    private fun resolveLatestDiagramBySeries(seriesId: UUID, enforceViewAccess: Boolean): Diagrams {
+        val candidates = diagramsRepository.findBySeriesIdAndDeletedFalse(seriesId)
+        val visible = if (enforceViewAccess) {
+            accessService.filterViewableDiagrams(candidates)
+        } else {
+            candidates
+        }
+        return visible.maxWithOrNull(diagramLifecycleService::compareDiagramVersions)
+            ?: throw ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "No diagram found for share series"
+            )
+    }
+
     private fun resolveTargetDiagramId(link: DiagramPreviewLinks): UUID {
         val linkedDiagram = link.diagram
+        if (linkedDiagram != null && link.latest) {
+            val seriesId = requireSeriesId(linkedDiagram)
+            return resolveLatestDiagramBySeries(seriesId, enforceViewAccess = false).id!!
+        }
         if (linkedDiagram != null) {
             return linkedDiagram.id!!
         }
         val linkedModel = link.model
         val linkedDiagramName = link.diagramName
         if (linkedModel != null && linkedDiagramName != null) {
-            return resolveLatestDiagram(linkedModel, linkedDiagramName, enforceViewAccess = false).id!!
+            return resolveLatestDiagramByName(linkedModel, linkedDiagramName, enforceViewAccess = false).id!!
         }
         throw ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid share link")
     }
+
+    private fun requireSeriesId(diagram: Diagrams): UUID =
+        diagram.seriesId ?: diagram.id
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid share link")
 
     private fun toResponse(link: DiagramPreviewLinks, diagramId: UUID) = DiagramShareLinkResponse(
         url = buildPublicSvgUrl(link.token),

@@ -62,6 +62,11 @@ class BeanValidationAuditTest {
         assertTrue(validator.validate(DiagramShareLinkRequest(diagramId = id)).isEmpty())
         assertTrue(
             validator.validate(
+                DiagramShareLinkRequest(diagramId = id, latest = true)
+            ).isEmpty()
+        )
+        assertTrue(
+            validator.validate(
                 DiagramShareLinkRequest(modelId = id, diagramName = "Main", latest = true)
             ).isEmpty()
         )

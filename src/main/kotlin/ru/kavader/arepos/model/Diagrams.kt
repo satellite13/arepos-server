@@ -22,7 +22,8 @@ import java.util.*
         Index(name = "diagrams_owner_idx", columnList = "owner"),
         Index(name = "diagrams_model_idx", columnList = "model"),
         Index(name = "diagrams_notation_id_idx", columnList = "notation_id"),
-        Index(name = "diagrams_node_id_idx", columnList = "node_id")
+        Index(name = "diagrams_node_id_idx", columnList = "node_id"),
+        Index(name = "diagrams_series_id_idx", columnList = "series_id")
     ]
 )
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -65,5 +66,15 @@ class Diagrams(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "node_id")
-    var node: Nodes? = null
-)
+    var node: Nodes? = null,
+
+    @Column(name = "series_id", nullable = false)
+    var seriesId: UUID? = null
+) {
+    @PrePersist
+    fun ensureSeriesId() {
+        if (seriesId == null) {
+            seriesId = id ?: UUID.randomUUID()
+        }
+    }
+}
