@@ -36,6 +36,9 @@ class DiagramPreviewLinks(
     @Column(name = "diagram_name")
     var diagramName: String? = null,
 
+    @Column(name = "latest", nullable = false)
+    var latest: Boolean = false,
+
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant? = null,
 

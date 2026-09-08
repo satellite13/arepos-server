@@ -893,4 +893,185 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.deletedDiagramId").value(deleted.id.toString()))
             .andExpect(jsonPath("$.suggestedVersion").value("2.1.0"))
     }
+
+    @Test
+    fun `latest-by-id share follows baseline then rename of the head version`() {
+        val owner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "share-latest-id-owner-${UUID.randomUUID()}@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "share-latest-id-model-${UUID.randomUUID()}",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val notation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "share-latest-id-notation-${UUID.randomUUID()}",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val originalName = "share-latest-id-${UUID.randomUUID()}"
+        val v1 = diagramsRepository.save(
+            ru.kavader.arepos.model.Diagrams(
+                name = originalName,
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+
+        val first = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/v1/diagrams/share-link")
+                    .withAuth(owner.id!!)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            mapOf("diagramId" to v1.id, "latest" to true)
+                        )
+                    )
+            )
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.diagramId").value(v1.id.toString()))
+                .andReturn()
+                .response
+                .contentAsString
+        )
+        val token = first.path("token").asText()
+
+        val v2Id = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/v1/diagrams/${v1.id}/baseline")
+                    .withAuth(owner.id!!)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{}")
+            )
+                .andExpect(status().isCreated)
+                .andReturn()
+                .response
+                .contentAsString
+        ).path("id").asText()
+
+        mockMvc.perform(
+            put("/api/v1/diagrams/$v2Id")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        DiagramUpdateRequest(name = "$originalName-renamed")
+                    )
+                )
+        )
+            .andExpect(status().isOk)
+
+        mockMvc.perform(
+            post("/api/v1/diagrams/share-link")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        mapOf("diagramId" to v1.id, "latest" to true)
+                    )
+                )
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.token").value(token))
+            .andExpect(jsonPath("$.diagramId").value(v2Id))
+
+        mockMvc.perform(get("/api/v1/diagrams/svg/public/$token"))
+            .andExpect(status().isNotFound)
+            .andExpect(
+                jsonPath("$.message").value(
+                    "Preview not found. The diagram owner can upload it in the editor."
+                )
+            )
+    }
+
+    @Test
+    fun `latest-by-id share survives in-place rename of current diagram`() {
+        val owner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "share-latest-rename-owner-${UUID.randomUUID()}@test.com",
+                role = Role.ADMIN,
+                createdAt = Instant.now()
+            )
+        )
+        val model = modelsRepository.save(
+            ru.kavader.arepos.model.Models(
+                name = "share-latest-rename-model-${UUID.randomUUID()}",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val notation = notationsRepository.save(
+            ru.kavader.arepos.model.Notations(
+                name = "share-latest-rename-notation-${UUID.randomUUID()}",
+                version = "1.0.0",
+                owner = owner,
+                createdAt = Instant.now()
+            )
+        )
+        val originalName = "share-latest-rename-${UUID.randomUUID()}"
+        val diagram = diagramsRepository.save(
+            ru.kavader.arepos.model.Diagrams(
+                name = originalName,
+                version = "1.0.0",
+                owner = owner,
+                model = model,
+                notation = notation,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+
+        val token = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/v1/diagrams/share-link")
+                    .withAuth(owner.id!!)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            mapOf("diagramId" to diagram.id, "latest" to true)
+                        )
+                    )
+            )
+                .andExpect(status().isOk)
+                .andReturn()
+                .response
+                .contentAsString
+        ).path("token").asText()
+
+        mockMvc.perform(
+            put("/api/v1/diagrams/${diagram.id}")
+                .withAuth(owner.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        DiagramUpdateRequest(name = "$originalName-renamed")
+                    )
+                )
+        )
+            .andExpect(status().isOk)
+
+        mockMvc.perform(get("/api/v1/diagrams/svg/public/$token"))
+            .andExpect(status().isNotFound)
+            .andExpect(
+                jsonPath("$.message").value(
+                    "Preview not found. The diagram owner can upload it in the editor."
+                )
+            )
+    }
 }

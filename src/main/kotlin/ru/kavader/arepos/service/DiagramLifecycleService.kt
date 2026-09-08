@@ -13,12 +13,14 @@ import ru.kavader.arepos.dto.model.DiagramNameVersionAvailabilityResponse
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Models
 import ru.kavader.arepos.repository.DiagramsRepository
+import ru.kavader.arepos.repository.DiagramPreviewLinksRepository
 import ru.kavader.arepos.util.VersionUtils
 import java.time.Instant
 
 @Service
 class DiagramLifecycleService(
     private val diagramsRepository: DiagramsRepository,
+    private val diagramPreviewLinksRepository: DiagramPreviewLinksRepository,
     private val mdFileLinkValidator: MdFileLinkValidator,
     private val modelSyncBroadcaster: ModelSyncBroadcaster,
     private val diagramOnlyOrphanCleanupService: DiagramOnlyOrphanCleanupService
@@ -50,9 +52,11 @@ class DiagramLifecycleService(
                 deleted = false,
                 model = diagram.model,
                 notation = diagram.notation,
-                node = diagram.node
+                node = diagram.node,
+                seriesId = diagram.seriesId ?: diagram.id
             )
         )
+        retargetLatestShareLinks(from = diagram, to = saved)
         modelSyncBroadcaster.broadcastModelChanged(
             requireNotNull(diagram.model.id),
             ModelSyncChangeType.DIAGRAM_BASELINE.wireValue,
@@ -65,6 +69,18 @@ class DiagramLifecycleService(
             )
         )
         return saved
+    }
+
+    private fun retargetLatestShareLinks(from: Diagrams, to: Diagrams) {
+        val seriesId = from.seriesId ?: from.id ?: return
+        val latestLink = diagramPreviewLinksRepository.findByLatestTrueAndDiagramSeriesId(seriesId).orElse(null)
+            ?: diagramPreviewLinksRepository.findByDiagramAndLatest(from, true).orElse(null)
+            ?: return
+        latestLink.diagram = to
+        latestLink.model = null
+        latestLink.diagramName = null
+        latestLink.latest = true
+        diagramPreviewLinksRepository.save(latestLink)
     }
 
     @Transactional

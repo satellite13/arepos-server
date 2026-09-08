@@ -31,6 +31,8 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
 
     fun findByModelIdAndNameAndDeletedFalse(modelId: UUID, name: String): List<Diagrams>
 
+    fun findBySeriesIdAndDeletedFalse(seriesId: UUID): List<Diagrams>
+
     fun findByModelIdAndName(modelId: UUID, name: String): List<Diagrams>
 
     @Query(
