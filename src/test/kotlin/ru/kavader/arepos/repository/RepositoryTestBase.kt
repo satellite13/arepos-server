@@ -47,6 +47,9 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
     @Autowired
     protected lateinit var resourceSharesRepository: ResourceSharesRepository
 
+    @Autowired
+    protected lateinit var userDiagramFavoriteRepository: UserDiagramFavoriteRepository
+
     protected fun persistUser(
         email: String = "user-${randomSuffix()}@example.com",
         attrs: String? = """{"role":"tester"}"""
@@ -260,6 +263,18 @@ abstract class RepositoryTestBase : PostgresContainerTest() {
             grantedByUser = grantedBy,
             permission = permission,
             createdAt = Instant.now()
+        )
+    )
+
+    protected fun persistFavorite(
+        user: Users = persistUser(),
+        diagram: Diagrams = persistDiagram(),
+        createdAt: Instant = Instant.now()
+    ): UserDiagramFavorite = userDiagramFavoriteRepository.save(
+        UserDiagramFavorite(
+            user = user,
+            diagram = diagram,
+            createdAt = createdAt
         )
     )
 

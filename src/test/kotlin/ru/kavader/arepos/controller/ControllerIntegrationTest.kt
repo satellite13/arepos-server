@@ -37,6 +37,7 @@ abstract class ControllerIntegrationTest : PostgresContainerTest() {
                 public.feedback_comments,
                 public.feedback_votes,
                 public.feedback_items,
+                public.user_diagram_favorites,
                 public.download_assets,
                 public.tutorial_videos,
                 public.files,

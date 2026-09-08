@@ -41,7 +41,8 @@ class DiagramsController(
     private val diagramLifecycleService: DiagramLifecycleService,
     private val diagramShareLinkService: DiagramShareLinkService,
     private val diagramInstancesMergeService: DiagramInstancesMergeService,
-    private val diagramEnsureService: DiagramEnsureService
+    private val diagramEnsureService: DiagramEnsureService,
+    private val diagramFavoriteService: DiagramFavoriteService
 ) {
     @GetMapping("/name-version-availability")
     @Operation(summary = "Check whether a diagram name and version are free, live, or in soft-delete")
@@ -219,6 +220,16 @@ class DiagramsController(
         accessService.requireCanEditDiagram(diagram)
         diagramLifecycleService.softDeleteDiagram(diagram)
     }
+
+    @PutMapping("/{id}/favorite")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Add diagram to current user favorites (idempotent)")
+    fun addDiagramFavorite(@PathVariable id: UUID) = diagramFavoriteService.addFavorite(id)
+
+    @DeleteMapping("/{id}/favorite")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Remove diagram from current user favorites (idempotent)")
+    fun removeDiagramFavorite(@PathVariable id: UUID) = diagramFavoriteService.removeFavorite(id)
 
     @PutMapping("/{id}/svg")
     @ResponseStatus(HttpStatus.NO_CONTENT)
