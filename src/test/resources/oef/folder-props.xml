@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-model-2">
+  <name>Folder properties</name>
+  <elements>
+    <element identifier="el-app" xsi:type="ApplicationComponent"><name>App</name></element>
+  </elements>
+  <organizations>
+    <item>
+      <label>Application</label>
+      <warchi:properties xmlns:warchi="https://warchi.ru/oef/folder-props/1">
+        <warchi:property name="autoCreated" value="yes"/>
+        <warchi:property name="id" value="application"/>
+        <warchi:property name="folderType" value="folder-catalog"/>
+      </warchi:properties>
+      <item>
+        <label>Лемана Про</label>
+        <warchi:properties xmlns:warchi="https://warchi.ru/oef/folder-props/1">
+          <warchi:property name="autoCreated" value="yes"/>
+          <warchi:property name="id" value="root0"/>
+          <warchi:property name="humanId" value="root0"/>
+          <warchi:property name="name" value="Лемана Про"/>
+          <warchi:property name="folderType" value="folder-root"/>
+        </warchi:properties>
+        <item>
+          <label>Продажи</label>
+          <warchi:properties xmlns:warchi="https://warchi.ru/oef/folder-props/1">
+            <warchi:property name="id" value="2c9f01"/>
+            <warchi:property name="name" value="Продажи"/>
+            <warchi:property name="folderType" value="folder-platform"/>
+          </warchi:properties>
+          <item identifierRef="el-app" />
+        </item>
+      </item>
+      <item>
+        <label>Компоненты</label>
+      </item>
+    </item>
+    <item>
+      <label>Views</label>
+    </item>
+  </organizations>
+</model>

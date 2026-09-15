@@ -111,7 +111,7 @@ class ModelValidationMergeService(
         ) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "Concurrent modification")
         }
-        if (nodesRepository.existsByParentNode_Id(drop.id!!)) {
+        if (nodesRepository.existsByParentNode_Id(drop.id!!) && !request.reparentChildren) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Drop node still has children")
         }
         if (hasDocuments(drop.attrs)) {
@@ -208,6 +208,15 @@ class ModelValidationMergeService(
             }
         }
         diagramsRepository.flush()
+        val reparentedChildren = if (request.reparentChildren) {
+            nodesRepository.findByParentNode_Id(drop.id!!)
+        } else {
+            emptyList()
+        }
+        for (child in reparentedChildren) {
+            child.parentNode = keep
+            nodesRepository.save(child)
+        }
         nodesRepository.delete(drop)
 
         val events = mutableListOf<ModelSyncEntityEvent>()
@@ -218,6 +227,15 @@ class ModelValidationMergeService(
                 keep.id!!
             )
         )
+        for (child in reparentedChildren) {
+            events.add(
+                ModelSyncEntityEvent(
+                    ModelSyncEventType.NODE_UPDATED.wireValue,
+                    ModelSyncEventType.NODE_UPDATED.entity,
+                    child.id!!
+                )
+            )
+        }
         events.add(
             ModelSyncEntityEvent(
                 ModelSyncEventType.NODE_DELETED.wireValue,

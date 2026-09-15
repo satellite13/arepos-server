@@ -155,6 +155,47 @@ class OefParseServiceTest {
         assertEquals(mapOf("Owner" to "Link Owner"), relationship.properties)
     }
 
+    @Test
+    fun `parses folder properties from the extension namespace`() {
+        val parsed = service.parse(readFixture("oef/folder-props.xml"))
+
+        assertEquals(2, parsed.organizations.size)
+        val application = parsed.organizations[0]
+        assertEquals("Application", application.label)
+        assertEquals(
+            mapOf("autoCreated" to "yes", "id" to "application", "folderType" to "folder-catalog"),
+            application.properties,
+        )
+
+        val root = application.children?.first()
+        assertEquals("Лемана Про", root?.label)
+        assertEquals(
+            mapOf(
+                "autoCreated" to "yes",
+                "id" to "root0",
+                "humanId" to "root0",
+                "name" to "Лемана Про",
+                "folderType" to "folder-root",
+            ),
+            root?.properties,
+        )
+
+        val platform = root?.children?.single()
+        assertEquals("Продажи", platform?.label)
+        assertEquals("folder-platform", platform?.properties?.get("folderType"))
+
+        // Folder without the extension must not inherit sibling properties.
+        val typeFolder = application.children?.last()
+        assertEquals("Компоненты", typeFolder?.label)
+        assertTrue(typeFolder?.properties.isNullOrEmpty())
+
+        // Leaf items stay leafs and carry no properties.
+        val leaf = platform?.children?.single()
+        assertEquals("el-app", leaf?.refId)
+        assertEquals("element", leaf?.refKind)
+        assertTrue(leaf?.properties.isNullOrEmpty())
+    }
+
     private fun readFixture(path: String): ByteArray =
         checkNotNull(javaClass.classLoader.getResourceAsStream(path)) {
             "Missing test fixture: $path"

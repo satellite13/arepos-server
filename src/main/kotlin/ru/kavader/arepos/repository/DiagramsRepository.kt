@@ -5,6 +5,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import ru.kavader.arepos.model.Diagrams
 import ru.kavader.arepos.model.Models
@@ -304,6 +305,28 @@ interface DiagramsRepository : JpaRepository<Diagrams, UUID> {
 
     @Query("SELECT d FROM Diagrams d WHERE d.model.id = :modelId AND d.deleted = false")
     fun findAllActiveByModelId(modelId: UUID): List<Diagrams>
+
+    @Query(
+        value = """
+            WITH RECURSIVE folder AS (
+                SELECT n.id
+                FROM nodes n
+                WHERE n.model = :modelId AND lower(btrim(n.name)) = lower(btrim(:folderName))
+                UNION
+                SELECT c.id
+                FROM nodes c
+                JOIN folder f ON c.parent_node = f.id
+            )
+            SELECT d.id
+            FROM diagrams d
+            WHERE d.model = :modelId AND d.deleted = false AND d.node_id IN (SELECT id FROM folder)
+        """,
+        nativeQuery = true
+    )
+    fun findDiagramIdsUnderFolder(
+        @Param("modelId") modelId: UUID,
+        @Param("folderName") folderName: String
+    ): List<UUID>
 
     @Query("SELECT d FROM Diagrams d WHERE d.model.id = :modelId AND d.deleted = true")
     fun findAllDeletedByModelId(modelId: UUID): List<Diagrams>

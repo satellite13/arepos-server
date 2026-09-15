@@ -26,6 +26,12 @@ interface DuplicateLinkMemberProjection {
     fun getId(): UUID
 }
 
+interface LinkEndpointProjection {
+    fun getId(): UUID
+    fun getSourceId(): UUID
+    fun getTargetId(): UUID
+}
+
 @Repository
 interface LinksRepository : JpaRepository<Links, UUID> {
     fun findByModelOrderByIdAsc(model: Models, pageable: Pageable): Page<Links>
@@ -38,6 +44,79 @@ interface LinksRepository : JpaRepository<Links, UUID> {
     fun existsByIdAndModel_Id(id: UUID, modelId: UUID): Boolean
 
     fun findByModel_IdAndIdIn(modelId: UUID, ids: Collection<UUID>): List<Links>
+
+    @Query("select l.id as id, l.source.id as sourceId, l.target.id as targetId from Links l where l.model.id = :modelId")
+    fun findEndpointsByModelId(@Param("modelId") modelId: UUID): List<LinkEndpointProjection>
+
+    @Query(
+        value = """
+            WITH latest AS (
+                SELECT d.id, d.attrs,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY d.name
+                           ORDER BY string_to_array(d.version, '.')::int[] DESC
+                       ) AS rn
+                FROM diagrams d
+                WHERE d.model = :modelId AND d.deleted = false
+            ),
+            refs AS (
+                SELECT inst ->> 'modelLinkId' AS ref_id, l.id AS diagram_id
+                FROM latest l
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(l.attrs -> 'instances' -> 'edges') = 'array'
+                         THEN l.attrs -> 'instances' -> 'edges'
+                         ELSE '[]'::jsonb END
+                ) AS inst
+                WHERE l.rn = 1
+            )
+            SELECT ref_id AS "refId", COUNT(DISTINCT diagram_id) AS "diagramCount"
+            FROM refs
+            WHERE ref_id IN (:ids)
+            GROUP BY ref_id
+        """,
+        nativeQuery = true
+    )
+    fun findDiagramUsageByLinkIds(
+        @Param("modelId") modelId: UUID,
+        @Param("ids") ids: Collection<String>
+    ): List<RefUsageProjection>
+
+    @Query(
+        value = """
+            WITH RECURSIVE folder AS (
+                SELECT n.id
+                FROM nodes n
+                WHERE n.model = :modelId AND lower(btrim(n.name)) = lower(btrim(:folderName))
+                UNION
+                SELECT c.id
+                FROM nodes c
+                JOIN folder f ON c.parent_node = f.id
+            ),
+            excluded AS (
+                SELECT d.id, d.attrs
+                FROM diagrams d
+                WHERE d.model = :modelId AND d.deleted = false AND d.node_id IN (SELECT id FROM folder)
+            ),
+            refs AS (
+                SELECT inst ->> 'modelLinkId' AS ref_id
+                FROM excluded e
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(e.attrs -> 'instances' -> 'edges') = 'array'
+                         THEN e.attrs -> 'instances' -> 'edges'
+                         ELSE '[]'::jsonb END
+                ) AS inst
+            )
+            SELECT DISTINCT ref_id
+            FROM refs
+            WHERE ref_id IN (:ids)
+        """,
+        nativeQuery = true
+    )
+    fun findLinkRefsInExcludedDiagrams(
+        @Param("modelId") modelId: UUID,
+        @Param("folderName") folderName: String,
+        @Param("ids") ids: Collection<String>
+    ): List<String>
 
     @Query(
         """
@@ -224,6 +303,7 @@ interface LinksRepository : JpaRepository<Links, UUID> {
                 SELECT l.source, l.target, l.link_type, COUNT(*) AS cnt
                 FROM links l
                 WHERE l.model = :modelId
+                  AND $DPC_LINK_EXCLUSION
                 GROUP BY l.source, l.target, l.link_type
                 HAVING COUNT(*) > 1
             ),
@@ -248,16 +328,17 @@ interface LinksRepository : JpaRepository<Links, UUID> {
                         PARTITION BY l.source, l.target, l.link_type
                         ORDER BY l.id ASC
                     ) AS rn
-                FROM links l
-                JOIN limited_groups g
-                  ON g.source = l.source
-                 AND g.target = l.target
-                 AND g.link_type = l.link_type
-                JOIN nodes s ON s.id = l.source
-                JOIN nodes tg ON tg.id = l.target
-                JOIN link_types lt ON lt.id = l.link_type
-                WHERE l.model = :modelId
-            )
+                 FROM links l
+                 JOIN limited_groups g
+                   ON g.source = l.source
+                  AND g.target = l.target
+                  AND g.link_type = l.link_type
+                 JOIN nodes s ON s.id = l.source
+                 JOIN nodes tg ON tg.id = l.target
+                 JOIN link_types lt ON lt.id = l.link_type
+                 WHERE l.model = :modelId
+                   AND $DPC_LINK_EXCLUSION
+             )
             SELECT
                 r.source_id AS "sourceId",
                 r.source_name AS "sourceName",
@@ -269,15 +350,97 @@ interface LinksRepository : JpaRepository<Links, UUID> {
                 r.total_groups AS "totalGroups",
                 r.id AS id
             FROM ranked r
-            WHERE r.rn <= 50
+            WHERE r.rn <= :maxMembersPerGroup
             ORDER BY r.source_id, r.target_id, r.link_type_id, r.id
         """,
         nativeQuery = true
     )
     fun findDuplicateLinkMembers(
         @Param("modelId") modelId: UUID,
-        @Param("maxGroups") maxGroups: Int
+        @Param("maxGroups") maxGroups: Int,
+        @Param("maxMembersPerGroup") maxMembersPerGroup: Int
     ): List<DuplicateLinkMemberProjection>
+
+    companion object {
+        /**
+         * Условие-фильтр (keep): отсекает связи, созданные org-tree-sync
+         * (маркер attrs.dpc, вид dpcLink), из дубликатов и unused.
+         */
+        const val DPC_LINK_EXCLUSION = "(l.attrs -> 'dpc') IS NULL"
+
+        const val UNUSED_LINK_FILTER = """
+            l.model = :modelId
+            AND $DPC_LINK_EXCLUSION
+            AND NOT EXISTS (
+                SELECT 1
+                FROM diagrams d
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(d.attrs -> 'instances' -> 'edges') = 'array'
+                         THEN d.attrs -> 'instances' -> 'edges'
+                         ELSE '[]'::jsonb END
+                ) AS inst
+                WHERE d.model = :modelId AND d.deleted = false AND inst ->> 'modelLinkId' = l.id::text
+            )
+        """
+    }
+
+    @Query(
+        value = """
+            SELECT
+                l.id,
+                s.name AS "sourceName",
+                t.name AS "targetName",
+                lt.name AS "linkTypeName"
+            FROM links l
+            JOIN nodes s ON s.id = l.source
+            JOIN nodes t ON t.id = l.target
+            JOIN link_types lt ON lt.id = l.link_type
+            WHERE $UNUSED_LINK_FILTER
+            ORDER BY s.name, t.name, l.id
+            LIMIT :maxRows
+        """,
+        nativeQuery = true,
+        countQuery = """
+            SELECT COUNT(*)
+            FROM links l
+            WHERE $UNUSED_LINK_FILTER
+        """
+    )
+    fun findUnusedLinks(
+        @Param("modelId") modelId: UUID,
+        @Param("maxRows") maxRows: Int
+    ): List<UnusedLinkProjection>
+
+    @Query(
+        value = """
+            SELECT COUNT(*)
+            FROM links l
+            WHERE $UNUSED_LINK_FILTER
+        """,
+        nativeQuery = true
+    )
+    fun countUnusedLinks(@Param("modelId") modelId: UUID): Long
+
+    @Query(
+        value = """
+            SELECT l.id
+            FROM links l
+            WHERE l.id IN (:ids)
+              AND $UNUSED_LINK_FILTER
+        """,
+        nativeQuery = true
+    )
+    fun findUnusedLinkIds(
+        @Param("modelId") modelId: UUID,
+        @Param("ids") ids: Collection<UUID>
+    ): List<UUID>
+}
+
+interface UnusedLinkProjection {
+    fun getId(): UUID
+    fun getSourceName(): String
+    fun getTargetName(): String
+    fun getLinkTypeName(): String
 }
 
 
