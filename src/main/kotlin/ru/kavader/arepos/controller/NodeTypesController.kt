@@ -106,8 +106,16 @@ class NodeTypesController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "NodeType $id not found")
             }
-        accessService.requireCanEditNodeType(nodeType)
-        systemRootNodeTypeService.assertMutable(nodeType)
+        if (systemRootNodeTypeService.isProtectedSystemDirectory(nodeType)) {
+            // The shared system Directory type belongs to the system user, so ownership-based
+            // edit permission can never apply to it. Instead, any authenticated caller may
+            // update it ONLY additively (add customProperties, e.g. folder property schemas
+            // via MCP ensure_custom_properties); rename/owner/attrs changes are rejected.
+            systemRootNodeTypeService.assertCustomPropertiesOnlyUpdate(nodeType, request)
+        } else {
+            accessService.requireCanEditNodeType(nodeType)
+            systemRootNodeTypeService.assertMutable(nodeType)
+        }
         return CatalogTypeWriteSupport.persistUpdate(
             entity = nodeType,
             request = request,

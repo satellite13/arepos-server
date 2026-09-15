@@ -11,7 +11,7 @@ import javax.xml.stream.XMLStreamReader
 
 /**
  * Streaming OEF (Open Exchange) parser. Uses StAX instead of DOM so large ArchiMate
- * exports do not inflate a full document tree into the heap (DOM OOM with ~1 Gi limit).
+ * exports do not inflate a full document tree into the heap (DOM OOM with ~1 Gi limit).
  */
 @Service
 class OefParseService {
@@ -270,6 +270,17 @@ class OefParseService {
                             orgItemIsLeaf.last() == false -> {
                             textTarget = TextTarget.ORG_LABEL
                             textBuf.setLength(0)
+                        }
+
+                        inOrganizations(path) && local == "property" &&
+                            reader.namespaceURI == FOLDER_PROPS_NAMESPACE &&
+                            orgStack.isNotEmpty() &&
+                            orgItemIsLeaf.isNotEmpty() &&
+                            orgItemIsLeaf.last() == false -> {
+                            val name = attr(reader, "name")
+                            if (name.isNotEmpty()) {
+                                orgStack.last().properties[name] = attr(reader, "value")
+                            }
                         }
                     }
                 }
@@ -729,6 +740,7 @@ class OefParseService {
 
     private class MutableOrgFolder(
         var label: String = "",
+        val properties: MutableMap<String, String> = mutableMapOf(),
         val children: MutableList<MutableOrgNode> = mutableListOf(),
     ) : MutableOrgNode {
         override fun toDto(
@@ -737,7 +749,11 @@ class OefParseService {
             viewIds: Set<String>,
         ): OefOrganizationNodeDto {
             val resolved = children.mapNotNull { it.toDto(elementIds, relationshipIds, viewIds) }
-            return OefOrganizationNodeDto(label = label, children = resolved)
+            return OefOrganizationNodeDto(
+                label = label,
+                children = resolved,
+                properties = properties.toMap(),
+            )
         }
     }
 
@@ -863,6 +879,21 @@ class OefParseService {
     companion object {
         private const val XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
         const val MAX_UPLOAD_BYTES: Long = 100L * 1024L * 1024L
+
+        /**
+         * Extension namespace for organization folder properties. The standard exchange
+         * format cannot carry folder properties (OrganizationType has no PropertiesGroup),
+         * so the Archi plugin exporter injects a `<warchi:properties>` child element into
+         * folder `<item>`s (legal per the schema's `grp.any`, namespace `##other`):
+         *
+         *   <item>
+         *     <label xml:lang="ru">DM570 - Платежи</label>
+         *     <warchi:properties xmlns:warchi="...">
+         *       <warchi:property name="autoCreated" value="yes"/>
+         *     </warchi:properties>
+         *   </item>
+         */
+        const val FOLDER_PROPS_NAMESPACE = "https://warchi.ru/oef/folder-props/1"
 
         private fun resolveProperties(
             raw: Map<String, String>,

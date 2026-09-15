@@ -3,7 +3,10 @@ package ru.kavader.arepos.service
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
 import ru.kavader.arepos.dto.model.MergeLinksRequest
@@ -132,6 +135,66 @@ class ModelValidationMergeServiceTest {
 
         assertEquals(HttpStatus.CONFLICT, exception.statusCode)
         assertEquals("Drop node has documents; transfer or clear them before merge", exception.reason)
+    }
+
+    @Test
+    fun `mergeNodes reparents drop children when requested`() {
+        val keep = node("CRM", attrs = """{"typeProperties":{"a":1}}""")
+        val drop = node("CRM", attrs = null)
+        val child = node("Child", attrs = null).apply { parentNode = drop }
+        `when`(modelsRepository.findById(modelId)).thenReturn(Optional.of(model))
+        `when`(nodesRepository.findByModel_IdAndIdIn(modelId, listOf(keep.id!!, drop.id!!)))
+            .thenReturn(listOf(keep, drop))
+        `when`(nodesRepository.existsByParentNode_Id(drop.id!!)).thenReturn(true)
+        `when`(nodesRepository.findByParentNode_Id(drop.id!!)).thenReturn(listOf(child))
+        `when`(linksRepository.findByModelIdAndEndpointNodeId(modelId, keep.id!!)).thenReturn(emptyList())
+        `when`(linksRepository.findByModelIdAndEndpointNodeId(modelId, drop.id!!)).thenReturn(emptyList())
+        `when`(diagramsRepository.findAllActiveByModelId(modelId)).thenReturn(emptyList())
+        `when`(diagramsRepository.findDiagramReferences(modelId, """exists($.instances.nodes[*] ? (@.modelNodeId == "${keep.id}"))""", PageRequest.of(0, 10_000)))
+            .thenReturn(Page.empty())
+        `when`(diagramsRepository.findDiagramReferences(modelId, """exists($.instances.nodes[*] ? (@.modelNodeId == "${drop.id}"))""", PageRequest.of(0, 10_000)))
+            .thenReturn(Page.empty())
+
+        val response = service.mergeNodes(
+            modelId,
+            MergeNodesRequest(
+                keepId = keep.id!!,
+                dropId = drop.id!!,
+                reparentChildren = true,
+                keepUpdatedAt = now,
+                dropUpdatedAt = now
+            )
+        )
+
+        assertEquals(keep.id!!, response.keepId)
+        assertEquals(keep, child.parentNode)
+        verify(nodesRepository).save(child)
+        verify(nodesRepository).delete(drop)
+    }
+
+    @Test
+    fun `mergeNodes rejects drop with children without reparentChildren`() {
+        val keep = node("CRM", attrs = """{"typeProperties":{"a":1}}""")
+        val drop = node("CRM", attrs = null)
+        `when`(modelsRepository.findById(modelId)).thenReturn(Optional.of(model))
+        `when`(nodesRepository.findByModel_IdAndIdIn(modelId, listOf(keep.id!!, drop.id!!)))
+            .thenReturn(listOf(keep, drop))
+        `when`(nodesRepository.existsByParentNode_Id(drop.id!!)).thenReturn(true)
+
+        val exception = assertFailsWith<ResponseStatusException> {
+            service.mergeNodes(
+                modelId,
+                MergeNodesRequest(
+                    keepId = keep.id!!,
+                    dropId = drop.id!!,
+                    keepUpdatedAt = now,
+                    dropUpdatedAt = now
+                )
+            )
+        }
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.statusCode)
+        assertEquals("Drop node still has children", exception.reason)
     }
 
     private fun invokeRemapDropInstancesToKeep(attrs: String?, dropId: UUID, keepId: UUID): String? {

@@ -12,12 +12,17 @@ data class OefNormalizeResponse(
 /**
  * Organization tree node. Folder: [label] + [children]. Leaf: [refId] + [refKind].
  * [refKind] is one of: element, relationship, view.
+ *
+ * Folders may carry [properties] from the exporter extension namespace
+ * (`https://warchi.ru/oef/folder-props/ the Archi plugin marks its auto with `autoCreated`,humanId`, `name`, `folder, which
+ * the standard exchange format cannot (OrganizationType has no PropertiesGroup).
  */
 data class OefOrganizationNodeDto(
     val label: String? = null,
     val children: List<OefOrganizationNodeDto>? = null,
     val refId: String? = null,
     val refKind: String? = null,
+    val properties: Map<String, String> = emptyMap(),
 )
 
 data class OefModelDto(

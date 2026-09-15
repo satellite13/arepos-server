@@ -9,7 +9,52 @@ data class ValidationReportResponse(
     val duplicateNodes: List<DuplicateNodeGroup>,
     val duplicateLinks: List<DuplicateLinkGroup>,
     val duplicateNodesTotal: Int,
-    val duplicateLinksTotal: Int
+    val duplicateLinksTotal: Int,
+    val diagramIssues: List<DiagramIssueGroup> = emptyList(),
+    val diagramIssuesTotal: Int = 0,
+    val unusedNodes: List<UnusedNode> = emptyList(),
+    val unusedLinks: List<UnusedLink> = emptyList(),
+    val unusedNodesTotal: Int = 0,
+    val unusedLinksTotal: Int = 0
+)
+
+data class UnusedNode(
+    val id: UUID,
+    val name: String,
+    val parentId: UUID? = null,
+    val parentName: String? = null
+)
+
+data class UnusedLink(
+    val id: UUID,
+    val sourceName: String,
+    val targetName: String,
+    val linkTypeName: String
+)
+
+data class DeleteUnusedRequest(
+    val nodeIds: List<UUID> = emptyList(),
+    val linkIds: List<UUID> = emptyList()
+)
+
+data class DeleteUnusedResponse(
+    val deletedNodeIds: List<UUID> = emptyList(),
+    val deletedLinkIds: List<UUID> = emptyList(),
+    val skippedNodeIds: List<UUID> = emptyList(),
+    val skippedLinkIds: List<UUID> = emptyList()
+)
+
+data class DiagramIssue(
+    val code: String,
+    val level: String,
+    val instanceId: String? = null,
+    val message: String
+)
+
+data class DiagramIssueGroup(
+    val diagramId: UUID,
+    val diagramName: String,
+    val issues: List<DiagramIssue>
 )
 
 data class DuplicateNodeGroup(
@@ -24,7 +69,8 @@ data class DuplicateNodeMember(
     val id: UUID,
     val name: String,
     val parentId: UUID?,
-    val parentName: String?
+    val parentName: String?,
+    val diagramCount: Int = 0
 )
 
 data class DuplicateLinkGroup(
@@ -39,7 +85,8 @@ data class DuplicateLinkGroup(
 )
 
 data class DuplicateLinkMember(
-    val id: UUID
+    val id: UUID,
+    val diagramCount: Int = 0
 )
 
 data class DiagramRef(
@@ -88,6 +135,7 @@ data class MergeNodesRequest(
     val dropId: UUID,
     val typeProperties: Map<String, Any?> = emptyMap(),
     val transferLinkIds: List<UUID> = emptyList(),
+    val reparentChildren: Boolean = false,
     val keepUpdatedAt: Instant,
     val dropUpdatedAt: Instant
 )
@@ -108,4 +156,11 @@ data class MergeLinksRequest(
 data class MergeLinksResponse(
     val keepId: UUID,
     val dropId: UUID
+)
+
+data class AutoMergeLockStatus(
+    val locked: Boolean,
+    val lockedBy: UUID? = null,
+    val lockedByName: String? = null,
+    val lockedAt: Instant? = null
 )

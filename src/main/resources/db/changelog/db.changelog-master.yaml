@@ -588,3 +588,23 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: true
             endDelimiter: ;
+
+  - changeSet:
+      id: 062-oef-merge-decisions
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/061-oef-merge-decisions.sql
+            encoding: UTF-8
+            splitStatements: true
+            endDelimiter: ;
+
+  - changeSet:
+      id: 063-model-validation-locks
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/062-model-validation-locks.sql
+            encoding: UTF-8
+            splitStatements: true
+            endDelimiter: ;

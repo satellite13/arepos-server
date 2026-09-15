@@ -55,6 +55,22 @@ interface DuplicateNodeMemberProjection {
     fun getParentName(): String?
 }
 
+interface NodeIdProjection {
+    fun getId(): UUID
+}
+
+interface RefUsageProjection {
+    fun getRefId(): String
+    fun getDiagramCount(): Long
+}
+
+interface UnusedNodeProjection {
+    fun getId(): UUID
+    fun getName(): String
+    fun getParentId(): UUID?
+    fun getParentName(): String?
+}
+
 @Repository
 interface NodesRepository : JpaRepository<Nodes, UUID> {
     fun findByModel(model: Models, pageable: Pageable): Page<Nodes>
@@ -63,7 +79,81 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
     fun existsByNodeTypeId(nodeTypeId: UUID): Boolean
     fun existsByIdAndModel_Id(id: UUID, modelId: UUID): Boolean
     fun existsByParentNode_Id(parentNodeId: UUID): Boolean
+    fun findByParentNode_Id(parentNodeId: UUID): List<Nodes>
     fun findByModel_IdAndIdIn(modelId: UUID, ids: Collection<UUID>): List<Nodes>
+
+    @Query("select n.id as id from Nodes n where n.model.id = :modelId")
+    fun findIdsByModelId(@Param("modelId") modelId: UUID): List<NodeIdProjection>
+
+    @Query(
+        value = """
+            WITH latest AS (
+                SELECT d.id, d.attrs,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY d.name
+                           ORDER BY string_to_array(d.version, '.')::int[] DESC
+                       ) AS rn
+                FROM diagrams d
+                WHERE d.model = :modelId AND d.deleted = false
+            ),
+            refs AS (
+                SELECT inst ->> 'modelNodeId' AS ref_id, l.id AS diagram_id
+                FROM latest l
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(l.attrs -> 'instances' -> 'nodes') = 'array'
+                         THEN l.attrs -> 'instances' -> 'nodes'
+                         ELSE '[]'::jsonb END
+                ) AS inst
+                WHERE l.rn = 1
+            )
+            SELECT ref_id AS "refId", COUNT(DISTINCT diagram_id) AS "diagramCount"
+            FROM refs
+            WHERE ref_id IN (:ids)
+            GROUP BY ref_id
+        """,
+        nativeQuery = true
+    )
+    fun findDiagramUsageByNodeIds(
+        @Param("modelId") modelId: UUID,
+        @Param("ids") ids: Collection<String>
+    ): List<RefUsageProjection>
+
+    @Query(
+        value = """
+            WITH RECURSIVE folder AS (
+                SELECT n.id
+                FROM nodes n
+                WHERE n.model = :modelId AND lower(btrim(n.name)) = lower(btrim(:folderName))
+                UNION
+                SELECT c.id
+                FROM nodes c
+                JOIN folder f ON c.parent_node = f.id
+            ),
+            excluded AS (
+                SELECT d.id, d.attrs
+                FROM diagrams d
+                WHERE d.model = :modelId AND d.deleted = false AND d.node_id IN (SELECT id FROM folder)
+            ),
+            refs AS (
+                SELECT inst ->> 'modelNodeId' AS ref_id
+                FROM excluded e
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(e.attrs -> 'instances' -> 'nodes') = 'array'
+                         THEN e.attrs -> 'instances' -> 'nodes'
+                         ELSE '[]'::jsonb END
+                ) AS inst
+            )
+            SELECT DISTINCT ref_id
+            FROM refs
+            WHERE ref_id IN (:ids)
+        """,
+        nativeQuery = true
+    )
+    fun findNodeRefsInExcludedDiagrams(
+        @Param("modelId") modelId: UUID,
+        @Param("folderName") folderName: String,
+        @Param("ids") ids: Collection<String>
+    ): List<String>
 
     @Query(
         value = """
@@ -346,13 +436,14 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
         value = """
             WITH duplicate_groups AS (
                 SELECT n.node_type AS node_type_id,
-                       lower(trim(n.name)) AS name_key,
+                       lower(trim(n.name)) || '#' || COALESCE(n.attrs #>> '{typeProperties,version}', '') AS name_key,
                        COUNT(*) AS cnt
                 FROM nodes n
                 JOIN node_types t ON t.id = n.node_type
                 WHERE n.model = :modelId
                   AND lower(t.name) <> 'directory'
-                GROUP BY n.node_type, lower(trim(n.name))
+                  AND $DPC_NODE_EXCLUSION
+                GROUP BY n.node_type, lower(trim(n.name)) || '#' || COALESCE(n.attrs #>> '{typeProperties,version}', '')
                 HAVING COUNT(*) > 1
             ),
             limited_groups AS (
@@ -378,15 +469,16 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
                         PARTITION BY n.node_type, g.name_key
                         ORDER BY n.id ASC
                     ) AS rn
-                FROM nodes n
-                JOIN limited_groups g
-                  ON g.node_type_id = n.node_type
-                 AND g.name_key = lower(trim(n.name))
-                JOIN node_types t ON t.id = n.node_type
-                JOIN models m ON m.id = n.model
-                LEFT JOIN nodes p ON p.id = n.parent_node
-                WHERE n.model = :modelId
-            )
+                 FROM nodes n
+                 JOIN limited_groups g
+                   ON g.node_type_id = n.node_type
+                  AND g.name_key = lower(trim(n.name)) || '#' || COALESCE(n.attrs #>> '{typeProperties,version}', '')
+                 JOIN node_types t ON t.id = n.node_type
+                 JOIN models m ON m.id = n.model
+                 LEFT JOIN nodes p ON p.id = n.parent_node
+                 WHERE n.model = :modelId
+                   AND $DPC_NODE_EXCLUSION
+             )
             SELECT
                 r.node_type_id AS "nodeTypeId",
                 r.node_type_name AS "nodeTypeName",
@@ -408,15 +500,116 @@ interface NodesRepository : JpaRepository<Nodes, UUID> {
                     ELSE r.parent_name
                 END AS "parentName"
             FROM ranked r
-            WHERE r.rn <= 50
+            WHERE r.rn <= :maxMembersPerGroup
             ORDER BY r.node_type_id, r.name_key, r.id
         """,
         nativeQuery = true
     )
     fun findDuplicateNodeMembers(
         @Param("modelId") modelId: UUID,
-        @Param("maxGroups") maxGroups: Int
+        @Param("maxGroups") maxGroups: Int,
+        @Param("maxMembersPerGroup") maxMembersPerGroup: Int
     ): List<DuplicateNodeMemberProjection>
+
+    companion object {
+        /**
+         * Условие-фильтр (keep): отсекает узлы, созданные org-tree-sync
+         * (маркер attrs.dpc.autoCreated = true), чтобы разные версии одного
+         * интерфейса не попадали в дубликаты, а sync-элементы — в unused.
+         */
+        const val DPC_NODE_EXCLUSION = "COALESCE(n.attrs #>> '{dpc,autoCreated}', 'false') <> 'true'"
+
+        /**
+         * Автосозданные OEF-импортом элементы (attrs.oef.properties.autoCreated)
+         * не считаются неиспользуемыми: они являются частью выгрузки и ожидают
+         * связей в следующих экспортах.
+         */
+        const val OEF_NODE_EXCLUSION =
+            "LOWER(COALESCE(n.attrs #>> '{oef,properties,autoCreated}', '')) NOT IN ('yes', 'true')"
+
+        const val UNUSED_NODE_FILTER = """
+            n.model = :modelId
+            AND btrim(coalesce(n.attrs ->> 'documentFileId', '')) = ''
+            AND $DPC_NODE_EXCLUSION
+            AND $OEF_NODE_EXCLUSION
+            AND NOT EXISTS (SELECT 1 FROM nodes c WHERE c.parent_node = n.id)
+            AND NOT EXISTS (SELECT 1 FROM links l WHERE l.model = :modelId AND (l.source = n.id OR l.target = n.id))
+            AND NOT EXISTS (
+                SELECT 1 FROM diagrams bd
+                WHERE bd.model = :modelId AND bd.deleted = false AND bd.node_id = n.id
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM diagrams d
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(d.attrs -> 'instances' -> 'nodes') = 'array'
+                         THEN d.attrs -> 'instances' -> 'nodes'
+                         ELSE '[]'::jsonb END
+                ) AS inst
+                WHERE d.model = :modelId AND d.deleted = false AND inst ->> 'modelNodeId' = n.id::text
+            )
+        """
+    }
+
+    @Query(
+        value = """
+            SELECT
+                n.id,
+                n.name,
+                CASE
+                    WHEN n.parent_node IS NULL THEN NULL
+                    WHEN n.parent_node::text = NULLIF(TRIM(m.attrs ->> 'treeRootNodeId'), '') THEN NULL
+                    WHEN LOWER(COALESCE(p.attrs #>> '{system,hiddenTreeRoot}', 'false')) = 'true' THEN NULL
+                    ELSE n.parent_node
+                END AS "parentId",
+                CASE
+                    WHEN n.parent_node IS NULL THEN NULL
+                    WHEN n.parent_node::text = NULLIF(TRIM(m.attrs ->> 'treeRootNodeId'), '') THEN NULL
+                    WHEN LOWER(COALESCE(p.attrs #>> '{system,hiddenTreeRoot}', 'false')) = 'true' THEN NULL
+                    ELSE p.name
+                END AS "parentName"
+            FROM nodes n
+            JOIN models m ON m.id = n.model
+            LEFT JOIN nodes p ON p.id = n.parent_node
+            WHERE $UNUSED_NODE_FILTER
+            ORDER BY n.name, n.id
+            LIMIT :maxRows
+        """,
+        nativeQuery = true,
+        countQuery = """
+            SELECT COUNT(*)
+            FROM nodes n
+            WHERE $UNUSED_NODE_FILTER
+        """
+    )
+    fun findUnusedNodes(
+        @Param("modelId") modelId: UUID,
+        @Param("maxRows") maxRows: Int
+    ): List<UnusedNodeProjection>
+
+    @Query(
+        value = """
+            SELECT COUNT(*)
+            FROM nodes n
+            WHERE $UNUSED_NODE_FILTER
+        """,
+        nativeQuery = true
+    )
+    fun countUnusedNodes(@Param("modelId") modelId: UUID): Long
+
+    @Query(
+        value = """
+            SELECT n.id
+            FROM nodes n
+            WHERE n.id IN (:ids)
+              AND $UNUSED_NODE_FILTER
+        """,
+        nativeQuery = true
+    )
+    fun findUnusedNodeIds(
+        @Param("modelId") modelId: UUID,
+        @Param("ids") ids: Collection<UUID>
+    ): List<UUID>
 }
 
 

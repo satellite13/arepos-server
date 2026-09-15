@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.kavader.arepos.dto.notation.NodeTypeRequest
@@ -375,6 +376,107 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content[?(@.name=='Directory')]").isNotEmpty)
+    }
+
+    @Test
+    fun `system Directory allows additive customProperties update but forbids everything else`() {
+        val systemUser = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "system@arepos.local",
+                role = Role.USER,
+                isActive = false,
+                createdAt = Instant.now()
+            )
+        )
+        val directoryType = nodeTypesRepository.save(
+            ru.kavader.arepos.model.NodeTypes(
+                name = "Directory",
+                attrs = """{"system":true,"kind":"directory","customProperties":[
+                    {"id":"11111111-1111-1111-1111-111111111111","name":"folderType","type":"enum","enumValues":["folder-root"]}
+                ]}""",
+                createdAt = Instant.now(),
+                owner = systemUser
+            )
+        )
+        val nonOwner = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "directory-updater@test.com",
+                role = Role.USER,
+                createdAt = Instant.now()
+            )
+        )
+        val existingProp = """{"id":"11111111-1111-1111-1111-111111111111","name":"folderType","type":"enum","enumValues":["folder-root"]}"""
+        val newProp = """{"name":"id","type":"string","maxLength":60}"""
+        fun dirAttrs(vararg props: String) =
+            """{"system":true,"kind":"directory","customProperties":[${props.joinToString(",")}]}"""
+
+        // additive update by a non-owner USER: allowed
+        mockMvc.perform(
+            put("/api/v1/node-types/${directoryType.id}")
+                .withAuth(nonOwner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory", attrs = dirAttrs(existingProp, newProp))))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.attrs").isNotEmpty)
+        assertEquals(
+            2,
+            objectMapper.readTree(nodeTypesRepository.findById(directoryType.id!!).orElseThrow().attrs)
+                .path("customProperties").size()
+        )
+
+        // rename → forbidden
+        mockMvc.perform(
+            put("/api/v1/node-types/${directoryType.id}")
+                .withAuth(nonOwner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory2", attrs = null)))
+        )
+            .andExpect(status().isForbidden)
+
+        // removing an existing custom property → forbidden
+        mockMvc.perform(
+            put("/api/v1/node-types/${directoryType.id}")
+                .withAuth(nonOwner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory", attrs = dirAttrs(newProp))))
+        )
+            .andExpect(status().isForbidden)
+
+        // modifying an existing custom property → forbidden
+        val modifiedProp = """{"id":"11111111-1111-1111-1111-111111111111","name":"folderType","type":"string"}"""
+        mockMvc.perform(
+            put("/api/v1/node-types/${directoryType.id}")
+                .withAuth(nonOwner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory", attrs = dirAttrs(modifiedProp, newProp))))
+        )
+            .andExpect(status().isForbidden)
+
+        // changing another attrs key → forbidden
+        mockMvc.perform(
+            put("/api/v1/node-types/${directoryType.id}")
+                .withAuth(nonOwner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory", attrs = """{"system":true,"kind":"folder"}""")))
+        )
+            .andExpect(status().isForbidden)
+
+        // owner change → forbidden
+        mockMvc.perform(
+            put("/api/v1/node-types/${directoryType.id}")
+                .withAuth(nonOwner.id!!, Role.USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory", ownerId = nonOwner.id!!)))
+        )
+            .andExpect(status().isForbidden)
+
+        // deletion stays forbidden
+        mockMvc.perform(
+            delete("/api/v1/node-types/${directoryType.id}")
+                .withAuth(nonOwner.id!!, Role.USER)
+        )
+            .andExpect(status().isForbidden)
     }
 
     @Test
