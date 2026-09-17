@@ -610,7 +610,7 @@ databaseChangeLog:
             endDelimiter: ;
 
   - changeSet:
-      id: 063-role-feature-grants
+      id: 064-role-feature-grants
       author: Nikolay Groznykh
       changes:
         - sqlFile:
