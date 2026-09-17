@@ -29,7 +29,7 @@ class ModelSyncStompHandshakeHandlerTest {
         val userId = UUID.randomUUID()
         val attributes = mapOf<String, Any>(
             ModelSyncStompHandshakeHandler.USER_ID_ATTR to userId,
-            ModelSyncStompHandshakeHandler.ROLE_ATTR to "ADMIN"
+            ModelSyncStompHandshakeHandler.ROLE_ATTR to "admin"
         )
         val request = ServletServerHttpRequest(MockHttpServletRequest())
         val principal = handler.userFromAttributes(request, mock(WebSocketHandler::class.java), attributes)

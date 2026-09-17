@@ -26,11 +26,11 @@ class JwtTokenProviderTest {
     @Test
     fun `generates and validates access token`() {
         val userId = UUID.randomUUID()
-        val token = provider.generateAccessToken(userId, "ADMIN")
+        val token = provider.generateAccessToken(userId, "admin")
 
         assertTrue(provider.validateToken(token))
         assertEquals(userId, provider.getUserId(token))
-        assertEquals("ADMIN", provider.getRole(token))
+        assertEquals("admin", provider.getRole(token))
         assertEquals(TokenType.ACCESS, provider.getTokenType(token))
     }
 
@@ -49,7 +49,7 @@ class JwtTokenProviderTest {
         val userId = UUID.randomUUID()
         val token = provider.generateMcpAccessToken(
             userId = userId,
-            role = "USER",
+            role = "reader",
             mode = ApiKeyModes.ALL,
             scopes = setOf("models:read", "models:write"),
             grants = null
@@ -70,7 +70,7 @@ class JwtTokenProviderTest {
         val grants = listOf(ApiKeyGrantDto(modelId = modelId, scopes = listOf("models:read")))
         val token = provider.generateMcpAccessToken(
             userId = userId,
-            role = "USER",
+            role = "reader",
             mode = ApiKeyModes.GRANTS,
             scopes = null,
             grants = grants
@@ -98,7 +98,7 @@ class JwtTokenProviderTest {
                 refreshExpiration = Duration.ofMillis(1)
             )
         )
-        val token = expiredProvider.generateAccessToken(UUID.randomUUID(), "USER")
+        val token = expiredProvider.generateAccessToken(UUID.randomUUID(), "reader")
         Thread.sleep(10)
         assertFalse(expiredProvider.validateToken(token))
     }
@@ -114,7 +114,7 @@ class JwtTokenProviderTest {
                 refreshExpiration = Duration.ofDays(7)
             )
         )
-        val token = foreignIssuerProvider.generateAccessToken(UUID.randomUUID(), "USER")
+        val token = foreignIssuerProvider.generateAccessToken(UUID.randomUUID(), "reader")
 
         assertFalse(provider.validateToken(token))
     }
@@ -130,7 +130,7 @@ class JwtTokenProviderTest {
                 refreshExpiration = Duration.ofDays(7)
             )
         )
-        val token = foreignAudienceProvider.generateAccessToken(UUID.randomUUID(), "USER")
+        val token = foreignAudienceProvider.generateAccessToken(UUID.randomUUID(), "reader")
 
         assertFalse(provider.validateToken(token))
     }

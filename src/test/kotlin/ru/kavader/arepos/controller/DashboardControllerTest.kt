@@ -66,7 +66,7 @@ class DashboardControllerTest : ControllerIntegrationTest() {
 
     @BeforeEach
     fun setupCerbosMock() {
-        doAnswer { CurrentUser.getRole() == "ADMIN" }
+        doAnswer { CurrentUser.getRole() == "admin" }
             .`when`(accessService)
             .canViewAdminPanel()
     }
@@ -76,14 +76,14 @@ class DashboardControllerTest : ControllerIntegrationTest() {
         val currentUser = usersRepository.save(
             Users(
                 email = "dashboard-stats-user@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val otherUser = usersRepository.save(
             Users(
                 email = "dashboard-stats-other@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -97,7 +97,7 @@ class DashboardControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/dashboard/stats")
-                .withAuth(currentUser.id!!, Role.USER)
+                .withAuth(currentUser.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.nodeTypes").value(1))
@@ -108,7 +108,7 @@ class DashboardControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             Users(
                 email = "dashboard-stats-admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -128,7 +128,7 @@ class DashboardControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/dashboard/stats")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.nodeTypes").value(2))
@@ -139,14 +139,14 @@ class DashboardControllerTest : ControllerIntegrationTest() {
         val currentUser = usersRepository.save(
             Users(
                 email = "dashboard-stats-link-user@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val otherUser = usersRepository.save(
             Users(
                 email = "dashboard-stats-link-other@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -160,7 +160,7 @@ class DashboardControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/dashboard/stats")
-                .withAuth(currentUser.id!!, Role.USER)
+                .withAuth(currentUser.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.linkTypes").value(1))
@@ -169,10 +169,10 @@ class DashboardControllerTest : ControllerIntegrationTest() {
     @Test
     fun `recent diagrams returns only accessible diagrams for non-admin`() {
         val currentUser = usersRepository.save(
-            Users(email = "dashboard-diag-user@test.com", role = Role.USER, createdAt = Instant.now())
+            Users(email = "dashboard-diag-user@test.com", role = Role.reader, createdAt = Instant.now())
         )
         val otherUser = usersRepository.save(
-            Users(email = "dashboard-diag-other@test.com", role = Role.USER, createdAt = Instant.now())
+            Users(email = "dashboard-diag-other@test.com", role = Role.reader, createdAt = Instant.now())
         )
         val ownModel = persistModel(currentUser, "OwnModel")
         val foreignModel = persistModel(otherUser, "ForeignModel")
@@ -196,7 +196,7 @@ class DashboardControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/dashboard/recent?limit=10")
-                .withAuth(currentUser.id!!, Role.USER)
+                .withAuth(currentUser.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.activity").doesNotExist())
@@ -210,10 +210,10 @@ class DashboardControllerTest : ControllerIntegrationTest() {
     @Test
     fun `recent diagrams returns all diagrams for admin`() {
         val admin = usersRepository.save(
-            Users(email = "dashboard-diag-admin@test.com", role = Role.ADMIN, createdAt = Instant.now())
+            Users(email = "dashboard-diag-admin@test.com", role = Role.admin, createdAt = Instant.now())
         )
         val user = usersRepository.save(
-            Users(email = "dashboard-diag-user2@test.com", role = Role.USER, createdAt = Instant.now())
+            Users(email = "dashboard-diag-user2@test.com", role = Role.reader, createdAt = Instant.now())
         )
         val adminModel = persistModel(admin, "AdminModel")
         val userModel = persistModel(user, "UserModel")
@@ -225,7 +225,7 @@ class DashboardControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/dashboard/recent?limit=10")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.activity").doesNotExist())

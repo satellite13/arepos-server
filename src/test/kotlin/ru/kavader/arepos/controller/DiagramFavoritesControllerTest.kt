@@ -64,24 +64,24 @@ class DiagramFavoritesControllerTest : ControllerIntegrationTest() {
 
     @BeforeEach
     fun setupCerbosMock() {
-        doAnswer { CurrentUser.getRole() == "ADMIN" }
+        doAnswer { CurrentUser.getRole() == "admin" }
             .`when`(accessService)
             .canViewAdminPanel()
     }
 
     @Test
     fun `put favorite toggles idempotently and lists ids`() {
-        val owner = persistUser("fav-owner@test.com", Role.ADMIN)
+        val owner = persistUser("fav-owner@test.com", Role.admin)
         val diagram = persistDiagramFor(owner)
 
-        mockMvc.perform(put("/api/v1/diagrams/${diagram.id}/favorite").withAuth(owner.id!!, Role.ADMIN))
+        mockMvc.perform(put("/api/v1/diagrams/${diagram.id}/favorite").withAuth(owner.id!!, Role.admin))
             .andExpect(status().isNoContent)
-        mockMvc.perform(put("/api/v1/diagrams/${diagram.id}/favorite").withAuth(owner.id!!, Role.ADMIN))
+        mockMvc.perform(put("/api/v1/diagrams/${diagram.id}/favorite").withAuth(owner.id!!, Role.admin))
             .andExpect(status().isNoContent)
 
         assertEquals(1, userDiagramFavoriteRepository.countByDiagramId(diagram.id!!))
 
-        mockMvc.perform(get("/api/v1/users/me/favorite-diagram-ids").withAuth(owner.id!!, Role.ADMIN))
+        mockMvc.perform(get("/api/v1/users/me/favorite-diagram-ids").withAuth(owner.id!!, Role.admin))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.ids.length()").value(1))
             .andExpect(jsonPath("$.ids[0]").value(diagram.id.toString()))
@@ -89,24 +89,24 @@ class DiagramFavoritesControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `delete favorite removes row and stays idempotent`() {
-        val owner = persistUser("fav-del@test.com", Role.ADMIN)
+        val owner = persistUser("fav-del@test.com", Role.admin)
         val diagram = persistDiagramFor(owner)
         persistFavoriteRow(owner, diagram)
 
-        mockMvc.perform(delete("/api/v1/diagrams/${diagram.id}/favorite").withAuth(owner.id!!, Role.ADMIN))
+        mockMvc.perform(delete("/api/v1/diagrams/${diagram.id}/favorite").withAuth(owner.id!!, Role.admin))
             .andExpect(status().isNoContent)
-        mockMvc.perform(delete("/api/v1/diagrams/${diagram.id}/favorite").withAuth(owner.id!!, Role.ADMIN))
+        mockMvc.perform(delete("/api/v1/diagrams/${diagram.id}/favorite").withAuth(owner.id!!, Role.admin))
             .andExpect(status().isNoContent)
 
-        mockMvc.perform(get("/api/v1/users/me/favorite-diagram-ids").withAuth(owner.id!!, Role.ADMIN))
+        mockMvc.perform(get("/api/v1/users/me/favorite-diagram-ids").withAuth(owner.id!!, Role.admin))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.ids.length()").value(0))
     }
 
     @Test
     fun `add favorite returns 404 for missing diagram`() {
-        val owner = persistUser("fav-404@test.com", Role.ADMIN)
-        mockMvc.perform(put("/api/v1/diagrams/${UUID.randomUUID()}/favorite").withAuth(owner.id!!, Role.ADMIN))
+        val owner = persistUser("fav-404@test.com", Role.admin)
+        mockMvc.perform(put("/api/v1/diagrams/${UUID.randomUUID()}/favorite").withAuth(owner.id!!, Role.admin))
             .andExpect(status().isNotFound)
     }
 
@@ -122,12 +122,12 @@ class DiagramFavoritesControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `favorite-diagrams hides inaccessible diagrams for non-admin`() {
-        val owner = persistUser("fav-hidden-owner@test.com", Role.USER)
-        val viewer = persistUser("fav-hidden-viewer@test.com", Role.USER)
+        val owner = persistUser("fav-hidden-owner@test.com", Role.reader)
+        val viewer = persistUser("fav-hidden-viewer@test.com", Role.reader)
         val diagram = persistDiagramFor(owner)
         persistFavoriteRow(viewer, diagram)
 
-        mockMvc.perform(get("/api/v1/users/me/favorite-diagrams?size=10").withAuth(viewer.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/users/me/favorite-diagrams?size=10").withAuth(viewer.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(0))
 
@@ -142,7 +142,7 @@ class DiagramFavoritesControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        mockMvc.perform(get("/api/v1/users/me/favorite-diagrams?size=10").withAuth(viewer.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/users/me/favorite-diagrams?size=10").withAuth(viewer.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(1))
             .andExpect(jsonPath("$.content[0].id").value(diagram.id.toString()))
@@ -151,12 +151,12 @@ class DiagramFavoritesControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `favorite-diagrams returns all favorites for admin`() {
-        val owner = persistUser("fav-admin-owner@test.com", Role.USER)
-        val admin = persistUser("fav-admin@test.com", Role.ADMIN)
+        val owner = persistUser("fav-admin-owner@test.com", Role.reader)
+        val admin = persistUser("fav-admin@test.com", Role.admin)
         val diagram = persistDiagramFor(owner)
         persistFavoriteRow(admin, diagram)
 
-        mockMvc.perform(get("/api/v1/users/me/favorite-diagrams?size=10").withAuth(admin.id!!, Role.ADMIN))
+        mockMvc.perform(get("/api/v1/users/me/favorite-diagrams?size=10").withAuth(admin.id!!, Role.admin))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(1))
             .andExpect(jsonPath("$.content[0].id").value(diagram.id.toString()))
@@ -164,7 +164,7 @@ class DiagramFavoritesControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `favorite-diagrams paginates with most-recent-first ordering`() {
-        val owner = persistUser("fav-order@test.com", Role.ADMIN)
+        val owner = persistUser("fav-order@test.com", Role.admin)
         val first = persistDiagramFor(owner)
         val second = persistDiagramFor(owner)
         val third = persistDiagramFor(owner)
@@ -173,14 +173,14 @@ class DiagramFavoritesControllerTest : ControllerIntegrationTest() {
         persistFavoriteRow(owner, second, base.plusSeconds(60))
         persistFavoriteRow(owner, third, base.plusSeconds(120))
 
-        mockMvc.perform(get("/api/v1/users/me/favorite-diagrams?page=0&size=2").withAuth(owner.id!!, Role.ADMIN))
+        mockMvc.perform(get("/api/v1/users/me/favorite-diagrams?page=0&size=2").withAuth(owner.id!!, Role.admin))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(2))
             .andExpect(jsonPath("$.content[0].id").value(third.id.toString()))
             .andExpect(jsonPath("$.content[1].id").value(second.id.toString()))
             .andExpect(jsonPath("$.page.totalElements").value(3))
 
-        mockMvc.perform(get("/api/v1/users/me/favorite-diagrams?page=1&size=2").withAuth(owner.id!!, Role.ADMIN))
+        mockMvc.perform(get("/api/v1/users/me/favorite-diagrams?page=1&size=2").withAuth(owner.id!!, Role.admin))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(1))
             .andExpect(jsonPath("$.content[0].id").value(first.id.toString()))

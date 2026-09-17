@@ -51,7 +51,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
         val user = persistUser("roadmap-user@test.com")
         mockMvc.perform(
             post("/api/v1/roadmap/milestones")
-                .withAuth(user.id!!, Role.USER)
+                .withAuth(user.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -63,12 +63,12 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `admin creates milestone and links feedback items`() {
-        val admin = persistUser("roadmap-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-admin@test.com", Role.admin)
         val author = persistUser("roadmap-author@test.com")
 
         val feedback = mockMvc.perform(
             post("/api/v1/feedback")
-                .withAuth(author.id!!, Role.USER)
+                .withAuth(author.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -84,7 +84,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
         val created = mockMvc.perform(
             post("/api/v1/roadmap/milestones")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -106,7 +106,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/$milestoneId/items")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(SetRoadmapMilestoneItemsRequest(listOf(feedbackId))))
         )
@@ -121,7 +121,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `set items rejects feedback that was merged`() {
-        val admin = persistUser("roadmap-merged-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-merged-admin@test.com", Role.admin)
         val author = persistUser("roadmap-merged-author@test.com")
         val sourceId = createFeedback(author, "Merged source")
         val targetId = createFeedback(author, "Merge target")
@@ -135,7 +135,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `set items can replace composition keeping overlapping feedback`() {
-        val admin = persistUser("roadmap-replace-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-replace-admin@test.com", Role.admin)
         val author = persistUser("roadmap-replace-author@test.com")
         val keepId = createFeedback(author, "Keep linked")
         val removeId = createFeedback(author, "Remove linked")
@@ -156,7 +156,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `set items can reapply the same feedback ids`() {
-        val admin = persistUser("roadmap-reapply-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-reapply-admin@test.com", Role.admin)
         val author = persistUser("roadmap-reapply-author@test.com")
         val feedbackId = createFeedback(author, "Same link")
         val milestoneId = createMilestone(admin, "Reapply composition")
@@ -171,7 +171,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `merge and set items never leave stale source roadmap link`() {
-        val admin = persistUser("roadmap-concurrent-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-concurrent-admin@test.com", Role.admin)
         val author = persistUser("roadmap-concurrent-author@test.com")
         val sourceId = createFeedback(author, "Concurrent source")
         val targetId = createFeedback(author, "Concurrent target")
@@ -205,21 +205,21 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `admin receives conflict when updating milestone with stale timestamp`() {
-        val admin = persistUser("roadmap-update-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-update-admin@test.com", Role.admin)
         val created = createMilestoneResponse(admin, "Before")
         val milestoneId = UUID.fromString(created.get("id").asText())
         val staleTimestamp = created.get("updatedAt").asText()
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/$milestoneId")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(mapOf("title" to "Changed", "baseUpdatedAt" to staleTimestamp)))
         ).andExpect(status().isOk)
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/$milestoneId")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(mapOf("title" to "Stale", "baseUpdatedAt" to staleTimestamp)))
         )
@@ -231,7 +231,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `update conflicts when timestamp differs by one microsecond within millisecond`() {
-        val admin = persistUser("roadmap-microsecond-conflict-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-microsecond-conflict-admin@test.com", Role.admin)
         val milestone = createMilestoneResponse(admin, "Microsecond precision")
         val milestoneId = milestone.get("id").asText()
         val clientTimestamp = Instant.parse(milestone.get("updatedAt").asText())
@@ -240,7 +240,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/$milestoneId")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(mapOf("title" to "Must conflict", "baseUpdatedAt" to clientTimestamp)))
         )
@@ -251,12 +251,12 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `admin must supply base timestamp when updating milestone`() {
-        val admin = persistUser("roadmap-missing-update-timestamp-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-missing-update-timestamp-admin@test.com", Role.admin)
         val milestone = createMilestoneResponse(admin, "Timestamp required")
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/${milestone.get("id").asText()}")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(mapOf("title" to "Changed")))
         )
@@ -266,11 +266,11 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `omitted target period is preserved while explicit null clears it`() {
-        val admin = persistUser("roadmap-clear-period-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-clear-period-admin@test.com", Role.admin)
         val milestone = objectMapper.readTree(
             mockMvc.perform(
                 post("/api/v1/roadmap/milestones")
-                    .withAuth(admin.id!!, Role.ADMIN)
+                    .withAuth(admin.id!!, Role.admin)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
                         objectMapper.writeValueAsString(
@@ -283,7 +283,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
         val preserved = mockMvc.perform(
             put("/api/v1/roadmap/milestones/$id")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -297,7 +297,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/$id")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -314,14 +314,14 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `roadmap audit is visible only to admins`() {
-        val admin = persistUser("roadmap-audit-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-audit-admin@test.com", Role.admin)
         val user = persistUser("roadmap-audit-user@test.com")
         val id = createMilestone(admin, "Audited roadmap")
 
-        mockMvc.perform(get("/api/v1/roadmap/milestones/$id?include=audit").withAuth(user.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/roadmap/milestones/$id?include=audit").withAuth(user.id!!, Role.reader))
             .andExpect(status().isForbidden)
 
-        mockMvc.perform(get("/api/v1/roadmap/milestones/$id?include=audit").withAuth(admin.id!!, Role.ADMIN))
+        mockMvc.perform(get("/api/v1/roadmap/milestones/$id?include=audit").withAuth(admin.id!!, Role.admin))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.audit").isArray)
             .andExpect(jsonPath("$.audit[0].rowId").value(id.toString()))
@@ -329,7 +329,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `delete and set items serialize with a clean conflict`() {
-        val admin = persistUser("roadmap-delete-set-items-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-delete-set-items-admin@test.com", Role.admin)
         val author = persistUser("roadmap-delete-set-items-author@test.com")
         val feedbackId = createFeedback(author, "Concurrent feedback")
         val milestoneId = createMilestone(admin, "Concurrent delete")
@@ -340,7 +340,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
         try {
             val delete = executor.submit<Int> {
                 start.await()
-                mockMvc.perform(delete("/api/v1/roadmap/milestones/$milestoneId").withAuth(admin.id!!, Role.ADMIN))
+                mockMvc.perform(delete("/api/v1/roadmap/milestones/$milestoneId").withAuth(admin.id!!, Role.admin))
                     .andReturn().response.status
             }
             val setItems = executor.submit<Int> {
@@ -361,14 +361,14 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `admin atomically reorders milestones with matching timestamps`() {
-        val admin = persistUser("roadmap-reorder-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-reorder-admin@test.com", Role.admin)
         val first = createMilestoneResponse(admin, "First", 1)
         val second = createMilestoneResponse(admin, "Second", 2)
         val untouched = createMilestoneResponse(admin, "Untouched", 3)
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/order")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -400,13 +400,13 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `non-admin cannot reorder milestones`() {
-        val admin = persistUser("roadmap-order-owner@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-order-owner@test.com", Role.admin)
         val user = persistUser("roadmap-order-user@test.com")
         val milestone = createMilestoneResponse(admin, "Protected")
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/order")
-                .withAuth(user.id!!, Role.USER)
+                .withAuth(user.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -426,7 +426,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `admin receives conflict when reordering with stale timestamp`() {
-        val admin = persistUser("roadmap-stale-order-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-stale-order-admin@test.com", Role.admin)
         val first = createMilestoneResponse(admin, "First", 1)
         val second = createMilestoneResponse(admin, "Second", 2)
         val staleTimestamp = first.get("updatedAt").asText()
@@ -434,14 +434,14 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/$firstId")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(mapOf("title" to "Updated", "baseUpdatedAt" to staleTimestamp)))
         ).andExpect(status().isOk)
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/order")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -466,7 +466,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `reverse-order concurrent reorders serialize without deadlock`() {
-        val admin = persistUser("roadmap-reorder-lock-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-reorder-lock-admin@test.com", Role.admin)
         val first = createMilestoneResponse(admin, "First", 1)
         val second = createMilestoneResponse(admin, "Second", 2)
         val forwardItems = listOf(
@@ -506,12 +506,12 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `reorder rejects duplicate milestone IDs`() {
-        val admin = persistUser("roadmap-duplicate-id-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-duplicate-id-admin@test.com", Role.admin)
         val milestone = createMilestoneResponse(admin, "Duplicate id")
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/order")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -538,13 +538,13 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `reorder rejects duplicate sort orders`() {
-        val admin = persistUser("roadmap-duplicate-order-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-duplicate-order-admin@test.com", Role.admin)
         val first = createMilestoneResponse(admin, "First")
         val second = createMilestoneResponse(admin, "Second")
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/order")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -571,11 +571,11 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `reorder rejects missing milestone ID`() {
-        val admin = persistUser("roadmap-missing-id-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-missing-id-admin@test.com", Role.admin)
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/order")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -597,12 +597,12 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `reorder rejects missing required timestamp`() {
-        val admin = persistUser("roadmap-missing-order-timestamp-admin@test.com", Role.ADMIN)
+        val admin = persistUser("roadmap-missing-order-timestamp-admin@test.com", Role.admin)
         val milestone = createMilestoneResponse(admin, "Timestamp required")
 
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/order")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -623,7 +623,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
             objectMapper.readTree(
                 mockMvc.perform(
                     post("/api/v1/feedback")
-                        .withAuth(author.id!!, Role.USER)
+                        .withAuth(author.id!!, Role.reader)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                             objectMapper.writeValueAsString(
@@ -641,7 +641,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
         objectMapper.readTree(
             mockMvc.perform(
                 post("/api/v1/roadmap/milestones")
-                    .withAuth(admin.id!!, Role.ADMIN)
+                    .withAuth(admin.id!!, Role.admin)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(CreateRoadmapMilestoneRequest(title, sortOrder = sortOrder)))
             ).andExpect(status().isCreated).andReturn().response.contentAsString
@@ -650,7 +650,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
     private fun reorder(admin: Users, items: List<Map<String, Any>>) =
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/order")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(mapOf("items" to items)))
         )
@@ -658,7 +658,7 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
     private fun mergeFeedback(sourceId: UUID, targetId: UUID, admin: Users) =
         mockMvc.perform(
             post("/api/v1/feedback/$sourceId/merge")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(MergeFeedbackRequest(targetId)))
         )
@@ -666,12 +666,12 @@ class RoadmapControllerTest : ControllerIntegrationTest() {
     private fun setItems(milestoneId: UUID, feedbackIds: List<UUID>, admin: Users) =
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/$milestoneId/items")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(SetRoadmapMilestoneItemsRequest(feedbackIds)))
         )
 
-    private fun persistUser(email: String, role: Role = Role.USER): Users =
+    private fun persistUser(email: String, role: Role = Role.reader): Users =
         usersRepository.save(
             Users(
                 email = email,

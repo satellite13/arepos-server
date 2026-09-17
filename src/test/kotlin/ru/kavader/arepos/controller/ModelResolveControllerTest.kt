@@ -70,7 +70,7 @@ class ModelResolveControllerTest : ControllerIntegrationTest() {
 
     @BeforeEach
     fun setUp() {
-        owner = saveUser(Role.USER)
+        owner = saveUser(Role.reader)
         model = saveModel(owner)
         nodeType = nodeTypesRepository.save(
             NodeTypes(
@@ -210,9 +210,9 @@ class ModelResolveControllerTest : ControllerIntegrationTest() {
     @Test
     fun `allows owner shared viewer and admin but rejects stranger before resolve data`() {
         val node = saveNode(model, "visible")
-        val viewer = saveUser(Role.USER)
-        val admin = saveUser(Role.ADMIN)
-        val stranger = saveUser(Role.USER)
+        val viewer = saveUser(Role.reader)
+        val admin = saveUser(Role.admin)
+        val stranger = saveUser(Role.reader)
         resourceSharesRepository.save(
             ResourceShares(
                 resourceType = ShareResourceType.MODEL,
@@ -225,12 +225,12 @@ class ModelResolveControllerTest : ControllerIntegrationTest() {
         )
         val payload = mapOf("nodeIds" to listOf(node.id))
 
-        listOf(owner to Role.USER, viewer to Role.USER, admin to Role.ADMIN).forEach { (user, role) ->
+        listOf(owner to Role.reader, viewer to Role.reader, admin to Role.admin).forEach { (user, role) ->
             resolve("/api/v1/models/${model.id}/nodes:resolve", payload, user, role)
                 .andExpect(status().isOk)
                 .andExpect(jsonPath("$.nodes[0].id").value(node.id.toString()))
         }
-        resolve("/api/v1/models/${model.id}/nodes:resolve", payload, stranger, Role.USER)
+        resolve("/api/v1/models/${model.id}/nodes:resolve", payload, stranger, Role.reader)
             .andExpect(status().isForbidden)
     }
 

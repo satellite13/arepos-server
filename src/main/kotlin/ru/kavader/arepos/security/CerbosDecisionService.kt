@@ -95,7 +95,7 @@ class CerbosDecisionService(
 
     private fun checkBatchChunk(requests: List<CerbosBatchAccessRequest>): Map<UUID, Boolean> {
         val userId = CurrentUser.getId() ?: throw IllegalStateException("Cerbos check requires authenticated principal")
-        val role = CurrentUser.getRole() ?: "USER"
+        val role = CurrentUser.getRole() ?: "reader"
 
         val requestBody = mapOf(
             "requestId" to UUID.randomUUID().toString(),

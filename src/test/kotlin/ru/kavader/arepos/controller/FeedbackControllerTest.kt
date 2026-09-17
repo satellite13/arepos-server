@@ -52,13 +52,13 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `public feedback list searches title and body with filters and pagination`() {
-        val admin = persistUser("feedback-search-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-search-admin@test.com", Role.admin)
 
         fun create(type: String, title: String, body: String): String =
             objectMapper.readTree(
                 mockMvc.perform(
                     post("/api/v1/feedback")
-                        .withAuth(admin.id!!, Role.ADMIN)
+                        .withAuth(admin.id!!, Role.admin)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(CreateFeedbackRequest(type, title, body)))
                 )
@@ -72,15 +72,15 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
         val plannedDiagramId = create("bug", "Autosave", "DIAGRAM state is lost after refresh")
         create("idea", "Keyboard shortcuts", "Add shortcut customization")
         val voter = persistUser("feedback-search-voter@test.com")
-        mockMvc.perform(post("/api/v1/feedback/$diagramExportId/votes").withAuth(admin.id!!, Role.ADMIN))
+        mockMvc.perform(post("/api/v1/feedback/$diagramExportId/votes").withAuth(admin.id!!, Role.admin))
             .andExpect(status().isOk)
-        mockMvc.perform(post("/api/v1/feedback/$plannedDiagramId/votes").withAuth(admin.id!!, Role.ADMIN))
+        mockMvc.perform(post("/api/v1/feedback/$plannedDiagramId/votes").withAuth(admin.id!!, Role.admin))
             .andExpect(status().isOk)
-        mockMvc.perform(post("/api/v1/feedback/$plannedDiagramId/votes").withAuth(voter.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/feedback/$plannedDiagramId/votes").withAuth(voter.id!!, Role.reader))
             .andExpect(status().isOk)
         mockMvc.perform(
             patch("/api/v1/feedback/$plannedDiagramId")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(UpdateFeedbackRequest(status = "planned")))
         ).andExpect(status().isOk)
@@ -189,7 +189,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
 
         val created = mockMvc.perform(
             post("/api/v1/feedback")
-                .withAuth(user.id!!, Role.USER)
+                .withAuth(user.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(createBody)
         )
@@ -200,18 +200,18 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
 
         val id = objectMapper.readTree(created.response.contentAsString).get("id").asText()
 
-        mockMvc.perform(post("/api/v1/feedback/$id/votes").withAuth(user.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/feedback/$id/votes").withAuth(user.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.voteCount").value(1))
             .andExpect(jsonPath("$.votedByMe").value(true))
 
-        mockMvc.perform(post("/api/v1/feedback/$id/votes").withAuth(user.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/feedback/$id/votes").withAuth(user.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.voteCount").value(1))
 
         mockMvc.perform(
             post("/api/v1/feedback/$id/comments")
-                .withAuth(user.id!!, Role.USER)
+                .withAuth(user.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(CreateFeedbackCommentRequest("Looks good")))
         )
@@ -222,7 +222,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.comments.length()").value(1))
 
-        mockMvc.perform(delete("/api/v1/feedback/$id/votes").withAuth(user.id!!, Role.USER))
+        mockMvc.perform(delete("/api/v1/feedback/$id/votes").withAuth(user.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.voteCount").value(0))
     }
@@ -230,12 +230,12 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `admin can change status non-admin cannot`() {
         val author = persistUser("feedback-author@test.com")
-        val admin = persistUser("feedback-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-admin@test.com", Role.admin)
         val other = persistUser("feedback-other@test.com")
 
         val created = mockMvc.perform(
             post("/api/v1/feedback")
-                .withAuth(author.id!!, Role.USER)
+                .withAuth(author.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -249,14 +249,14 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             patch("/api/v1/feedback/$id")
-                .withAuth(other.id!!, Role.USER)
+                .withAuth(other.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(UpdateFeedbackRequest(status = "planned")))
         ).andExpect(status().isForbidden)
 
         mockMvc.perform(
             patch("/api/v1/feedback/$id")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(UpdateFeedbackRequest(status = "planned")))
         )
@@ -267,12 +267,12 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `admin can change feedback type but author cannot`() {
         val author = persistUser("feedback-type-author@test.com")
-        val admin = persistUser("feedback-type-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-type-admin@test.com", Role.admin)
         val id = createFeedback(author, "Type change")
 
         mockMvc.perform(
             patch("/api/v1/feedback/$id")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(UpdateFeedbackRequest(type = "bug")))
         )
@@ -281,7 +281,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             patch("/api/v1/feedback/$id")
-                .withAuth(author.id!!, Role.USER)
+                .withAuth(author.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(UpdateFeedbackRequest(type = "idea")))
         ).andExpect(status().isForbidden)
@@ -290,13 +290,13 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `admin can merge feedback and feedback detail exposes merge target`() {
         val author = persistUser("feedback-merge-author@test.com")
-        val admin = persistUser("feedback-merge-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-merge-admin@test.com", Role.admin)
 
         fun createFeedback(title: String): String =
             objectMapper.readTree(
                 mockMvc.perform(
                     post("/api/v1/feedback")
-                        .withAuth(author.id!!, Role.USER)
+                        .withAuth(author.id!!, Role.reader)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                             objectMapper.writeValueAsString(
@@ -315,7 +315,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/feedback/$sourceId/merge")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -345,7 +345,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/feedback/$sourceId/merge")
-                .withAuth(otherUser.id!!, Role.USER)
+                .withAuth(otherUser.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(MergeFeedbackRequest(UUID.fromString(targetId))))
         ).andExpect(status().isForbidden)
@@ -356,7 +356,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
         val author = persistUser("feedback-delete-new@test.com")
         val id = createFeedback(author, "Delete me")
 
-        mockMvc.perform(delete("/api/v1/feedback/$id").withAuth(author.id!!, Role.USER))
+        mockMvc.perform(delete("/api/v1/feedback/$id").withAuth(author.id!!, Role.reader))
             .andExpect(status().isNoContent)
 
         mockMvc.perform(get("/api/v1/feedback/$id"))
@@ -366,68 +366,68 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `author cannot delete planned feedback`() {
         val author = persistUser("feedback-delete-planned-author@test.com")
-        val admin = persistUser("feedback-delete-planned-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-delete-planned-admin@test.com", Role.admin)
         val id = createFeedback(author, "Planned feedback")
 
         mockMvc.perform(
             patch("/api/v1/feedback/$id")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(UpdateFeedbackRequest(status = "planned")))
         ).andExpect(status().isOk)
 
-        mockMvc.perform(delete("/api/v1/feedback/$id").withAuth(author.id!!, Role.USER))
+        mockMvc.perform(delete("/api/v1/feedback/$id").withAuth(author.id!!, Role.reader))
             .andExpect(status().isForbidden)
     }
 
     @Test
     fun `admin can delete feedback with any status`() {
         val author = persistUser("feedback-delete-any-author@test.com")
-        val admin = persistUser("feedback-delete-any-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-delete-any-admin@test.com", Role.admin)
         val id = createFeedback(author, "Declined feedback")
 
         mockMvc.perform(
             patch("/api/v1/feedback/$id")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(UpdateFeedbackRequest(status = "declined")))
         ).andExpect(status().isOk)
 
-        mockMvc.perform(delete("/api/v1/feedback/$id").withAuth(admin.id!!, Role.ADMIN))
+        mockMvc.perform(delete("/api/v1/feedback/$id").withAuth(admin.id!!, Role.admin))
             .andExpect(status().isNoContent)
     }
 
     @Test
     fun `admin cannot delete merge target while sources reference it`() {
         val author = persistUser("feedback-delete-target-author@test.com")
-        val admin = persistUser("feedback-delete-target-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-delete-target-admin@test.com", Role.admin)
         val sourceId = createFeedback(author, "Merged source")
         val targetId = createFeedback(author, "Merge target")
 
         mergeFeedback(sourceId, targetId, admin).andExpect(status().isOk)
 
-        mockMvc.perform(delete("/api/v1/feedback/$targetId").withAuth(admin.id!!, Role.ADMIN))
+        mockMvc.perform(delete("/api/v1/feedback/$targetId").withAuth(admin.id!!, Role.admin))
             .andExpect(status().isConflict)
     }
 
     @Test
     fun `merge transfers votes comments and roadmap links without duplicates`() {
         val author = persistUser("feedback-transfer-author@test.com")
-        val admin = persistUser("feedback-transfer-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-transfer-admin@test.com", Role.admin)
         val sharedVoter = persistUser("feedback-transfer-shared@test.com")
         val sourceOnlyVoter = persistUser("feedback-transfer-source@test.com")
         val sourceId = createFeedback(author, "Duplicate")
         val targetId = createFeedback(author, "Canonical")
 
-        mockMvc.perform(post("/api/v1/feedback/$sourceId/votes").withAuth(sharedVoter.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/feedback/$sourceId/votes").withAuth(sharedVoter.id!!, Role.reader))
             .andExpect(status().isOk)
-        mockMvc.perform(post("/api/v1/feedback/$sourceId/votes").withAuth(sourceOnlyVoter.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/feedback/$sourceId/votes").withAuth(sourceOnlyVoter.id!!, Role.reader))
             .andExpect(status().isOk)
-        mockMvc.perform(post("/api/v1/feedback/$targetId/votes").withAuth(sharedVoter.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/feedback/$targetId/votes").withAuth(sharedVoter.id!!, Role.reader))
             .andExpect(status().isOk)
         mockMvc.perform(
             post("/api/v1/feedback/$sourceId/comments")
-                .withAuth(author.id!!, Role.USER)
+                .withAuth(author.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(CreateFeedbackCommentRequest("Source comment")))
         ).andExpect(status().isCreated)
@@ -435,14 +435,14 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
         val milestoneId = objectMapper.readTree(
             mockMvc.perform(
                 post("/api/v1/roadmap/milestones")
-                    .withAuth(admin.id!!, Role.ADMIN)
+                    .withAuth(admin.id!!, Role.admin)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(CreateRoadmapMilestoneRequest("Feedback roadmap")))
             ).andExpect(status().isCreated).andReturn().response.contentAsString
         ).get("id").asText()
         mockMvc.perform(
             put("/api/v1/roadmap/milestones/$milestoneId/items")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -453,7 +453,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/feedback/$sourceId/merge")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(MergeFeedbackRequest(UUID.fromString(targetId))))
         )
@@ -473,27 +473,27 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `merge rejects self merge and already merged feedback`() {
         val author = persistUser("feedback-invalid-merge-author@test.com")
-        val admin = persistUser("feedback-invalid-merge-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-invalid-merge-admin@test.com", Role.admin)
         val sourceId = createFeedback(author, "Source")
         val targetId = createFeedback(author, "Target")
 
         mockMvc.perform(
             post("/api/v1/feedback/$sourceId/merge")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(MergeFeedbackRequest(UUID.fromString(sourceId))))
         ).andExpect(status().isBadRequest)
 
         mockMvc.perform(
             post("/api/v1/feedback/$sourceId/merge")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(MergeFeedbackRequest(UUID.fromString(targetId))))
         ).andExpect(status().isOk)
 
         mockMvc.perform(
             post("/api/v1/feedback/$sourceId/merge")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(MergeFeedbackRequest(UUID.fromString(targetId))))
         ).andExpect(status().isBadRequest)
@@ -502,7 +502,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `merge rejects target that is already merged`() {
         val author = persistUser("feedback-merged-target-author@test.com")
-        val admin = persistUser("feedback-merged-target-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-merged-target-admin@test.com", Role.admin)
         val sourceId = createFeedback(author, "New source")
         val mergedTargetId = createFeedback(author, "Already merged target")
         val canonicalId = createFeedback(author, "Canonical")
@@ -516,16 +516,16 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `concurrent merges keep target vote count accurate`() {
         val author = persistUser("feedback-concurrent-author@test.com")
-        val admin = persistUser("feedback-concurrent-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-concurrent-admin@test.com", Role.admin)
         val firstVoter = persistUser("feedback-concurrent-first-voter@test.com")
         val secondVoter = persistUser("feedback-concurrent-second-voter@test.com")
         val firstSourceId = createFeedback(author, "First duplicate")
         val secondSourceId = createFeedback(author, "Second duplicate")
         val targetId = createFeedback(author, "Canonical")
 
-        mockMvc.perform(post("/api/v1/feedback/$firstSourceId/votes").withAuth(firstVoter.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/feedback/$firstSourceId/votes").withAuth(firstVoter.id!!, Role.reader))
             .andExpect(status().isOk)
-        mockMvc.perform(post("/api/v1/feedback/$secondSourceId/votes").withAuth(secondVoter.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/feedback/$secondSourceId/votes").withAuth(secondVoter.id!!, Role.reader))
             .andExpect(status().isOk)
 
         val executor = Executors.newFixedThreadPool(2)
@@ -555,23 +555,23 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `writers cannot modify feedback after it is merged`() {
         val author = persistUser("feedback-merged-writer-author@test.com")
-        val admin = persistUser("feedback-merged-writer-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-merged-writer-admin@test.com", Role.admin)
         val existingVoter = persistUser("feedback-merged-writer-existing@test.com")
         val newVoter = persistUser("feedback-merged-writer-new@test.com")
         val sourceId = createFeedback(author, "Source")
         val targetId = createFeedback(author, "Target")
-        mockMvc.perform(post("/api/v1/feedback/$sourceId/votes").withAuth(existingVoter.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/feedback/$sourceId/votes").withAuth(existingVoter.id!!, Role.reader))
             .andExpect(status().isOk)
 
         mergeFeedback(sourceId, targetId, admin).andExpect(status().isOk)
 
-        mockMvc.perform(post("/api/v1/feedback/$sourceId/votes").withAuth(newVoter.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/feedback/$sourceId/votes").withAuth(newVoter.id!!, Role.reader))
             .andExpect(status().isConflict)
-        mockMvc.perform(delete("/api/v1/feedback/$sourceId/votes").withAuth(existingVoter.id!!, Role.USER))
+        mockMvc.perform(delete("/api/v1/feedback/$sourceId/votes").withAuth(existingVoter.id!!, Role.reader))
             .andExpect(status().isConflict)
         mockMvc.perform(
             post("/api/v1/feedback/$sourceId/comments")
-                .withAuth(author.id!!, Role.USER)
+                .withAuth(author.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(CreateFeedbackCommentRequest("Late comment")))
         ).andExpect(status().isConflict)
@@ -580,7 +580,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `merge and vote serialize without leaving votes on source`() {
         val author = persistUser("feedback-merge-vote-author@test.com")
-        val admin = persistUser("feedback-merge-vote-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-merge-vote-admin@test.com", Role.admin)
         val voter = persistUser("feedback-merge-vote-voter@test.com")
         val sourceId = createFeedback(author, "Source")
         val targetId = createFeedback(author, "Target")
@@ -594,7 +594,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
             }
             val vote = executor.submit<Int> {
                 start.await()
-                mockMvc.perform(post("/api/v1/feedback/$sourceId/votes").withAuth(voter.id!!, Role.USER))
+                mockMvc.perform(post("/api/v1/feedback/$sourceId/votes").withAuth(voter.id!!, Role.reader))
                     .andReturn().response.status
             }
             start.countDown()
@@ -617,7 +617,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `merge and update serialize without restoring source state after merge`() {
         val author = persistUser("feedback-merge-update-author@test.com")
-        val admin = persistUser("feedback-merge-update-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-merge-update-admin@test.com", Role.admin)
         val sourceId = createFeedback(author, "Source")
         val targetId = createFeedback(author, "Target")
         val start = CountDownLatch(1)
@@ -632,7 +632,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
                 start.await()
                 mockMvc.perform(
                     patch("/api/v1/feedback/$sourceId")
-                        .withAuth(author.id!!, Role.USER)
+                        .withAuth(author.id!!, Role.reader)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(UpdateFeedbackRequest(title = "Late update")))
                 ).andReturn().response.status
@@ -655,7 +655,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `merge and target delete serialize without server error`() {
         val author = persistUser("feedback-merge-delete-author@test.com")
-        val admin = persistUser("feedback-merge-delete-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-merge-delete-admin@test.com", Role.admin)
         val sourceId = createFeedback(author, "Source")
         val targetId = createFeedback(author, "Target")
         val start = CountDownLatch(1)
@@ -669,7 +669,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
             }
             val delete = executor.submit<Int> {
                 start.await()
-                mockMvc.perform(delete("/api/v1/feedback/$targetId").withAuth(admin.id!!, Role.ADMIN))
+                mockMvc.perform(delete("/api/v1/feedback/$targetId").withAuth(admin.id!!, Role.admin))
                     .andReturn().response.status
             }
             start.countDown()
@@ -685,16 +685,16 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     @Test
     fun `feedback audit is visible only to admins`() {
         val author = persistUser("feedback-audit-author@test.com")
-        val admin = persistUser("feedback-audit-admin@test.com", Role.ADMIN)
+        val admin = persistUser("feedback-audit-admin@test.com", Role.admin)
         val id = createFeedback(author, "Audited feedback")
 
         mockMvc.perform(get("/api/v1/feedback/$id?include=audit"))
             .andExpect(status().isUnauthorized)
 
-        mockMvc.perform(get("/api/v1/feedback/$id?include=audit").withAuth(author.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/feedback/$id?include=audit").withAuth(author.id!!, Role.reader))
             .andExpect(status().isForbidden)
 
-        mockMvc.perform(get("/api/v1/feedback/$id?include=audit").withAuth(admin.id!!, Role.ADMIN))
+        mockMvc.perform(get("/api/v1/feedback/$id?include=audit").withAuth(admin.id!!, Role.admin))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.audit").isArray)
             .andExpect(jsonPath("$.audit[0].rowId").value(id))
@@ -706,7 +706,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
         val created = objectMapper.readTree(
             mockMvc.perform(
                 post("/api/v1/feedback")
-                    .withAuth(user.id!!, Role.USER)
+                    .withAuth(user.id!!, Role.reader)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
                         objectMapper.writeValueAsString(
@@ -741,7 +741,7 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
         val created = objectMapper.readTree(
             mockMvc.perform(
                 post("/api/v1/feedback")
-                    .withAuth(user.id!!, Role.USER)
+                    .withAuth(user.id!!, Role.reader)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
                         objectMapper.writeValueAsString(
@@ -787,12 +787,12 @@ class FeedbackControllerTest : ControllerIntegrationTest() {
     private fun mergeFeedback(sourceId: String, targetId: String, admin: Users) =
         mockMvc.perform(
             post("/api/v1/feedback/$sourceId/merge")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(MergeFeedbackRequest(UUID.fromString(targetId))))
         )
 
-    private fun persistUser(email: String, role: Role = Role.USER): Users =
+    private fun persistUser(email: String, role: Role = Role.reader): Users =
         usersRepository.save(
             Users(
                 email = email,

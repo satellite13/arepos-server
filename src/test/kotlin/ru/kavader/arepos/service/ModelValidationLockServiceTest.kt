@@ -43,10 +43,10 @@ class ModelValidationLockServiceTest {
     private val adminId = UUID.randomUUID()
     private val otherId = UUID.randomUUID()
     private val model = Models(id = modelId, name = "m", version = "1.0.0", owner = Users(id = adminId, email = "owner@test.com"), createdAt = Instant.now())
-    private val admin = Users(id = adminId, email = "admin@test.com").apply { role = ru.kavader.arepos.model.Role.ADMIN }
-    private val otherAdmin = Users(id = UUID.randomUUID(), email = "other@test.com").apply { role = ru.kavader.arepos.model.Role.ADMIN }
+    private val admin = Users(id = adminId, email = "admin@test.com").apply { role = ru.kavader.arepos.model.Role.admin }
+    private val otherAdmin = Users(id = UUID.randomUUID(), email = "other@test.com").apply { role = ru.kavader.arepos.model.Role.admin }
 
-    private fun loginAs(userId: UUID, role: String = "ADMIN") {
+    private fun loginAs(userId: UUID, role: String = "admin") {
         SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken(
             userId, null, listOf(SimpleGrantedAuthority("ROLE_$role"))
         )
@@ -103,7 +103,7 @@ class ModelValidationLockServiceTest {
 
     @Test
     fun `acquire is forbidden for non-admins`() {
-        loginAs(adminId, role = "USER")
+        loginAs(adminId, role = "reader")
         `when`(modelsRepository.findById(modelId)).thenReturn(Optional.of(model))
 
         val exception = assertFailsWith<ResponseStatusException> { service.acquire(modelId) }

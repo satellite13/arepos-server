@@ -46,7 +46,7 @@ class AccessSharesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/models/${model.id}")
-                .withAuth(grantee.id!!, Role.USER)
+                .withAuth(grantee.id!!, Role.reader)
         ).andExpect(status().isForbidden)
 
         val request = AccessShareRequest(
@@ -57,7 +57,7 @@ class AccessSharesControllerTest : ControllerIntegrationTest() {
         )
         val shareId = mockMvc.perform(
             post("/api/v1/access/shares")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
@@ -72,7 +72,7 @@ class AccessSharesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/access/shares/MODEL/${model.id}")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items.length()").value(1))
@@ -80,17 +80,17 @@ class AccessSharesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/models/${model.id}")
-                .withAuth(grantee.id!!, Role.USER)
+                .withAuth(grantee.id!!, Role.reader)
         ).andExpect(status().isOk)
 
         mockMvc.perform(
             delete("/api/v1/access/shares/$shareId")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isNoContent)
 
         mockMvc.perform(
             get("/api/v1/models/${model.id}")
-                .withAuth(grantee.id!!, Role.USER)
+                .withAuth(grantee.id!!, Role.reader)
         ).andExpect(status().isForbidden)
     }
 
@@ -109,14 +109,14 @@ class AccessSharesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/access/shares")
-                .withAuth(other.id!!, Role.USER)
+                .withAuth(other.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         ).andExpect(status().isForbidden)
 
         mockMvc.perform(
             get("/api/v1/access/shares/MODEL/${model.id}")
-                .withAuth(other.id!!, Role.USER)
+                .withAuth(other.id!!, Role.reader)
         ).andExpect(status().isForbidden)
     }
 
@@ -124,7 +124,7 @@ class AccessSharesControllerTest : ControllerIntegrationTest() {
         usersRepository.save(
             Users(
                 email = email,
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )

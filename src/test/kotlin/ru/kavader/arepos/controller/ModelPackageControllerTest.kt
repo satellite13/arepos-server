@@ -68,7 +68,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
     @Test
     fun `export returns zip attachment with package entries`() {
         val owner = usersRepository.save(
-            Users(email = "model-package-controller@test.com", role = Role.USER, createdAt = Instant.now())
+            Users(email = "model-package-controller@test.com", role = Role.reader, createdAt = Instant.now())
         )
         val notation = notationsRepository.save(
             Notations(
@@ -126,7 +126,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
 
         val result = mockMvc.perform(
             get("/api/v1/models/${model.id}/package")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(header().string("Content-Disposition", "attachment; filename=\"model-package.zip\""))
@@ -149,10 +149,10 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
     @Test
     fun `export returns 403 when notation is not readable`() {
         val modelOwner = usersRepository.save(
-            Users(email = "model-package-reader@test.com", role = Role.USER, createdAt = Instant.now())
+            Users(email = "model-package-reader@test.com", role = Role.reader, createdAt = Instant.now())
         )
         val notationOwner = usersRepository.save(
-            Users(email = "model-package-foreign-notation@test.com", role = Role.USER, createdAt = Instant.now())
+            Users(email = "model-package-foreign-notation@test.com", role = Role.reader, createdAt = Instant.now())
         )
         val notation = notationsRepository.save(
             Notations(
@@ -209,7 +209,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/models/${model.id}/package")
-                .withAuth(modelOwner.id!!, Role.USER)
+                .withAuth(modelOwner.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }
@@ -217,7 +217,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
     @Test
     fun `import accepts job and succeeds asynchronously`() {
         val owner = usersRepository.save(
-            Users(email = "model-package-import-controller@test.com", role = Role.USER, createdAt = Instant.now())
+            Users(email = "model-package-import-controller@test.com", role = Role.reader, createdAt = Instant.now())
         )
         val notation = notationsRepository.save(
             Notations(
@@ -275,7 +275,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
 
         val exportResult = mockMvc.perform(
             get("/api/v1/models/${model.id}/package")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andReturn()
@@ -295,7 +295,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
         val accepted = mockMvc.perform(
             multipart("/api/v1/models/package")
                 .file(upload)
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isAccepted)
             .andExpect(jsonPath("$.jobId").isNotEmpty)
@@ -311,7 +311,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
         kotlin.test.assertEquals("SUCCEEDED", terminal.status)
         mockMvc.perform(
             get("/api/v1/models/package/jobs/$jobId")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("SUCCEEDED"))
@@ -324,7 +324,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
     @Test
     fun `import job fails with conflict when model name version exists`() {
         val owner = usersRepository.save(
-            Users(email = "model-package-import-conflict@test.com", role = Role.USER, createdAt = Instant.now())
+            Users(email = "model-package-import-conflict@test.com", role = Role.reader, createdAt = Instant.now())
         )
         val notation = notationsRepository.save(
             Notations(
@@ -382,7 +382,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
 
         val exportResult = mockMvc.perform(
             get("/api/v1/models/${model.id}/package")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andReturn()
@@ -400,7 +400,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
         val accepted = mockMvc.perform(
             multipart("/api/v1/models/package")
                 .file(upload)
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isAccepted)
             .andReturn()
@@ -413,7 +413,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
         kotlin.test.assertEquals("FAILED", terminal.status)
         mockMvc.perform(
             get("/api/v1/models/package/jobs/$jobId")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("FAILED"))
@@ -431,7 +431,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
             )
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(retryBody)
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isAccepted)
             .andExpect(jsonPath("$.jobId").value(jobId))
@@ -441,7 +441,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
         kotlin.test.assertEquals("SUCCEEDED", retried.status)
         mockMvc.perform(
             get("/api/v1/models/package/jobs/$jobId")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("SUCCEEDED"))
@@ -452,7 +452,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
     @Test
     fun `import job fails for invalid zip upload`() {
         val owner = usersRepository.save(
-            Users(email = "model-package-import-bad-zip@test.com", role = Role.USER, createdAt = Instant.now())
+            Users(email = "model-package-import-bad-zip@test.com", role = Role.reader, createdAt = Instant.now())
         )
         val upload = MockMultipartFile(
             "file",
@@ -464,7 +464,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
         val accepted = mockMvc.perform(
             multipart("/api/v1/models/package")
                 .file(upload)
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isAccepted)
             .andExpect(jsonPath("$.jobId").isNotEmpty)
@@ -478,7 +478,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
         awaitImportJob(owner.id!!, jobId)
         mockMvc.perform(
             get("/api/v1/models/package/jobs/$jobId")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("FAILED"))
@@ -489,7 +489,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
     @Test
     fun `retry rejects invalid target model version before requeue`() {
         val owner = usersRepository.save(
-            Users(email = "model-package-retry-invalid-semver@test.com", role = Role.USER, createdAt = Instant.now())
+            Users(email = "model-package-retry-invalid-semver@test.com", role = Role.reader, createdAt = Instant.now())
         )
 
         mockMvc.perform(
@@ -498,7 +498,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
             )
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"targetModelVersion":"01.0.0"}""")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
@@ -513,7 +513,7 @@ class ModelPackageControllerTest : ControllerIntegrationTest() {
         while (System.currentTimeMillis() < deadline) {
             val result = mockMvc.perform(
                 get("/api/v1/models/package/jobs/$jobId")
-                    .withAuth(ownerId, Role.USER)
+                    .withAuth(ownerId, Role.reader)
             )
                 .andExpect(status().isOk)
                 .andReturn()

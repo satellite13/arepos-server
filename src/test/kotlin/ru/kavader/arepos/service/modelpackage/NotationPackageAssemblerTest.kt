@@ -37,7 +37,7 @@ class NotationPackageAssemblerTest : RepositoryTestBase() {
         val owner = usersRepository.save(
             Users(
                 email = "notation-assembler@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -84,7 +84,7 @@ class NotationPackageAssemblerTest : RepositoryTestBase() {
         val owner = usersRepository.save(
             Users(
                 email = "notation-export-doc@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -120,7 +120,7 @@ class NotationPackageAssemblerTest : RepositoryTestBase() {
         val owner = usersRepository.save(
             Users(
                 email = "notation-export-icons@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -168,7 +168,7 @@ class NotationPackageAssemblerTest : RepositoryTestBase() {
         val owner = usersRepository.save(
             Users(
                 email = "notation-assembler-rules@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )

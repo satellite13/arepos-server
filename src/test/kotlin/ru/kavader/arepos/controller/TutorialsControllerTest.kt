@@ -39,10 +39,10 @@ class TutorialsControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `admin creates tutorial with youtube embed`() {
-        val admin = persistUser("tutorial-admin@test.com", Role.ADMIN)
+        val admin = persistUser("tutorial-admin@test.com", Role.admin)
         mockMvc.perform(
             post("/api/v1/tutorials")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -65,10 +65,10 @@ class TutorialsControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `admin cannot use disallowed embed host`() {
-        val admin = persistUser("tutorial-bad-host@test.com", Role.ADMIN)
+        val admin = persistUser("tutorial-bad-host@test.com", Role.admin)
         mockMvc.perform(
             post("/api/v1/tutorials")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -88,7 +88,7 @@ class TutorialsControllerTest : ControllerIntegrationTest() {
         val user = persistUser("tutorial-user@test.com")
         mockMvc.perform(
             post("/api/v1/tutorials")
-                .withAuth(user.id!!, Role.USER)
+                .withAuth(user.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -102,6 +102,6 @@ class TutorialsControllerTest : ControllerIntegrationTest() {
         ).andExpect(status().isForbidden)
     }
 
-    private fun persistUser(email: String, role: Role = Role.USER): Users =
+    private fun persistUser(email: String, role: Role = Role.reader): Users =
         usersRepository.save(Users(email = email, role = role, createdAt = Instant.now()))
 }

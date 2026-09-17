@@ -80,7 +80,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `round trip preserves graph wiki links and document refs`() {
         val ownerA = persistUser(email = "package-import-a@test.com")
-        authAs(ownerA.id!!, Role.USER)
+        authAs(ownerA.id!!, Role.reader)
 
         val secondFileId = UUID.randomUUID()
         val firstFileId = UUID.randomUUID()
@@ -173,7 +173,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         modelsRepository.save(model)
 
         val ownerB = persistUser(email = "package-import-b@test.com")
-        authAs(ownerB.id!!, Role.USER)
+        authAs(ownerB.id!!, Role.reader)
 
         val response = importService.importPackage(zipBytes, ownerB)
 
@@ -231,7 +231,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `round trip preserves wiki file version history`() {
         val ownerA = persistUser(email = "package-import-versions-a@test.com")
-        authAs(ownerA.id!!, Role.USER)
+        authAs(ownerA.id!!, Role.reader)
 
         val fileId = UUID.randomUUID()
         val linkedId = UUID.randomUUID()
@@ -266,7 +266,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         modelsRepository.save(model)
 
         val ownerB = persistUser(email = "package-import-versions-b@test.com")
-        authAs(ownerB.id!!, Role.USER)
+        authAs(ownerB.id!!, Role.reader)
 
         val response = importService.importPackage(zipBytes, ownerB)
         val newFileId = response.fileIdMap.getValue(fileId)
@@ -289,7 +289,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import reuses existing compatible notation`() {
         val owner = persistUser(email = "package-import-notation-reuse@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val notation = persistNotation(owner = owner, name = "Reuse Notation", version = "3.0.0")
         val nodeType = persistNodeType(owner = owner, name = "Reuse Type")
@@ -314,7 +314,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import forbids reuse when existing notation is not viewable`() {
         val ownerA = persistUser(email = "package-import-notation-forbidden-a@test.com")
-        authAs(ownerA.id!!, Role.USER)
+        authAs(ownerA.id!!, Role.reader)
 
         val notation = persistNotation(owner = ownerA, name = "Forbidden Notation", version = "1.0.0")
         val nodeType = persistNodeType(owner = ownerA, name = "Forbidden Type")
@@ -329,7 +329,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         modelsRepository.save(model)
 
         val ownerB = persistUser(email = "package-import-notation-forbidden-b@test.com")
-        authAs(ownerB.id!!, Role.USER)
+        authAs(ownerB.id!!, Role.reader)
 
         val ex = assertThrows<PackageImportConflictException> {
             importService.importPackage(zipBytes, ownerB)
@@ -342,7 +342,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import fails when existing notation is incompatible`() {
         val owner = persistUser(email = "package-import-notation-incompatible@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val notation = persistNotation(owner = owner, name = "Incompat Notation", version = "1.0.0")
         val nodeType = persistNodeType(owner = owner, name = "Incompat Type")
@@ -372,7 +372,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import applies model name override when model name version exists`() {
         val owner = persistUser(email = "package-import-model-override@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val notation = persistNotation(owner = owner, name = "Override Model Notation", version = "1.0.0")
         val nodeType = persistNodeType(owner = owner, name = "Override Model Type")
@@ -406,7 +406,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import conflicts on existing model name and version`() {
         val owner = persistUser(email = "package-import-model-conflict@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val notation = persistNotation(owner = owner, name = "Model Conflict Notation", version = "1.0.0")
         val nodeType = persistNodeType(owner = owner, name = "Model Conflict Type")
@@ -436,7 +436,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import rejects unsupported manifest format`() {
         val owner = persistUser(email = "package-import-bad-format@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val zipBytes = buildZip(
             mapOf(
@@ -455,7 +455,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import maps folder Directory type omitted from notation package`() {
         val ownerA = persistUser(email = "package-import-folder-a@test.com")
-        authAs(ownerA.id!!, Role.USER)
+        authAs(ownerA.id!!, Role.reader)
 
         val directoryType = persistNodeType(
             owner = ownerA,
@@ -507,7 +507,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         modelsRepository.save(model)
 
         val ownerB = persistUser(email = "package-import-folder-b@test.com")
-        authAs(ownerB.id!!, Role.USER)
+        authAs(ownerB.id!!, Role.reader)
 
         // Shared Testcontainers DB across Spring contexts can miss the liquibase seed; ensure it exists.
         val systemOwner = usersRepository.findByEmailIgnoreCase(SystemRootNodeTypeService.SYSTEM_OWNER_EMAIL)
@@ -532,7 +532,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import rejects unsupported manifest version`() {
         val owner = persistUser(email = "package-import-bad-version@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val zipBytes = buildZip(
             mapOf(
@@ -551,7 +551,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import rejects invalid model version before persistence`() {
         val owner = persistUser(email = "package-import-invalid-model-semver@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
         val beforeModels = modelsRepository.count()
 
         val ex = assertThrows<ResponseStatusException> {
@@ -574,7 +574,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import rejects invalid diagram prerelease version before persistence`() {
         val owner = persistUser(email = "package-import-invalid-diagram-semver@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
         val notationId = UUID.randomUUID()
         val beforeModels = modelsRepository.count()
         val beforeNotations = notationsRepository.count()
@@ -608,7 +608,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import rejects invalid notation version before persistence`() {
         val owner = persistUser(email = "package-import-invalid-notation-semver@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
         val notationId = UUID.randomUUID()
         val beforeNotations = notationsRepository.count()
 
@@ -636,7 +636,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import rejects empty zip`() {
         val owner = persistUser(email = "package-import-empty-zip@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val ex = assertThrows<ResponseStatusException> {
             importService.importPackage(ByteArray(0), owner)
@@ -648,7 +648,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import rejects invalid zip bytes`() {
         val owner = persistUser(email = "package-import-invalid-zip@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val ex = assertThrows<ResponseStatusException> {
             importService.importPackage(
@@ -666,7 +666,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import rejects package exceeding diagram count limit`() {
         val owner = persistUser(email = "package-import-diagram-limit@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val notationId = UUID.randomUUID()
         val zipBytes = buildZip(
@@ -689,7 +689,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
     @Test
     fun `import rejects package exceeding notation count limit`() {
         val owner = persistUser(email = "package-import-notation-limit@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val entries = linkedMapOf(
             "manifest.json" to manifestBytes(),
@@ -840,7 +840,7 @@ class ModelPackageImportServiceTest : RepositoryTestBase() {
         @Bean
         fun fileStorageService(filesRepository: FilesRepository): FileStorageService {
             val mock = org.mockito.Mockito.mock(FileStorageService::class.java)
-            val dummyOwner = Users(email = "file-storage-mock@test.com", role = Role.USER)
+            val dummyOwner = Users(email = "file-storage-mock@test.com", role = Role.reader)
 
             doAnswer { invocation ->
                 val id = invocation.getArgument<UUID>(0)

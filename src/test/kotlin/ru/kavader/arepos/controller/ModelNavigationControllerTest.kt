@@ -59,7 +59,7 @@ class ModelNavigationControllerTest : ControllerIntegrationTest() {
 
     @BeforeEach
     fun setUp() {
-        owner = saveUser(Role.USER)
+        owner = saveUser(Role.reader)
         model = saveModel(owner)
         nodeType = nodeTypesRepository.save(
             NodeTypes(
@@ -165,7 +165,7 @@ class ModelNavigationControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isNotFound)
         mockMvc.perform(
             get("/api/v1/models/${model.id}/nodes/not-a-uuid/ancestors")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isBadRequest)
     }
@@ -182,9 +182,9 @@ class ModelNavigationControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `checks model ACL before traversing corrupt data`() {
-        val viewer = saveUser(Role.USER)
-        val admin = saveUser(Role.ADMIN)
-        val stranger = saveUser(Role.USER)
+        val viewer = saveUser(Role.reader)
+        val admin = saveUser(Role.admin)
+        val stranger = saveUser(Role.reader)
         resourceSharesRepository.save(
             ResourceShares(
                 resourceType = ShareResourceType.MODEL,
@@ -198,7 +198,7 @@ class ModelNavigationControllerTest : ControllerIntegrationTest() {
         val root = saveNode("root")
         val target = saveNode("target", parent = root)
 
-        listOf(owner to Role.USER, viewer to Role.USER, admin to Role.ADMIN).forEach { (user, role) ->
+        listOf(owner to Role.reader, viewer to Role.reader, admin to Role.admin).forEach { (user, role) ->
             ancestors(model.id!!, target.id!!, user, role)
                 .andExpect(status().isOk)
                 .andExpect(jsonPath("$[0].id").value(root.id.toString()))

@@ -85,7 +85,7 @@ class ModelTraceabilityControllerTest : ControllerIntegrationTest() {
 
     @BeforeEach
     fun setUp() {
-        owner = saveUser(Role.USER)
+        owner = saveUser(Role.reader)
         model = saveModel(owner)
         nodeType = saveNodeType(owner)
         primaryLinkType = saveLinkType(owner, "primary")
@@ -178,9 +178,9 @@ class ModelTraceabilityControllerTest : ControllerIntegrationTest() {
         val peer = saveNode(model, "peer")
         saveLink(model, center, peer, primaryLinkType)
         saveDiagram(model, "visible", attrsFor(center.id!!))
-        val viewer = saveUser(Role.USER)
-        val admin = saveUser(Role.ADMIN)
-        val stranger = saveUser(Role.USER)
+        val viewer = saveUser(Role.reader)
+        val admin = saveUser(Role.admin)
+        val stranger = saveUser(Role.reader)
         resourceSharesRepository.save(
             ResourceShares(
                 resourceType = ShareResourceType.MODEL,
@@ -192,7 +192,7 @@ class ModelTraceabilityControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        listOf(owner to Role.USER, viewer to Role.USER, admin to Role.ADMIN).forEach { (user, role) ->
+        listOf(owner to Role.reader, viewer to Role.reader, admin to Role.admin).forEach { (user, role) ->
             graph(center.id!!, user = user, role = role)
                 .andExpect(status().isOk)
                 .andExpect(jsonPath("$.page.totalElements").value(1))
@@ -272,7 +272,7 @@ class ModelTraceabilityControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             get("/api/v1/models/${model.id}/diagram-references")
                 .param("linkId", link.id.toString())
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isOk)
             .andExpect(jsonPath("$.content[0].id").value(diagram.id.toString()))
 
@@ -280,18 +280,18 @@ class ModelTraceabilityControllerTest : ControllerIntegrationTest() {
             get("/api/v1/models/${model.id}/diagram-references")
                 .param("nodeId", source.id.toString())
                 .param("linkId", link.id.toString())
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isBadRequest)
 
         mockMvc.perform(
             get("/api/v1/models/${model.id}/diagram-references")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isBadRequest)
 
         mockMvc.perform(
             get("/api/v1/models/${model.id}/diagram-references")
                 .param("linkId", foreignLink.id.toString())
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isNotFound)
     }
 

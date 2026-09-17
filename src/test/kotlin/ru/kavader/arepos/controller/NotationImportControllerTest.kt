@@ -79,7 +79,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
 
         val notationId = mockMvc.perform(
             post("/api/v1/notations/import")
-                .withAuth(caller.id!!, Role.USER)
+                .withAuth(caller.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
@@ -124,7 +124,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/notations/import")
-                .withAuth(caller.id!!, Role.USER)
+                .withAuth(caller.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
@@ -172,7 +172,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
 
         val response = mockMvc.perform(
             post("/api/v1/notations/import")
-                .withAuth(caller.id!!, Role.USER)
+                .withAuth(caller.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
@@ -221,7 +221,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
 
         val response = mockMvc.perform(
             post("/api/v1/notations/import")
-                .withAuth(caller.id!!, Role.USER)
+                .withAuth(caller.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
@@ -277,7 +277,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
 
         val response = mockMvc.perform(
             post("/api/v1/notations/import")
-                .withAuth(caller.id!!, Role.USER)
+                .withAuth(caller.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
@@ -316,7 +316,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
 
         val response = mockMvc.perform(
             post("/api/v1/notations/import")
-                .withAuth(caller.id!!, Role.USER)
+                .withAuth(caller.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
@@ -357,7 +357,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/notations/import")
-                .withAuth(caller.id!!, Role.USER)
+                .withAuth(caller.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(doc))
         )
@@ -387,7 +387,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/notations/import")
-                .withAuth(caller.id!!, Role.USER)
+                .withAuth(caller.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(doc))
         ).andExpect(status().isConflict)
@@ -402,7 +402,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/notations/import")
-                .withAuth(caller.id!!, Role.USER)
+                .withAuth(caller.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -421,7 +421,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
         )
         mockMvc.perform(
             post("/api/v1/notations/import")
-                .withAuth(caller.id!!, Role.USER)
+                .withAuth(caller.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(doc))
         ).andExpect(status().isBadRequest)
@@ -431,7 +431,7 @@ class NotationImportControllerTest : ControllerIntegrationTest() {
         usersRepository.save(
             Users(
                 email = email,
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )

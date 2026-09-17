@@ -73,7 +73,7 @@ class AuthController(
                     middleName = request.middleName,
                     position = request.position
                 ),
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now,
                 updatedAt = now
             )
@@ -169,7 +169,7 @@ class AuthController(
                     middleName = request.middleName,
                     position = request.position
                 ),
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = now,
                 updatedAt = now
             )

@@ -39,7 +39,7 @@ class OefNormalizeControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             multipart("/api/v1/models/${model.id}/oef/normalize")
                 .file(upload)
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.model.id").value("id-model-1"))
@@ -58,7 +58,7 @@ class OefNormalizeControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             multipart("/api/v1/models/${model.id}/oef/normalize")
                 .file(fixtureUpload())
-                .withAuth(other.id!!, Role.USER)
+                .withAuth(other.id!!, Role.reader)
         ).andExpect(status().isForbidden)
     }
 
@@ -76,7 +76,7 @@ class OefNormalizeControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             multipart("/api/v1/models/${model.id}/oef/normalize")
                 .file(upload)
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isBadRequest)
     }
 
@@ -86,7 +86,7 @@ class OefNormalizeControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             multipart("/api/v1/models/00000000-0000-0000-0000-000000000001/oef/normalize")
                 .file(fixtureUpload())
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isNotFound)
     }
 
@@ -94,7 +94,7 @@ class OefNormalizeControllerTest : ControllerIntegrationTest() {
         usersRepository.save(
             Users(
                 email = email,
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now(),
             )
         )

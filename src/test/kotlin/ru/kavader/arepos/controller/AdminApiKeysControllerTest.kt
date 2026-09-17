@@ -47,7 +47,7 @@ class AdminApiKeysControllerTest : ControllerIntegrationTest() {
 
     @BeforeEach
     fun setupCerbosMock() {
-        doAnswer { CurrentUser.getRole() == "ADMIN" }
+        doAnswer { CurrentUser.getRole() == "admin" }
             .`when`(accessService)
             .canViewAdminPanel()
     }
@@ -74,7 +74,7 @@ class AdminApiKeysControllerTest : ControllerIntegrationTest() {
     private fun createKeyForUser(userId: UUID): CreateApiKeyResponse {
         val result = mockMvc.perform(
             post("/api/v1/api-keys")
-                .withAuth(userId, Role.USER)
+                .withAuth(userId, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -100,14 +100,14 @@ class AdminApiKeysControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             Users(
                 email = "admin-apikeys-admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
 
         mockMvc.perform(
             get("/api/v1/admin/users/$targetUserId/api-keys")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items.length()").value(1))
@@ -116,7 +116,7 @@ class AdminApiKeysControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             delete("/api/v1/admin/users/$targetUserId/api-keys/${created.apiKey.id}")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
         ).andExpect(status().isNoContent)
 
         mockMvc.perform(
@@ -134,19 +134,19 @@ class AdminApiKeysControllerTest : ControllerIntegrationTest() {
         val regularUser = usersRepository.save(
             Users(
                 email = "admin-apikeys-forbidden-user@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
 
         mockMvc.perform(
             get("/api/v1/admin/users/$targetUserId/api-keys")
-                .withAuth(regularUser.id!!, Role.USER)
+                .withAuth(regularUser.id!!, Role.reader)
         ).andExpect(status().isForbidden)
 
         mockMvc.perform(
             delete("/api/v1/admin/users/$targetUserId/api-keys/${created.apiKey.id}")
-                .withAuth(regularUser.id!!, Role.USER)
+                .withAuth(regularUser.id!!, Role.reader)
         ).andExpect(status().isForbidden)
     }
 }

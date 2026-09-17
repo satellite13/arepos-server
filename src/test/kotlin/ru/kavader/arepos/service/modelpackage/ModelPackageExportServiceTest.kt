@@ -58,7 +58,7 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
     @Test
     fun `export zip contains manifest model notations and files`() {
         val owner = persistUser(email = "package-export-owner@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val notation = persistNotation(owner = owner, name = "Pkg Notation", version = "1.0.0")
         val nodeType = persistNodeType(owner = owner, name = "Pkg Node Type")
@@ -157,7 +157,7 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
     @Test
     fun `export zip includes all wiki file versions`() {
         val owner = persistUser(email = "package-export-versions@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val notation = persistNotation(owner = owner, name = "Versions Notation", version = "1.0.0")
         val nodeType = persistNodeType(owner = owner, name = "Versions Node Type")
@@ -199,7 +199,7 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
     @Test
     fun `export returns 400 when node type is not covered by diagram notations`() {
         val owner = persistUser(email = "package-export-orphan@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val notation = persistNotation(owner = owner, name = "Covered Notation", version = "1.0.0")
         val coveredType = persistNodeType(owner = owner, name = "Covered Type")
@@ -222,7 +222,7 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
     @Test
     fun `export omits nodes that remain only on deleted diagrams`() {
         val owner = persistUser(email = "package-export-deleted-diagram-node@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val uml = persistNotation(owner = owner, name = "UML-export-orphan", version = "1.0.0")
         val actorType = persistNodeType(owner = owner, name = "Business Actor")
@@ -269,7 +269,7 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
     @Test
     fun `export ignores legacy Directory system type outside notations`() {
         val owner = persistUser(email = "package-export-legacy-directory@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val notation = persistNotation(owner = owner, name = "Dir Notation", version = "1.0.0")
         val coveredType = persistNodeType(owner = owner, name = "Dir Covered Type")
@@ -294,7 +294,7 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
     fun `export returns 403 when notation is not readable`() {
         val modelOwner = persistUser(email = "package-export-model-owner@test.com")
         val notationOwner = persistUser(email = "package-export-notation-owner@test.com")
-        authAs(modelOwner.id!!, Role.USER)
+        authAs(modelOwner.id!!, Role.reader)
 
         val notation = persistNotation(owner = notationOwner, name = "Foreign Notation", version = "1.0.0")
         val nodeType = persistNodeType(owner = notationOwner, name = "Foreign Type")
@@ -315,7 +315,7 @@ class ModelPackageExportServiceTest : RepositoryTestBase() {
     @Test
     fun `export returns 500 when referenced file blob is missing`() {
         val owner = persistUser(email = "package-export-missing-blob@test.com")
-        authAs(owner.id!!, Role.USER)
+        authAs(owner.id!!, Role.reader)
 
         val fileId = UUID.randomUUID()
         val file = filesRepository.save(

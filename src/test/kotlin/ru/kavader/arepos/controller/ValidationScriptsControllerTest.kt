@@ -51,14 +51,14 @@ class ValidationScriptsControllerTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             Users(
                 email = "validation-script-owner-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         outsider = usersRepository.save(
             Users(
                 email = "validation-script-outsider-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -87,7 +87,7 @@ class ValidationScriptsControllerTest : ControllerIntegrationTest() {
     fun `denies get for non-owner without share`() {
         mockMvc.perform(
             get("/api/v1/validation-scripts/${ownerScript.id}")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }
@@ -96,7 +96,7 @@ class ValidationScriptsControllerTest : ControllerIntegrationTest() {
     fun `allows get for owner`() {
         mockMvc.perform(
             get("/api/v1/validation-scripts/${ownerScript.id}")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.id").value(ownerScript.id.toString()))
@@ -117,7 +117,7 @@ class ValidationScriptsControllerTest : ControllerIntegrationTest() {
         )
         mockMvc.perform(
             get("/api/v1/validation-scripts/${ownerScript.id}")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.id").value(ownerScript.id.toString()))
@@ -127,7 +127,7 @@ class ValidationScriptsControllerTest : ControllerIntegrationTest() {
     fun `list returns only visible scripts`() {
         mockMvc.perform(
             get("/api/v1/validation-scripts?page=0&size=10")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
         )
             .andExpect(status().isOk)
@@ -139,7 +139,7 @@ class ValidationScriptsControllerTest : ControllerIntegrationTest() {
     fun `create rejects blank source`() {
         mockMvc.perform(
             post("/api/v1/validation-scripts")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"name":"blank-source","source":"   "}""")
         )
@@ -150,7 +150,7 @@ class ValidationScriptsControllerTest : ControllerIntegrationTest() {
     fun `create and update and delete for owner`() {
         val createResult = mockMvc.perform(
             post("/api/v1/validation-scripts")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -169,7 +169,7 @@ class ValidationScriptsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/validation-scripts/$id")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"source":"report.warn('b')"}""")
         )
@@ -178,13 +178,13 @@ class ValidationScriptsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             delete("/api/v1/validation-scripts/$id")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isNoContent)
 
         mockMvc.perform(
             get("/api/v1/validation-scripts/$id")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isNotFound)
     }

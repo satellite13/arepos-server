@@ -299,11 +299,11 @@ class DiagramCopyControllerTest : ControllerIntegrationTest() {
         val fixture = fixture()
         val sourceNode = fixture.node(fixture.sourceModel, "Source")
         val sourceDiagram = fixture.diagramWithNodes(sourceNode)
-        val other = usersRepository.save(Users(email = "other-${UUID.randomUUID()}@test.com", role = Role.USER, createdAt = Instant.now()))
+        val other = usersRepository.save(Users(email = "other-${UUID.randomUUID()}@test.com", role = Role.reader, createdAt = Instant.now()))
 
         mockMvc.perform(
             post("/api/v1/models/${fixture.targetModel.id}/diagram-copies/preview")
-                .withAuth(other.id!!, Role.USER)
+                .withAuth(other.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(fixture.previewRequest(sourceDiagram)))
         ).andExpect(status().isForbidden)
@@ -375,7 +375,7 @@ class DiagramCopyControllerTest : ControllerIntegrationTest() {
 
     private fun fixture(): CopyFixture {
         val now = Instant.now()
-        val owner = usersRepository.save(Users(email = "copy-${UUID.randomUUID()}@test.com", role = Role.ADMIN, createdAt = now))
+        val owner = usersRepository.save(Users(email = "copy-${UUID.randomUUID()}@test.com", role = Role.admin, createdAt = now))
         val nodeType = nodeTypesRepository.save(NodeTypes(name = "node-${UUID.randomUUID()}", owner = owner, createdAt = now))
         val linkType = linkTypesRepository.save(LinkTypes(name = "link-${UUID.randomUUID()}", owner = owner, createdAt = now))
         val sourceModel = modelsRepository.save(Models(name = "source-${UUID.randomUUID()}", version = "1.0.0", owner = owner, createdAt = now))

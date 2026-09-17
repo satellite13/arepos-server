@@ -99,7 +99,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
 
     @BeforeEach
     fun setUp() {
-        owner = saveUser(Role.USER)
+        owner = saveUser(Role.reader)
         model = saveModel(owner)
         directoryType = saveNodeType(owner, "Directory")
         applicationComponentType = saveNodeType(owner, "Application Component")
@@ -116,7 +116,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
         saveNode(model, " crm ", applicationComponentType, parent = apps)
         saveNode(model, "Other", applicationComponentType, parent = apps)
 
-        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.duplicateNodes.length()").value(1))
             .andExpect(jsonPath("$.duplicateNodesTotal").value(1))
@@ -132,7 +132,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
         saveLink(model, source, target, servingType)
         saveLink(model, target, source, servingType)
 
-        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.duplicateLinks.length()").value(1))
             .andExpect(jsonPath("$.duplicateLinksTotal").value(1))
@@ -141,8 +141,8 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `forbidden viewer gets 403`() {
-        val viewer = saveUser(Role.USER)
-        val stranger = saveUser(Role.USER)
+        val viewer = saveUser(Role.reader)
+        val stranger = saveUser(Role.reader)
         resourceSharesRepository.save(
             ResourceShares(
                 resourceType = ShareResourceType.MODEL,
@@ -154,11 +154,11 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.reader))
             .andExpect(status().isOk)
-        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(viewer.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(viewer.id!!, Role.reader))
             .andExpect(status().isOk)
-        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(stranger.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(stranger.id!!, Role.reader))
             .andExpect(status().isForbidden)
     }
 
@@ -187,7 +187,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
             get("/api/v1/models/${model.id}/validation/merge-nodes-preview")
                 .param("keepId", keep.id.toString())
                 .param("dropId", drop.id.toString())
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isOk)
             .andExpect(jsonPath("$.keepTypeProperties.owner").value("a"))
             .andExpect(jsonPath("$.dropTypeProperties.owner").value("b"))
@@ -212,14 +212,14 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
             get("/api/v1/models/${model.id}/validation/merge-nodes-preview")
                 .param("keepId", keep.id.toString())
                 .param("dropId", keep.id.toString())
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isBadRequest)
 
         mockMvc.perform(
             get("/api/v1/models/${model.id}/validation/merge-nodes-preview")
                 .param("keepId", keep.id.toString())
                 .param("dropId", other.id.toString())
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isBadRequest)
 
         val source = saveNode(model, "A", applicationComponentType)
@@ -230,7 +230,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
             get("/api/v1/models/${model.id}/validation/merge-links-preview")
                 .param("keepId", link.id.toString())
                 .param("dropId", link.id.toString())
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isBadRequest)
     }
 
@@ -259,7 +259,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
             get("/api/v1/models/${model.id}/validation/merge-links-preview")
                 .param("keepId", keep.id.toString())
                 .param("dropId", drop.id.toString())
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         ).andExpect(status().isOk)
             .andExpect(jsonPath("$.keepTypeProperties.owner").value("a"))
             .andExpect(jsonPath("$.dropTypeProperties.owner").value("b"))
@@ -451,7 +451,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
             "locked",
             """{"instances":{"nodes":[{"id":"i1","modelNodeId":"${drop.id}"}]}}"""
         )
-        val other = saveUser(Role.USER)
+        val other = saveUser(Role.reader)
         val now = Instant.now()
         diagramEditLocksRepository.save(
             DiagramEditLocks(
@@ -566,7 +566,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
         val keep = saveLink(model, source, target, servingType)
         val drop = saveLink(model, source, target, servingType)
         val diagram = saveDiagram(model, "locked", attrsForLink(keep.id!!))
-        val other = saveUser(Role.USER)
+        val other = saveUser(Role.reader)
         val now = Instant.now()
         diagramEditLocksRepository.save(
             DiagramEditLocks(
@@ -589,7 +589,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
         val target = saveNode(model, "B", applicationComponentType)
         val keep = saveLink(model, source, target, servingType)
         val drop = saveLink(model, source, target, servingType)
-        val viewer = saveUser(Role.USER)
+        val viewer = saveUser(Role.reader)
         resourceSharesRepository.save(
             ResourceShares(
                 resourceType = ShareResourceType.MODEL,
@@ -603,7 +603,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/models/${model.id}/validation/merge-links")
-                .withAuth(viewer.id!!, Role.USER)
+                .withAuth(viewer.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mergeLinksBody(keep, drop))
         ).andExpect(status().isForbidden)
@@ -613,7 +613,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
     fun `merge is forbidden for view-only share`() {
         val keep = saveNode(model, "CRM", applicationComponentType)
         val drop = saveNode(model, "CRM", applicationComponentType)
-        val viewer = saveUser(Role.USER)
+        val viewer = saveUser(Role.reader)
         resourceSharesRepository.save(
             ResourceShares(
                 resourceType = ShareResourceType.MODEL,
@@ -627,7 +627,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/models/${model.id}/validation/merge-nodes")
-                .withAuth(viewer.id!!, Role.USER)
+                .withAuth(viewer.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mergeNodesBody(keep, drop))
         ).andExpect(status().isForbidden)
@@ -642,7 +642,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
         dropUpdatedAt: Instant = drop.updatedAt ?: drop.createdAt!!
     ) = mockMvc.perform(
         post("/api/v1/models/${model.id}/validation/merge-nodes")
-            .withAuth(owner.id!!, Role.USER)
+            .withAuth(owner.id!!, Role.reader)
             .contentType(MediaType.APPLICATION_JSON)
             .content(mergeNodesBody(keep, drop, typeProperties, transferLinkIds, keepUpdatedAt, dropUpdatedAt))
     )
@@ -655,7 +655,7 @@ class ModelValidationControllerTest : ControllerIntegrationTest() {
         dropUpdatedAt: Instant = drop.updatedAt ?: drop.createdAt!!
     ) = mockMvc.perform(
         post("/api/v1/models/${model.id}/validation/merge-links")
-            .withAuth(owner.id!!, Role.USER)
+            .withAuth(owner.id!!, Role.reader)
             .contentType(MediaType.APPLICATION_JSON)
             .content(mergeLinksBody(keep, drop, typeProperties, keepUpdatedAt, dropUpdatedAt))
     )

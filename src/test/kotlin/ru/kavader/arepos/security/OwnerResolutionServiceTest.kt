@@ -30,7 +30,7 @@ class OwnerResolutionServiceTest {
 
     private fun service(): OwnerResolutionService = OwnerResolutionService(usersRepository, accessService)
 
-    private fun authAs(userId: UUID, role: Role = Role.USER) {
+    private fun authAs(userId: UUID, role: Role = Role.reader) {
         val auth = UsernamePasswordAuthenticationToken(
             userId,
             "n/a",
@@ -48,7 +48,7 @@ class OwnerResolutionServiceTest {
     fun `resolveOwnerForCreate uses requested owner for admin`() {
         val currentUserId = UUID.randomUUID()
         val requestedOwnerId = UUID.randomUUID()
-        authAs(currentUserId, Role.ADMIN)
+        authAs(currentUserId, Role.admin)
 
         val requestedOwner = Users(id = requestedOwnerId, email = "owner@test.com", createdAt = Instant.now())
         `when`(accessService.canViewAdminPanel()).thenReturn(true)
@@ -64,7 +64,7 @@ class OwnerResolutionServiceTest {
     fun `resolveOwnerForCreate ignores requested owner for non-admin`() {
         val currentUserId = UUID.randomUUID()
         val requestedOwnerId = UUID.randomUUID()
-        authAs(currentUserId, Role.USER)
+        authAs(currentUserId, Role.reader)
 
         val currentUser = Users(id = currentUserId, email = "self@test.com", createdAt = Instant.now())
         `when`(accessService.canViewAdminPanel()).thenReturn(false)
@@ -81,7 +81,7 @@ class OwnerResolutionServiceTest {
     fun `resolveOwnerForUpdate reassigns owner only for admin`() {
         val currentUserId = UUID.randomUUID()
         val requestedOwnerId = UUID.randomUUID()
-        authAs(currentUserId, Role.ADMIN)
+        authAs(currentUserId, Role.admin)
 
         val currentOwner = Users(id = UUID.randomUUID(), email = "old@test.com", createdAt = Instant.now())
         val requestedOwner = Users(id = requestedOwnerId, email = "new@test.com", createdAt = Instant.now())
@@ -97,7 +97,7 @@ class OwnerResolutionServiceTest {
     fun `resolveReadableOwner returns null when non-admin has shared access to foreign owner`() {
         val currentUserId = UUID.randomUUID()
         val foreignOwnerId = UUID.randomUUID()
-        authAs(currentUserId, Role.USER)
+        authAs(currentUserId, Role.reader)
         `when`(accessService.canViewAdminPanel()).thenReturn(false)
 
         val resolved = service().resolveReadableOwner(foreignOwnerId) { ownerId, userId ->
@@ -111,7 +111,7 @@ class OwnerResolutionServiceTest {
     fun `resolveReadableOwner throws forbidden when non-admin has no shared access`() {
         val currentUserId = UUID.randomUUID()
         val foreignOwnerId = UUID.randomUUID()
-        authAs(currentUserId, Role.USER)
+        authAs(currentUserId, Role.reader)
         `when`(accessService.canViewAdminPanel()).thenReturn(false)
 
         val ex = assertThrows<ResponseStatusException> {
@@ -124,7 +124,7 @@ class OwnerResolutionServiceTest {
     @Test
     fun `resolveReadableOwner returns current user for non-admin without owner filter`() {
         val currentUserId = UUID.randomUUID()
-        authAs(currentUserId, Role.USER)
+        authAs(currentUserId, Role.reader)
         `when`(accessService.canViewAdminPanel()).thenReturn(false)
         val currentUser = Users(id = currentUserId, email = "self@test.com", createdAt = Instant.now())
         `when`(usersRepository.findById(currentUserId)).thenReturn(Optional.of(currentUser))

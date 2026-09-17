@@ -57,7 +57,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-limit-owner@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -100,7 +100,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -173,7 +173,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner2@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -241,7 +241,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner-retry@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -305,7 +305,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner3@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -374,7 +374,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner4@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -437,7 +437,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-incident-owner@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -546,7 +546,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner-topo@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -682,7 +682,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner-move-under-new@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -759,7 +759,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner-cleanup@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -873,7 +873,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner-move-diagram@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -962,7 +962,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner-diagram-dup@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -1032,7 +1032,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner-diagram-deleted-dup@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -1099,7 +1099,7 @@ class ModelBatchSaveControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "batch-owner-diagram-replace@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )

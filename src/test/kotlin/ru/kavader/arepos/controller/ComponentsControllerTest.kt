@@ -53,7 +53,7 @@ class ComponentsControllerTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "component-owner-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )

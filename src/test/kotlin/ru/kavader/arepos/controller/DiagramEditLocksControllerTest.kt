@@ -72,7 +72,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "lock-owner-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -154,7 +154,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         val other = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "lock-other-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -171,7 +171,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(other.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(other.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.isLocked").value(true))
             .andExpect(jsonPath("$.reason").value("LOCKED_BY_OTHER"))
@@ -188,7 +188,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         val other = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "lock-other2-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -208,7 +208,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/release").withAuth(s.ownerId))
             .andExpect(status().isNoContent)
 
-        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(other.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/acquire").withAuth(other.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.lockedByUserId").value(other.id.toString()))
     }
@@ -246,7 +246,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "lock-admin-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -270,12 +270,12 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         val user = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "lock-regular-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
 
-        mockMvc.perform(post("/api/v1/diagram-locks/${UUID.randomUUID()}/force-release").withAuth(user.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/diagram-locks/${UUID.randomUUID()}/force-release").withAuth(user.id!!, Role.reader))
             .andExpect(status().isForbidden)
             .andExpect(jsonPath("$.message").value(ADMIN_ONLY))
     }
@@ -380,7 +380,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         val other = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "lock-heartbeat-other-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -397,7 +397,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/heartbeat").withAuth(other.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/heartbeat").withAuth(other.id!!, Role.reader))
             .andExpect(status().isForbidden)
             .andExpect(jsonPath("$.message").value(DIAGRAM_LOCK_HELD_BY_ANOTHER_USER))
     }
@@ -411,7 +411,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         val other = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "lock-release-other-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -428,7 +428,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/release").withAuth(other.id!!, Role.USER))
+        mockMvc.perform(post("/api/v1/diagram-locks/${s.diagramId}/release").withAuth(other.id!!, Role.reader))
             .andExpect(status().isForbidden)
             .andExpect(jsonPath("$.message").value(DIAGRAM_LOCK_HELD_BY_ANOTHER_USER))
     }
@@ -439,7 +439,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         val other = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "lock-list-user-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -456,7 +456,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
             )
         )
 
-        mockMvc.perform(get("/api/v1/diagram-locks").withAuth(other.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/diagram-locks").withAuth(other.id!!, Role.reader))
             .andExpect(status().isBadRequest)
     }
 
@@ -469,7 +469,7 @@ class DiagramEditLocksControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "lock-list-admin-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )

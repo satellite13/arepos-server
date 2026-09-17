@@ -35,14 +35,14 @@ class LibraryIconsControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `user can list and cannot create`() {
-        val user = persist("lib-icons-user@test.com", Role.USER)
-        mockMvc.perform(get("/api/v1/library-icons").withAuth(user.id!!, Role.USER))
+        val user = persist("lib-icons-user@test.com", Role.reader)
+        mockMvc.perform(get("/api/v1/library-icons").withAuth(user.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$").isArray)
 
         mockMvc.perform(
             post("/api/v1/library-icons")
-                .withAuth(user.id!!, Role.USER)
+                .withAuth(user.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(mapOf("name" to "acme-app", "svg" to sampleSvg)))
         )
@@ -51,21 +51,21 @@ class LibraryIconsControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `admin creates lists exports and overwrites via bundle`() {
-        val admin = persist("lib-icons-admin@test.com", Role.ADMIN)
+        val admin = persist("lib-icons-admin@test.com", Role.admin)
         mockMvc.perform(
             post("/api/v1/library-icons")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(mapOf("name" to "Acme App", "svg" to sampleSvg)))
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.name").value("acme-app"))
 
-        mockMvc.perform(get("/api/v1/library-icons").withAuth(admin.id!!, Role.ADMIN))
+        mockMvc.perform(get("/api/v1/library-icons").withAuth(admin.id!!, Role.admin))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$[0].name").value("acme-app"))
 
-        mockMvc.perform(get("/api/v1/library-icons/bundle").withAuth(admin.id!!, Role.ADMIN))
+        mockMvc.perform(get("/api/v1/library-icons/bundle").withAuth(admin.id!!, Role.admin))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.format").value("warchi-icon-bundle"))
             .andExpect(jsonPath("$.icons[0].name").value("acme-app"))
@@ -74,7 +74,7 @@ class LibraryIconsControllerTest : ControllerIntegrationTest() {
             """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg>"""
         mockMvc.perform(
             post("/api/v1/library-icons/bundle")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -93,10 +93,10 @@ class LibraryIconsControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `admin can delete icon`() {
-        val admin = persist("lib-icons-delete@test.com", Role.ADMIN)
+        val admin = persist("lib-icons-delete@test.com", Role.admin)
         val body = mockMvc.perform(
             post("/api/v1/library-icons")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(mapOf("name" to "to-delete", "svg" to sampleSvg)))
         )
@@ -106,7 +106,7 @@ class LibraryIconsControllerTest : ControllerIntegrationTest() {
             .contentAsString
         val id = objectMapper.readTree(body).path("id").asText()
 
-        mockMvc.perform(delete("/api/v1/library-icons/$id").withAuth(admin.id!!, Role.ADMIN))
+        mockMvc.perform(delete("/api/v1/library-icons/$id").withAuth(admin.id!!, Role.admin))
             .andExpect(status().isNoContent)
     }
 

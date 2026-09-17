@@ -53,7 +53,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-link-type@test.com",
-                role = Role.EDITOR,
+                role = Role.editor,
                 createdAt = Instant.now()
             )
         )
@@ -66,7 +66,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/link-types")
-                .withAuth(owner.id!!, Role.EDITOR)
+                .withAuth(owner.id!!, Role.editor)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -83,7 +83,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-list-link-type-$timestamp@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -116,14 +116,14 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
         val userA = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "link-type-a@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val userB = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "link-type-b@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -144,7 +144,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/link-types?page=0&size=10")
-                .withAuth(userA.id!!, Role.USER)
+                .withAuth(userA.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(1))
@@ -156,7 +156,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "user-create-link-type@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -168,7 +168,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/link-types")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -182,14 +182,14 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
         val userA = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "user-a-link-type-create@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val userB = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "user-b-link-type-create@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -201,7 +201,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/link-types")
-                .withAuth(userA.id!!, Role.USER)
+                .withAuth(userA.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -215,21 +215,21 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
         val notationOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "link-notation-owner@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val modelOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "link-model-owner@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val editor = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "link-model-editor@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
@@ -294,7 +294,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/link-types?notationId=${notation.id}&modelId=${model.id}&page=0&size=10")
-                .withAuth(editor.id!!, Role.USER)
+                .withAuth(editor.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(1))
@@ -307,21 +307,21 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
         val notationOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "link-notation-owner-unrelated@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val modelOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "link-model-owner-unrelated@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val editor = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "link-model-editor-unrelated@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
@@ -375,7 +375,7 @@ class LinkTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/link-types?notationId=${notation.id}&modelId=${model.id}&page=0&size=10")
-                .withAuth(editor.id!!, Role.USER)
+                .withAuth(editor.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(0))

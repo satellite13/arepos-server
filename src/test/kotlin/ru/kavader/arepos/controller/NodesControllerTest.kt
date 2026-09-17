@@ -66,7 +66,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-owner-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -279,21 +279,21 @@ class NodesControllerTest : ControllerIntegrationTest() {
         val viewer = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "viewer-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val stranger = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "stranger-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -311,12 +311,12 @@ class NodesControllerTest : ControllerIntegrationTest() {
         val first = saveNode("First", nodeType, parent, """{"treeOrder":1}""")
         val second = saveNode("Second", nodeType, parent, """{"treeOrder":2}""")
         val expectedIds = listOf(first.id.toString(), second.id.toString())
-        val ownerIds = lazyTreeIds(owner.id!!, Role.USER, model.id!!, parent.id!!)
-        val sharedIds = lazyTreeIds(viewer.id!!, Role.USER, model.id!!, parent.id!!)
-        val adminIds = lazyTreeIds(admin.id!!, Role.ADMIN, model.id!!, parent.id!!)
+        val ownerIds = lazyTreeIds(owner.id!!, Role.reader, model.id!!, parent.id!!)
+        val sharedIds = lazyTreeIds(viewer.id!!, Role.reader, model.id!!, parent.id!!)
+        val adminIds = lazyTreeIds(admin.id!!, Role.admin, model.id!!, parent.id!!)
         val mcpToken = jwtTokenProvider.generateMcpAccessToken(
             owner.id!!,
-            Role.USER.name,
+            Role.reader.name,
             ApiKeyModes.GRANTS,
             null,
             listOf(ApiKeyGrantDto(model.id!!, listOf(ApiKeyScopes.MODELS_READ)))
@@ -339,7 +339,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/nodes?modelId=${model.id}&parentId=${parent.id}")
-                .withAuth(stranger.id!!, Role.USER)
+                .withAuth(stranger.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }
@@ -476,14 +476,14 @@ class NodesControllerTest : ControllerIntegrationTest() {
         val actor = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-user-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val foreignOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-foreign-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -512,7 +512,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
 
         val mvcResult = mockMvc.perform(
             post("/api/v1/nodes")
-                .withAuth(actor.id!!, Role.USER)
+                .withAuth(actor.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -530,14 +530,14 @@ class NodesControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-admin-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
         val newOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-new-owner-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -577,7 +577,7 @@ class NodesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/nodes/${node.id}")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )

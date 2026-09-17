@@ -39,7 +39,7 @@ class RelationRulesPerformanceTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "perf-owner-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -75,7 +75,7 @@ class RelationRulesPerformanceTest : ControllerIntegrationTest() {
                     .param("page", "0")
                     .param("size", "5000")
                     .param("includeAttrs", includeAttrs.toString())
-                    .withAuth(ownerId, Role.USER)
+                    .withAuth(ownerId, Role.reader)
             ).andExpect(status().isOk)
         }
 
@@ -89,7 +89,7 @@ class RelationRulesPerformanceTest : ControllerIntegrationTest() {
                     .param("page", "0")
                     .param("size", "5000")
                     .param("includeAttrs", includeAttrs.toString())
-                    .withAuth(ownerId, Role.USER)
+                    .withAuth(ownerId, Role.reader)
             )
                 .andExpect(status().isOk)
                 .andReturn()

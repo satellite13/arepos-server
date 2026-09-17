@@ -53,7 +53,7 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             Users(
                 email = "ensure-owner-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -95,7 +95,7 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
 
         val first = mockMvc.perform(
             post("/api/v1/nodes/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)
         )
@@ -110,7 +110,7 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/nodes/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)
         )
@@ -148,7 +148,7 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
 
         val first = mockMvc.perform(
             post("/api/v1/nodes/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(bodyUnderA)
         )
@@ -161,7 +161,7 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
 
         val second = mockMvc.perform(
             post("/api/v1/nodes/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(bodyUnderB)
         )
@@ -176,7 +176,7 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/nodes/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(bodyUnderA)
         )
@@ -191,7 +191,7 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
         val missingParentId = UUID.randomUUID()
         mockMvc.perform(
             post("/api/v1/nodes/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -217,7 +217,7 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/nodes/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -253,7 +253,7 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
 
         val first = mockMvc.perform(
             post("/api/v1/diagrams/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)
         )
@@ -272,7 +272,7 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/diagrams/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)
         )
@@ -312,7 +312,7 @@ class McpEnsureNodeDiagramControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/diagrams/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """

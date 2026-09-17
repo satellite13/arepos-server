@@ -58,7 +58,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-diagram@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -126,7 +126,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-crud-diagram@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -212,7 +212,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-existing@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -256,7 +256,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-model-missing@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -292,7 +292,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-notation-missing@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -328,7 +328,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-dup@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -379,21 +379,21 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val notationOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "diagram-notation-owner@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val modelOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "diagram-model-owner@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val editor = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "diagram-model-editor@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
@@ -436,7 +436,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/diagrams")
-                .withAuth(editor.id!!, Role.USER)
+                .withAuth(editor.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -449,14 +449,14 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "share-owner-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
         val other = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "share-other-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -500,7 +500,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
                 .contentAsString
         ).path("token").asText()
 
-        mockMvc.perform(delete("/api/v1/diagrams/share-link/$token").withAuth(other.id!!, Role.USER))
+        mockMvc.perform(delete("/api/v1/diagrams/share-link/$token").withAuth(other.id!!, Role.reader))
             .andExpect(status().isForbidden)
             .andExpect(jsonPath("$.message").value("Cannot revoke this share link"))
     }
@@ -510,7 +510,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-list-diagram@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -603,7 +603,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-non-latest-update@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -666,7 +666,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-baseline-latest@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -748,7 +748,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "share-latest-owner-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -817,7 +817,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-diagram-availability@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -899,7 +899,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "share-latest-id-owner-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -1004,7 +1004,7 @@ class DiagramsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "share-latest-rename-owner-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )

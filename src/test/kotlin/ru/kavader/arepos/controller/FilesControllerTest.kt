@@ -91,7 +91,7 @@ class FilesControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             multipart("/api/v1/files/upload")
                 .file(upload)
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.id").value(saved.id.toString()))
@@ -100,7 +100,7 @@ class FilesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/files/${saved.id}")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_MARKDOWN))
@@ -116,7 +116,7 @@ class FilesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/files/${saved.id}")
-                .withAuth(other.id!!, Role.USER)
+                .withAuth(other.id!!, Role.reader)
         ).andExpect(status().isForbidden)
     }
 
@@ -149,14 +149,14 @@ class FilesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/files/${markdown.id}/markdown")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"filename":"audit.md","content":"# Updated"}""")
         ).andExpect(status().isForbidden)
 
         mockMvc.perform(
             put("/api/v1/files/${markdown.id}/markdown")
-                .withAuth(modelOwner.id!!, Role.USER)
+                .withAuth(modelOwner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"filename":"audit.md","content":"# Updated"}""")
         )
@@ -191,7 +191,7 @@ class FilesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/files/${markdown.id}/markdown")
-                .withAuth(editor.id!!, Role.USER)
+                .withAuth(editor.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"filename":"audit.md","content":"# Updated"}""")
         ).andExpect(status().isForbidden)
@@ -245,7 +245,7 @@ class FilesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/files/${markdown.id}/markdown")
-                .withAuth(editor.id!!, Role.USER)
+                .withAuth(editor.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"filename":"audit.md","content":"# Updated"}""")
         )
@@ -257,7 +257,7 @@ class FilesControllerTest : ControllerIntegrationTest() {
         usersRepository.save(
             Users(
                 email = email,
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )

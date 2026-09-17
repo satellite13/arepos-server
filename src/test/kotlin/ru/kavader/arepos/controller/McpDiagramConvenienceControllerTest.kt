@@ -68,7 +68,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             Users(
                 email = "conv-owner-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -130,7 +130,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
     fun `creates node by componentName and writes notationComponents`() {
         mockMvc.perform(
             post("/api/v1/nodes")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -165,7 +165,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/nodes")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -190,7 +190,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/links")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -226,7 +226,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
 
         val first = mockMvc.perform(
             post("/api/v1/links/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)
         )
@@ -238,7 +238,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/links/ensure")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)
         )
@@ -280,7 +280,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/diagrams/${diagram.id}/instances:merge")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -306,7 +306,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
         // update geometry for existing instance
         mockMvc.perform(
             post("/api/v1/diagrams/${diagram.id}/instances:merge")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -349,7 +349,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/diagrams/${diagram.id}/instances:merge")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -394,7 +394,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/diagrams/${diagram.id}/instances:merge")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -413,7 +413,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
             get("/api/v1/search/notations/${notation.id}")
                 .param("q", "serv")
                 .param("kinds", "relations")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.hits.length()").value(1))
@@ -426,7 +426,7 @@ class McpDiagramConvenienceControllerTest : ControllerIntegrationTest() {
             get("/api/v1/search/notations/${notation.id}")
                 .param("q", "application")
                 .param("kinds", "components")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.hits[0].kind").value("component"))

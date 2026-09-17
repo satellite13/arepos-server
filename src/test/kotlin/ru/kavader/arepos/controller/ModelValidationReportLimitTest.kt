@@ -62,7 +62,7 @@ class ModelValidationReportLimitTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             Users(
                 email = "validation-limit-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -91,7 +91,7 @@ class ModelValidationReportLimitTest : ControllerIntegrationTest() {
             saveLink(source, target)
         }
 
-        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.duplicateLinks.length()").value(2))
             .andExpect(jsonPath("$.duplicateLinksTotal").value(3))
@@ -104,7 +104,7 @@ class ModelValidationReportLimitTest : ControllerIntegrationTest() {
             saveNode("CRM-$index")
         }
 
-        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/models/${model.id}/validation-report").withAuth(owner.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.duplicateNodes.length()").value(2))
             .andExpect(jsonPath("$.duplicateNodesTotal").value(3))

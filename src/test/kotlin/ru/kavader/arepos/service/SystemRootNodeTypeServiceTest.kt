@@ -49,7 +49,7 @@ class SystemRootNodeTypeServiceTest : RepositoryTestBase() {
             ?: usersRepository.save(
                 Users(
                     email = SystemRootNodeTypeService.SYSTEM_OWNER_EMAIL,
-                    role = Role.USER,
+                    role = Role.reader,
                     isActive = false,
                     createdAt = Instant.now(),
                     attrs = """{"system":true}"""

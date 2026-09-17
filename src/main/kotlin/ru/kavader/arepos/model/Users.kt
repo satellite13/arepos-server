@@ -10,7 +10,7 @@ import java.time.Instant
 import java.util.*
 
 enum class Role {
-    USER, EDITOR, ADMIN
+    admin, architect, editor, reader, viewer
 }
 
 @Entity
@@ -36,7 +36,7 @@ class Users(
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
-    var role: Role = Role.USER,
+    var role: Role = Role.reader,
 
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true,

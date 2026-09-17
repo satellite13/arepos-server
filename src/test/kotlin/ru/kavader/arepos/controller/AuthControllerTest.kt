@@ -53,7 +53,7 @@ class AuthControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.accessToken").isNotEmpty)
             .andExpect(jsonPath("$.refreshToken").isNotEmpty)
             .andExpect(jsonPath("$.user.email").value("newuser@test.com"))
-            .andExpect(jsonPath("$.user.role").value("USER"))
+            .andExpect(jsonPath("$.user.role").value("reader"))
             .andExpect(jsonPath("$.user.firstName").value("Иван"))
             .andExpect(jsonPath("$.user.lastName").value("Иванов"))
             .andExpect(jsonPath("$.user.position").value("Архитектор"))
@@ -204,7 +204,7 @@ class AuthControllerTest : ControllerIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.email").value("me@test.com"))
-            .andExpect(jsonPath("$.role").value("USER"))
+            .andExpect(jsonPath("$.role").value("reader"))
             .andExpect(jsonPath("$.firstName").value("Иван"))
             .andExpect(jsonPath("$.lastName").value("Иванов"))
     }

@@ -50,7 +50,7 @@ class DocumentsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/documents")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
@@ -67,7 +67,7 @@ class DocumentsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/documents")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         ).andExpect(status().isBadRequest)
@@ -83,7 +83,7 @@ class DocumentsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/documents")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         ).andExpect(status().isForbidden)
@@ -99,7 +99,7 @@ class DocumentsControllerTest : ControllerIntegrationTest() {
         mockMvc.perform(
             get("/api/v1/documents")
                 .param("modelId", model.id.toString())
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.length()").value(1))
@@ -116,7 +116,7 @@ class DocumentsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/documents")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.length()").value(1))
@@ -131,7 +131,7 @@ class DocumentsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/documents")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         ).andExpect(status().isOk)
@@ -141,7 +141,7 @@ class DocumentsControllerTest : ControllerIntegrationTest() {
         usersRepository.save(
             Users(
                 email = email,
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )

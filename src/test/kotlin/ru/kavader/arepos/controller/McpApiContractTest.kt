@@ -68,7 +68,7 @@ class McpApiContractTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             Users(
                 email = "mcp-contract-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -101,7 +101,7 @@ class McpApiContractTest : ControllerIntegrationTest() {
         setUpOwnerModel()
 
         mockMvc.perform(
-            get("/api/v1/models").withAuth(owner.id!!, Role.USER)
+            get("/api/v1/models").withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items").isArray)
@@ -131,7 +131,7 @@ class McpApiContractTest : ControllerIntegrationTest() {
         )
 
         mockMvc.perform(
-            get("/api/v1/diagrams").param("modelId", model.id.toString()).withAuth(owner.id!!, Role.USER)
+            get("/api/v1/diagrams").param("modelId", model.id.toString()).withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content").isArray)
@@ -140,14 +140,14 @@ class McpApiContractTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.page.size").isNumber)
 
         mockMvc.perform(
-            get("/api/v1/nodes").param("modelId", model.id.toString()).withAuth(owner.id!!, Role.USER)
+            get("/api/v1/nodes").param("modelId", model.id.toString()).withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content[0].id").value(node.id.toString()))
             .andExpect(jsonPath("$.page.totalElements").value(1))
 
         mockMvc.perform(
-            get("/api/v1/links").param("modelId", model.id.toString()).withAuth(owner.id!!, Role.USER)
+            get("/api/v1/links").param("modelId", model.id.toString()).withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content[0].id").value(link.id.toString()))
@@ -159,7 +159,7 @@ class McpApiContractTest : ControllerIntegrationTest() {
         setUpOwnerModel()
 
         mockMvc.perform(
-            get("/api/v1/models/${UUID.randomUUID()}").withAuth(owner.id!!, Role.USER)
+            get("/api/v1/models/${UUID.randomUUID()}").withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isNotFound)
             .andExpect(jsonPath("$.error").value("NOT_FOUND"))
@@ -202,7 +202,7 @@ class McpApiContractTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/models/${model.id}/batch-save")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -245,7 +245,7 @@ class McpApiContractTest : ControllerIntegrationTest() {
         mockMvc.perform(
             get("/api/v1/search/catalog")
                 .param("q", "mcp-contract-")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.hits.length()").value(1))
@@ -271,7 +271,7 @@ class McpApiContractTest : ControllerIntegrationTest() {
     private fun createApiKey(userId: UUID, grants: List<ApiKeyGrantDto>): CreateApiKeyResponse {
         val result = mockMvc.perform(
             post("/api/v1/api-keys")
-                .withAuth(userId, Role.USER)
+                .withAuth(userId, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(

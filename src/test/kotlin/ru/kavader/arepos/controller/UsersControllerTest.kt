@@ -48,7 +48,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
     @BeforeEach
     fun setupAuthzStubs() {
-        doAnswer { CurrentUser.getRole() == "ADMIN" }
+        doAnswer { CurrentUser.getRole() == "admin" }
             .`when`(accessService)
             .canManageUsers()
     }
@@ -58,7 +58,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -86,7 +86,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -117,7 +117,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -148,7 +148,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -181,7 +181,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -213,7 +213,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -276,7 +276,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
             ru.kavader.arepos.model.Users(
                 email = "root-admin@test.com",
                 oidcSub = "60250007",
-                role = ru.kavader.arepos.model.Role.ADMIN,
+                role = ru.kavader.arepos.model.Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -312,7 +312,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -337,7 +337,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -361,7 +361,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -400,7 +400,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -433,7 +433,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val requester = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "requester@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -447,7 +447,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/users/${target.id}/public")
-                .withAuth(requester.id!!, Role.USER)
+                .withAuth(requester.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.email").value("public@test.com"))
@@ -461,21 +461,21 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val requester = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "requester@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val adminTarget = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "hidden-admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
 
         mockMvc.perform(
             get("/api/v1/users/${adminTarget.id}/public")
-                .withAuth(requester.id!!, Role.USER)
+                .withAuth(requester.id!!, Role.reader)
         )
             .andExpect(status().isNotFound)
     }
@@ -485,21 +485,21 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val requester = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "requester-batch@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val regularUser = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "regular-batch@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val adminUser = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin-batch@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -510,7 +510,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/users/public/batch")
-                .withAuth(requester.id!!, Role.USER)
+                .withAuth(requester.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -525,7 +525,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
             ru.kavader.arepos.model.Users(
                 email = "self@test.com",
                 attrs = """{"firstName":"Старое","lastName":"Имя","position":"Стажер"}""",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -539,7 +539,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/users/me/profile")
-                .withAuth(user.id!!, Role.USER)
+                .withAuth(user.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -555,7 +555,7 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -580,14 +580,14 @@ class UsersControllerTest : ControllerIntegrationTest() {
         val user = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "user@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
 
         mockMvc.perform(
             get("/api/v1/users?page=0&size=10")
-                .withAuth(user.id!!, Role.USER)
+                .withAuth(user.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }

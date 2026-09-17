@@ -93,7 +93,7 @@ class ModelValidationLockService(
         lockedAt == null || Duration.between(lockedAt, Instant.now()) > ttl
 
     private fun requireAdmin() {
-        if (!CurrentUser.getRole().equals("ADMIN", ignoreCase = true)) {
+        if (!CurrentUser.getRole().equals("admin", ignoreCase = true)) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "ADMIN role required")
         }
     }

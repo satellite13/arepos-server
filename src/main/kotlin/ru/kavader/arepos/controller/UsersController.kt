@@ -119,7 +119,7 @@ class UsersController(
         if (request.ids.isEmpty()) return emptyList<UserPublicResponse>().toListResponse()
         val ids = request.ids.distinct().take(100)
         return usersRepository.findAllById(ids)
-            .filter { it.role != Role.ADMIN }
+            .filter { it.role != Role.admin }
             .map { userMapper.toPublicResponse(it) }
             .toListResponse()
     }
@@ -150,7 +150,7 @@ class UsersController(
             Users(
                 email = request.email,
                 attrs = request.attrs,
-                role = request.role ?: Role.USER,
+                role = request.role ?: Role.reader,
                 createdAt = now,
                 updatedAt = now
             )
@@ -236,7 +236,7 @@ class UsersController(
 
 
     private fun requirePublicUserVisible(user: Users) {
-        if (user.role == Role.ADMIN) {
+        if (user.role == Role.admin) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "User ${user.id} not found")
         }
     }

@@ -89,7 +89,7 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
         val mode = if (grants != null) ApiKeyModes.GRANTS else ApiKeyModes.ALL
         val result = mockMvc.perform(
             post("/api/v1/api-keys")
-                .withAuth(userId, Role.USER)
+                .withAuth(userId, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -137,7 +137,7 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
         val userId = registerAndGetUserId("apikey-owner@test.com")
         val created = createKey(userId, listOf("models:read", "models:write"))
 
-        mockMvc.perform(get("/api/v1/api-keys").withAuth(userId, Role.USER))
+        mockMvc.perform(get("/api/v1/api-keys").withAuth(userId, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items.length()").value(1))
             .andExpect(jsonPath("$.items[0].name").value("mcp-key"))
@@ -145,14 +145,14 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             patch("/api/v1/api-keys/${created.apiKey.id}")
-                .withAuth(userId, Role.USER)
+                .withAuth(userId, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(UpdateApiKeyRequest(name = "renamed")))
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.name").value("renamed"))
 
-        mockMvc.perform(delete("/api/v1/api-keys/${created.apiKey.id}").withAuth(userId, Role.USER))
+        mockMvc.perform(delete("/api/v1/api-keys/${created.apiKey.id}").withAuth(userId, Role.reader))
             .andExpect(status().isNoContent)
 
         mockMvc.perform(
@@ -441,7 +441,7 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
 
         val result = mockMvc.perform(
             post("/api/v1/api-keys")
-                .withAuth(userId, Role.USER)
+                .withAuth(userId, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -486,7 +486,7 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/api-keys")
-                .withAuth(userId, Role.USER)
+                .withAuth(userId, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -515,7 +515,7 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/api-keys")
-                .withAuth(userId, Role.USER)
+                .withAuth(userId, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -538,7 +538,7 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/api-keys")
-                .withAuth(userId, Role.USER)
+                .withAuth(userId, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -569,7 +569,7 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             patch("/api/v1/api-keys/${created.apiKey.id}")
-                .withAuth(userId, Role.USER)
+                .withAuth(userId, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(UpdateApiKeyRequest(name = "renamed-grants-key")))
         )
@@ -580,7 +580,7 @@ class ApiKeysControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.grants[0].modelId").value(model.id.toString()))
             .andExpect(jsonPath("$.grants[0].scopes[0]").value("models:read"))
 
-        mockMvc.perform(get("/api/v1/api-keys").withAuth(userId, Role.USER))
+        mockMvc.perform(get("/api/v1/api-keys").withAuth(userId, Role.reader))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items[0].name").value("renamed-grants-key"))
             .andExpect(jsonPath("$.items[0].mode").value(ApiKeyModes.GRANTS))

@@ -39,7 +39,7 @@ class NodesControllerPageableOverrideTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             Users(
                 email = "node-pageable-owner-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )

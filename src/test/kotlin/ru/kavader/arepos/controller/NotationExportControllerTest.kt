@@ -49,7 +49,7 @@ class NotationExportControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "notation-export-owner@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -83,7 +83,7 @@ class NotationExportControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/notations/${notation.id}/export")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(header().string("Content-Disposition", "attachment; filename=\"notation-export.json\""))
@@ -101,14 +101,14 @@ class NotationExportControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "notation-export-missing@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
 
         mockMvc.perform(
             get("/api/v1/notations/11111111-1111-1111-1111-111111111111/export")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isNotFound)
     }
@@ -118,14 +118,14 @@ class NotationExportControllerTest : ControllerIntegrationTest() {
         val userA = usersRepository.save(
             Users(
                 email = "notation-export-reader-a@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val userB = usersRepository.save(
             Users(
                 email = "notation-export-reader-b@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -141,7 +141,7 @@ class NotationExportControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/notations/${foreignNotation.id}/export")
-                .withAuth(userA.id!!, Role.USER)
+                .withAuth(userA.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }

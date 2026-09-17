@@ -63,7 +63,7 @@ class DownloadsControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `admin uploads notation export and user downloads it`() {
-        val admin = persistUser("downloads-admin@test.com", Role.ADMIN)
+        val admin = persistUser("downloads-admin@test.com", Role.admin)
         val user = persistUser("downloads-user@test.com")
         val payload = """{"format":"warchi-notation-export","version":1}""".toByteArray()
         val stored = filesRepository.save(
@@ -95,7 +95,7 @@ class DownloadsControllerTest : ControllerIntegrationTest() {
                 .param("description", "Sample notation")
                 .param("kind", "notation_export")
                 .param("versionLabel", "1.0.0")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
         )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.title").value("ArchiMate starter"))
@@ -108,7 +108,7 @@ class DownloadsControllerTest : ControllerIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.length()").value(1))
 
-        mockMvc.perform(get("/api/v1/downloads/$id/file").withAuth(user.id!!, Role.USER))
+        mockMvc.perform(get("/api/v1/downloads/$id/file").withAuth(user.id!!, Role.reader))
             .andExpect(status().isOk)
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(content().bytes(payload))
@@ -116,7 +116,7 @@ class DownloadsControllerTest : ControllerIntegrationTest() {
 
     @Test
     fun `notation_export without format is rejected`() {
-        val admin = persistUser("downloads-bad-json@test.com", Role.ADMIN)
+        val admin = persistUser("downloads-bad-json@test.com", Role.admin)
         val upload = MockMultipartFile(
             "file",
             "bad.json",
@@ -128,11 +128,11 @@ class DownloadsControllerTest : ControllerIntegrationTest() {
                 .file(upload)
                 .param("title", "Bad")
                 .param("kind", "notation_export")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
         ).andExpect(status().isBadRequest)
     }
 
-    private fun persistUser(email: String, role: Role = Role.USER): Users =
+    private fun persistUser(email: String, role: Role = Role.reader): Users =
         usersRepository.save(Users(email = email, role = role, createdAt = Instant.now()))
 
     @TestConfiguration(proxyBeanMethods = false)

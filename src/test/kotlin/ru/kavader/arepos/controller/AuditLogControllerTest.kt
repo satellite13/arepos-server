@@ -40,7 +40,7 @@ class AuditLogControllerTest : ControllerIntegrationTest() {
 
     @BeforeEach
     fun setupCerbosMock() {
-        doAnswer { CurrentUser.getRole() == "ADMIN" }
+        doAnswer { CurrentUser.getRole() == "admin" }
             .`when`(accessService)
             .canViewAdminPanel()
     }
@@ -50,7 +50,7 @@ class AuditLogControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )

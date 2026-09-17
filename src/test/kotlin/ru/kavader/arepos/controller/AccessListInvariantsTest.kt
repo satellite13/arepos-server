@@ -82,7 +82,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
 
         val response = mockMvc.perform(
             get("/api/v1/models?page=0&size=10")
-                .withAuth(sharedUser.id!!, Role.USER)
+                .withAuth(sharedUser.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andReturn()
@@ -129,7 +129,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/notations?ownerId=${owner.id}&page=0&size=10")
-                .withAuth(viewer.id!!, Role.USER)
+                .withAuth(viewer.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect { result ->
@@ -205,7 +205,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
 
         val response = mockMvc.perform(
             get("/api/v1/components?page=0&size=10")
-                .withAuth(editor.id!!, Role.USER)
+                .withAuth(editor.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andReturn()
@@ -268,7 +268,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/diagrams?modelId=${model.id}&page=0&size=20")
-                .withAuth(viewer.id!!, Role.USER)
+                .withAuth(viewer.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect { result ->
@@ -349,7 +349,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
         )
 
         mockMvc.perform(
-            get("/api/v1/node-types/${nodeType.id}").withAuth(viewer.id!!, Role.USER)
+            get("/api/v1/node-types/${nodeType.id}").withAuth(viewer.id!!, Role.reader)
         )
             .andExpect(status().isOk)
     }
@@ -425,7 +425,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
         )
 
         mockMvc.perform(
-            get("/api/v1/link-types/${linkType.id}").withAuth(viewer.id!!, Role.USER)
+            get("/api/v1/link-types/${linkType.id}").withAuth(viewer.id!!, Role.reader)
         )
             .andExpect(status().isOk)
     }
@@ -491,7 +491,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
         mockMvc.perform(
             get(
                 "/api/v1/components?notationId=${notation.id}&modelId=${model.id}&page=0&size=50"
-            ).withAuth(editor.id!!, Role.USER)
+            ).withAuth(editor.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect { result ->
@@ -503,7 +503,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
         mockMvc.perform(
             get(
                 "/api/v1/node-types?modelId=${model.id}&notationId=${notation.id}&page=0&size=50"
-            ).withAuth(editor.id!!, Role.USER)
+            ).withAuth(editor.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect { result ->
@@ -512,7 +512,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
             }
 
         mockMvc.perform(
-            get("/api/v1/notations/${notation.id}?modelId=${model.id}").withAuth(editor.id!!, Role.USER)
+            get("/api/v1/notations/${notation.id}?modelId=${model.id}").withAuth(editor.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }
@@ -543,7 +543,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
 
         val response = mockMvc.perform(
             get("/api/v1/link-types?name=Shared&page=0&size=10")
-                .withAuth(viewer.id!!, Role.USER)
+                .withAuth(viewer.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andReturn()
@@ -560,7 +560,7 @@ class AccessListInvariantsTest : ControllerIntegrationTest() {
         usersRepository.save(
             Users(
                 email = "$prefix-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now(),
                 updatedAt = Instant.now()
             )

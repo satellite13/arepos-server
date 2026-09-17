@@ -59,7 +59,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-node-type@test.com",
-                role = Role.EDITOR,
+                role = Role.editor,
                 createdAt = Instant.now()
             )
         )
@@ -72,7 +72,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/node-types")
-                .withAuth(owner.id!!, Role.EDITOR)
+                .withAuth(owner.id!!, Role.editor)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -88,14 +88,14 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val ownerA = usersRepository.save(
             Users(
                 email = "owner-a-same-name@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val ownerB = usersRepository.save(
             Users(
                 email = "owner-b-same-name@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -109,7 +109,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/node-types")
-                .withAuth(ownerB.id!!, Role.USER)
+                .withAuth(ownerB.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -133,7 +133,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "owner-dup-name@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -147,7 +147,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/node-types")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -168,7 +168,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-list-node-type-$timestamp@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -201,14 +201,14 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val userA = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-type-a@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val userB = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-type-b@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -229,7 +229,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/node-types?page=0&size=10")
-                .withAuth(userA.id!!, Role.USER)
+                .withAuth(userA.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(1))
@@ -241,7 +241,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "user-create-node-type@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -253,7 +253,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/node-types")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -267,14 +267,14 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val userA = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "user-a-node-type-create@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val userB = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "user-b-node-type-create@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -286,7 +286,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/node-types")
-                .withAuth(userA.id!!, Role.USER)
+                .withAuth(userA.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -300,7 +300,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
             ?: usersRepository.save(
                 ru.kavader.arepos.model.Users(
                     email = SystemRootNodeTypeService.SYSTEM_OWNER_EMAIL,
-                    role = Role.USER,
+                    role = Role.reader,
                     isActive = false,
                     createdAt = Instant.now()
                 )
@@ -319,14 +319,14 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val regularUser = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "regular-reader@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
 
         mockMvc.perform(
             get("/api/v1/node-types/${directoryType.id}")
-                .withAuth(regularUser.id!!, Role.USER)
+                .withAuth(regularUser.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.name").value("Directory"))
@@ -337,7 +337,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val systemUser = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "system@arepos.local",
-                role = Role.USER,
+                role = Role.reader,
                 isActive = false,
                 createdAt = Instant.now()
             )
@@ -353,26 +353,26 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "admin-directory-guard@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
 
         mockMvc.perform(
             delete("/api/v1/node-types/${directoryType.id}")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
         )
             .andExpect(status().isForbidden)
 
         mockMvc.perform(
             delete("/api/v1/node-types/${directoryType.id}/permanent")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
         )
             .andExpect(status().isForbidden)
 
         mockMvc.perform(
             get("/api/v1/node-types")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content[?(@.name=='Directory')]").isNotEmpty)
@@ -383,7 +383,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val systemUser = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "system@arepos.local",
-                role = Role.USER,
+                role = Role.reader,
                 isActive = false,
                 createdAt = Instant.now()
             )
@@ -401,7 +401,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val nonOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "directory-updater@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -413,7 +413,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         // additive update by a non-owner USER: allowed
         mockMvc.perform(
             put("/api/v1/node-types/${directoryType.id}")
-                .withAuth(nonOwner.id!!, Role.USER)
+                .withAuth(nonOwner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory", attrs = dirAttrs(existingProp, newProp))))
         )
@@ -428,7 +428,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         // rename → forbidden
         mockMvc.perform(
             put("/api/v1/node-types/${directoryType.id}")
-                .withAuth(nonOwner.id!!, Role.USER)
+                .withAuth(nonOwner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory2", attrs = null)))
         )
@@ -437,7 +437,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         // removing an existing custom property → forbidden
         mockMvc.perform(
             put("/api/v1/node-types/${directoryType.id}")
-                .withAuth(nonOwner.id!!, Role.USER)
+                .withAuth(nonOwner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory", attrs = dirAttrs(newProp))))
         )
@@ -447,7 +447,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val modifiedProp = """{"id":"11111111-1111-1111-1111-111111111111","name":"folderType","type":"string"}"""
         mockMvc.perform(
             put("/api/v1/node-types/${directoryType.id}")
-                .withAuth(nonOwner.id!!, Role.USER)
+                .withAuth(nonOwner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory", attrs = dirAttrs(modifiedProp, newProp))))
         )
@@ -456,7 +456,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         // changing another attrs key → forbidden
         mockMvc.perform(
             put("/api/v1/node-types/${directoryType.id}")
-                .withAuth(nonOwner.id!!, Role.USER)
+                .withAuth(nonOwner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory", attrs = """{"system":true,"kind":"folder"}""")))
         )
@@ -465,7 +465,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         // owner change → forbidden
         mockMvc.perform(
             put("/api/v1/node-types/${directoryType.id}")
-                .withAuth(nonOwner.id!!, Role.USER)
+                .withAuth(nonOwner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(NodeTypeRequest(name = "Directory", ownerId = nonOwner.id!!)))
         )
@@ -474,7 +474,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         // deletion stays forbidden
         mockMvc.perform(
             delete("/api/v1/node-types/${directoryType.id}")
-                .withAuth(nonOwner.id!!, Role.USER)
+                .withAuth(nonOwner.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }
@@ -485,21 +485,21 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val notationOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-notation-owner@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val modelOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-model-owner@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val editor = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-model-editor@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
@@ -564,7 +564,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/node-types?notationId=${notation.id}&modelId=${model.id}&page=0&size=10")
-                .withAuth(editor.id!!, Role.USER)
+                .withAuth(editor.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(1))
@@ -577,21 +577,21 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
         val notationOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-notation-owner-unrelated@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val modelOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-model-owner-unrelated@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val editor = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "node-model-editor-unrelated@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
@@ -645,7 +645,7 @@ class NodeTypesControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/node-types?notationId=${notation.id}&modelId=${model.id}&page=0&size=10")
-                .withAuth(editor.id!!, Role.USER)
+                .withAuth(editor.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(0))

@@ -127,7 +127,7 @@ class OidcAuthServiceTest {
 
     @Test
     fun `generateLocalJwt delegates to jwtTokenProvider`() {
-        val user = testUser(id = UUID.randomUUID(), email = "test@example.com", role = Role.USER)
+        val user = testUser(id = UUID.randomUUID(), email = "test@example.com", role = Role.reader)
         lenient()
             .`when`(jwtTokenProvider.generateAccessToken(user.id!!, user.role.name))
             .thenReturn("local-jwt-token")
@@ -139,7 +139,7 @@ class OidcAuthServiceTest {
 
     @Test
     fun `generateLocalRefreshToken delegates to jwtTokenProvider`() {
-        val user = testUser(id = UUID.randomUUID(), email = "test@example.com", role = Role.USER)
+        val user = testUser(id = UUID.randomUUID(), email = "test@example.com", role = Role.reader)
         lenient().`when`(jwtTokenProvider.generateRefreshToken(user.id!!))
             .thenReturn("local-refresh-token")
 
@@ -153,7 +153,7 @@ class OidcAuthServiceTest {
         val existingUser = testUser(
             id = UUID.randomUUID(),
             email = "user@example.com",
-            role = Role.USER
+            role = Role.reader
         )
         lenient().`when`(usersRepository.findByOidcSub("kc-sub-123")).thenReturn(null)
         lenient().`when`(usersRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(existingUser)
@@ -176,7 +176,7 @@ class OidcAuthServiceTest {
         val existingUser = testUser(
             id = UUID.randomUUID(),
             email = "user@example.com",
-            role = Role.USER
+            role = Role.reader
         )
         lenient().`when`(usersRepository.findByOidcSub("kc-sub-123")).thenReturn(null)
         lenient().`when`(usersRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(existingUser)
@@ -202,7 +202,7 @@ class OidcAuthServiceTest {
         val existingUser = testUser(
             id = UUID.randomUUID(),
             email = "User@Example.COM",
-            role = Role.USER
+            role = Role.reader
         )
         lenient().`when`(usersRepository.findByOidcSub("kc-sub-456")).thenReturn(null)
         lenient().`when`(usersRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(existingUser)
@@ -226,7 +226,7 @@ class OidcAuthServiceTest {
             id = UUID.randomUUID(),
             email = "user@example.com",
             oidcSub = "existing-kc-sub",
-            role = Role.USER
+            role = Role.reader
         )
         lenient().`when`(usersRepository.findByOidcSub("existing-kc-sub")).thenReturn(linkedUser)
 
@@ -247,7 +247,7 @@ class OidcAuthServiceTest {
         val inactiveUser = testUser(
             id = UUID.randomUUID(),
             email = "inactive@example.com",
-            role = Role.USER,
+            role = Role.reader,
             isActive = false
         )
         lenient().`when`(usersRepository.findByOidcSub("kc")).thenReturn(null)
@@ -290,7 +290,7 @@ class OidcAuthServiceTest {
     private fun testUser(
         id: UUID,
         email: String,
-        role: Role = Role.USER,
+        role: Role = Role.reader,
         oidcSub: String? = null,
         isActive: Boolean = true
     ): Users {

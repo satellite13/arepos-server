@@ -49,7 +49,7 @@ class CatalogSoftDeleteControllerTest : ControllerIntegrationTest() {
     @Test
     fun `soft delete moves node type to admin deleted list and permanent removes it`() {
         val owner = usersRepository.save(
-            Users(email = "catalog-soft-type@test.com", role = Role.ADMIN, createdAt = Instant.now())
+            Users(email = "catalog-soft-type@test.com", role = Role.admin, createdAt = Instant.now())
         )
         val type = nodeTypesRepository.save(
             NodeTypes(
@@ -62,7 +62,7 @@ class CatalogSoftDeleteControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             delete("/api/v1/node-types/${type.id}")
-                .withAuth(owner.id!!, Role.ADMIN)
+                .withAuth(owner.id!!, Role.admin)
         ).andExpect(status().isNoContent)
 
         assertTrue(nodeTypesRepository.findById(type.id!!).isEmpty)
@@ -71,14 +71,14 @@ class CatalogSoftDeleteControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/node-types/deleted")
-                .withAuth(owner.id!!, Role.ADMIN)
+                .withAuth(owner.id!!, Role.admin)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items[?(@.id == '${type.id}')]").exists())
 
         mockMvc.perform(
             delete("/api/v1/node-types/${type.id}/permanent")
-                .withAuth(owner.id!!, Role.ADMIN)
+                .withAuth(owner.id!!, Role.admin)
         ).andExpect(status().isNoContent)
 
         assertTrue(nodeTypesRepository.findByIdIncludingDeleted(type.id!!).isEmpty)
@@ -87,7 +87,7 @@ class CatalogSoftDeleteControllerTest : ControllerIntegrationTest() {
     @Test
     fun `soft delete moves shape to admin deleted list`() {
         val owner = usersRepository.save(
-            Users(email = "catalog-soft-shape@test.com", role = Role.ADMIN, createdAt = Instant.now())
+            Users(email = "catalog-soft-shape@test.com", role = Role.admin, createdAt = Instant.now())
         )
         val shape = nodeShapesRepository.save(
             NodeShapes(
@@ -100,7 +100,7 @@ class CatalogSoftDeleteControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             delete("/api/v1/node-shapes/${shape.id}")
-                .withAuth(owner.id!!, Role.ADMIN)
+                .withAuth(owner.id!!, Role.admin)
         ).andExpect(status().isNoContent)
 
         assertTrue(nodeShapesRepository.findById(shape.id!!).isEmpty)
@@ -108,7 +108,7 @@ class CatalogSoftDeleteControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/node-shapes/deleted")
-                .withAuth(owner.id!!, Role.ADMIN)
+                .withAuth(owner.id!!, Role.admin)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items[?(@.id == '${shape.id}')]").exists())
@@ -117,7 +117,7 @@ class CatalogSoftDeleteControllerTest : ControllerIntegrationTest() {
     @Test
     fun `permanent delete node type conflicts when still used by component`() {
         val owner = usersRepository.save(
-            Users(email = "catalog-soft-conflict@test.com", role = Role.ADMIN, createdAt = Instant.now())
+            Users(email = "catalog-soft-conflict@test.com", role = Role.admin, createdAt = Instant.now())
         )
         val type = nodeTypesRepository.save(
             NodeTypes(
@@ -148,12 +148,12 @@ class CatalogSoftDeleteControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             delete("/api/v1/node-types/${type.id}")
-                .withAuth(owner.id!!, Role.ADMIN)
+                .withAuth(owner.id!!, Role.admin)
         ).andExpect(status().isNoContent)
 
         mockMvc.perform(
             delete("/api/v1/node-types/${type.id}/permanent")
-                .withAuth(owner.id!!, Role.ADMIN)
+                .withAuth(owner.id!!, Role.admin)
         ).andExpect(status().isConflict)
 
         assertFalse(nodeTypesRepository.findByIdIncludingDeleted(type.id!!).isEmpty)

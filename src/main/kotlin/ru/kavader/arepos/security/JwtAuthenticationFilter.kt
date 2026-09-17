@@ -86,7 +86,7 @@ class JwtAuthenticationFilter(
 
         // MCP tokens must not inherit ADMIN/EDITOR Cerbos privileges (admin_panel, user_admin, …).
         val role = if (tokenType == TokenType.MCP_ACCESS) {
-            Role.USER.name
+            Role.reader.name
         } else {
             user.role.name
         }

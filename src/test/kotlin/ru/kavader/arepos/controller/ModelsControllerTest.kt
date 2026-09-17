@@ -58,7 +58,7 @@ class ModelsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -97,7 +97,7 @@ class ModelsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "invalid-version-owner@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -128,7 +128,7 @@ class ModelsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner-list@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -163,14 +163,14 @@ class ModelsControllerTest : ControllerIntegrationTest() {
         val userA = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "user-a@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val userB = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "user-b@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -193,7 +193,7 @@ class ModelsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/models?page=0&size=10")
-                .withAuth(userA.id!!, Role.USER)
+                .withAuth(userA.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items.length()").value(1))
@@ -205,14 +205,14 @@ class ModelsControllerTest : ControllerIntegrationTest() {
         val userA = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "reader-a@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val userB = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "reader-b@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -227,7 +227,7 @@ class ModelsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/models/${foreignModel.id}")
-                .withAuth(userA.id!!, Role.USER)
+                .withAuth(userA.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }
@@ -237,7 +237,7 @@ class ModelsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "copy-owner@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )

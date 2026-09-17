@@ -55,7 +55,7 @@ class JwtQueryTokenHandshakeInterceptorTest {
     fun `rejects handshake when user is inactive`() {
         val interceptor = JwtQueryTokenHandshakeInterceptor(jwtTokenProvider, usersRepository)
         val userId = UUID.randomUUID()
-        val user = Users(id = userId, email = "inactive@test.com", role = Role.ADMIN, isActive = false)
+        val user = Users(id = userId, email = "inactive@test.com", role = Role.admin, isActive = false)
         val servletRequest = MockHttpServletRequest()
         servletRequest.setParameter("token", "jwt")
         val request = ServletServerHttpRequest(servletRequest)
@@ -74,7 +74,7 @@ class JwtQueryTokenHandshakeInterceptorTest {
     fun `stores DB role in attributes for active user`() {
         val interceptor = JwtQueryTokenHandshakeInterceptor(jwtTokenProvider, usersRepository)
         val userId = UUID.randomUUID()
-        val user = Users(id = userId, email = "active@test.com", role = Role.EDITOR, isActive = true)
+        val user = Users(id = userId, email = "active@test.com", role = Role.editor, isActive = true)
         val servletRequest = MockHttpServletRequest()
         servletRequest.setParameter("token", "jwt")
         val request = ServletServerHttpRequest(servletRequest)
@@ -88,6 +88,6 @@ class JwtQueryTokenHandshakeInterceptorTest {
 
         assertTrue(interceptor.beforeHandshake(request, response, wsHandler, attributes))
         assertEquals(userId, attributes[ModelSyncStompHandshakeHandler.USER_ID_ATTR])
-        assertEquals("EDITOR", attributes[ModelSyncStompHandshakeHandler.ROLE_ATTR])
+        assertEquals("editor", attributes[ModelSyncStompHandshakeHandler.ROLE_ATTR])
     }
 }

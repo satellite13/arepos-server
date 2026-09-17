@@ -53,7 +53,7 @@ class CerbosDecisionServiceTest {
                 objectMapper = jacksonObjectMapper()
             )
 
-            setCurrentUser(role = "ADMIN")
+            setCurrentUser(role = "admin")
             val decision = service.check(
                 CerbosAccessRequest(
                     resourceKind = CerbosResourceKind.MODEL,
@@ -77,7 +77,7 @@ class CerbosDecisionServiceTest {
                 objectMapper = jacksonObjectMapper()
             )
 
-            setCurrentUser(role = "USER")
+            setCurrentUser(role = "reader")
             val decision = service.check(
                 CerbosAccessRequest(
                     resourceKind = CerbosResourceKind.NOTATION,
@@ -106,7 +106,7 @@ class CerbosDecisionServiceTest {
                 objectMapper = jacksonObjectMapper()
             )
 
-            setCurrentUser(role = "USER")
+            setCurrentUser(role = "reader")
             service.check(
                 CerbosAccessRequest(
                     resourceKind = CerbosResourceKind.MODEL,
@@ -143,7 +143,7 @@ class CerbosDecisionServiceTest {
                 objectMapper = jacksonObjectMapper()
             )
 
-            setCurrentUser(role = "USER")
+            setCurrentUser(role = "reader")
             val allowId = UUID.fromString("11111111-1111-1111-1111-111111111111")
             val denyId = UUID.fromString("22222222-2222-2222-2222-222222222222")
             val decisions = service.checkBatch(
@@ -195,7 +195,7 @@ class CerbosDecisionServiceTest {
                 objectMapper = objectMapper
             )
 
-            setCurrentUser(role = "USER")
+            setCurrentUser(role = "reader")
             val resourceIds = List(3) { UUID.randomUUID() }
             val decisions = service.checkBatch(
                 resourceIds.map { resourceId ->
@@ -228,7 +228,7 @@ class CerbosDecisionServiceTest {
                 ),
                 objectMapper = jacksonObjectMapper()
             )
-            setCurrentUser(role = "USER")
+            setCurrentUser(role = "reader")
 
             assertFailsWith<CerbosUnavailableException> {
                 service.check(
@@ -255,7 +255,7 @@ class CerbosDecisionServiceTest {
                 ),
                 objectMapper = jacksonObjectMapper()
             )
-            setCurrentUser(role = "USER")
+            setCurrentUser(role = "reader")
 
             assertFailsWith<CerbosUnavailableException> {
                 service.check(
@@ -284,7 +284,7 @@ class CerbosDecisionServiceTest {
                 ),
                 objectMapper = jacksonObjectMapper()
             )
-            setCurrentUser(role = "USER")
+            setCurrentUser(role = "reader")
             val request = CerbosAccessRequest(
                 resourceKind = CerbosResourceKind.MODEL,
                 action = CerbosAction.VIEW,

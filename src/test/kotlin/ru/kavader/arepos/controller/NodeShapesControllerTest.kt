@@ -41,14 +41,14 @@ class NodeShapesControllerTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             Users(
                 email = "node-shape-owner-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         outsider = usersRepository.save(
             Users(
                 email = "node-shape-outsider-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -74,7 +74,7 @@ class NodeShapesControllerTest : ControllerIntegrationTest() {
     fun `denies get for non-owner without share`() {
         mockMvc.perform(
             get("/api/v1/node-shapes/${ownerShape.id}")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }
@@ -83,7 +83,7 @@ class NodeShapesControllerTest : ControllerIntegrationTest() {
     fun `allows get for owner`() {
         mockMvc.perform(
             get("/api/v1/node-shapes/${ownerShape.id}")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.id").value(ownerShape.id.toString()))
@@ -94,7 +94,7 @@ class NodeShapesControllerTest : ControllerIntegrationTest() {
     fun `list returns only visible node shapes`() {
         mockMvc.perform(
             get("/api/v1/node-shapes?page=0&size=10")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
         )
             .andExpect(status().isOk)

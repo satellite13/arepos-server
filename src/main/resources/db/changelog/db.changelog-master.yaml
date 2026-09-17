@@ -608,3 +608,13 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: true
             endDelimiter: ;
+
+  - changeSet:
+      id: 063-role-feature-grants
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/063-role-feature-grants.sql
+            encoding: UTF-8
+            splitStatements: true
+            endDelimiter: ;

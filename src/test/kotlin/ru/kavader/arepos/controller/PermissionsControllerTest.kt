@@ -58,21 +58,21 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
         owner = usersRepository.save(
             Users(
                 email = "permissions-owner-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         outsider = usersRepository.save(
             Users(
                 email = "permissions-outsider-${UUID.randomUUID()}@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         admin = usersRepository.save(
             Users(
                 email = "permissions-admin-${UUID.randomUUID()}@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -130,7 +130,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -150,7 +150,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -168,7 +168,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -187,7 +187,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -205,7 +205,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -223,7 +223,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -241,7 +241,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -259,7 +259,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -277,7 +277,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -295,7 +295,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -313,7 +313,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -331,7 +331,7 @@ class PermissionsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/permissions/check")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )

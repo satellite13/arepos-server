@@ -52,7 +52,7 @@ class ModelDiffControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/models/${fixture.base.id}/diff/${fixture.target.id}")
-                .withAuth(fixture.owner.id!!, Role.USER)
+                .withAuth(fixture.owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.nodes[0].kind").value("modified"))
@@ -70,12 +70,12 @@ class ModelDiffControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/models/$missingId/diff/${fixture.target.id}")
-                .withAuth(fixture.owner.id!!, Role.USER)
+                .withAuth(fixture.owner.id!!, Role.reader)
         ).andExpect(status().isNotFound)
 
         mockMvc.perform(
             get("/api/v1/models/${fixture.base.id}/diff/$missingId")
-                .withAuth(fixture.owner.id!!, Role.USER)
+                .withAuth(fixture.owner.id!!, Role.reader)
         ).andExpect(status().isNotFound)
     }
 
@@ -86,7 +86,7 @@ class ModelDiffControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/models/${fixture.base.id}/diff/${fixture.target.id}")
-                .withAuth(outsider.id!!, Role.USER)
+                .withAuth(outsider.id!!, Role.reader)
         ).andExpect(status().isForbidden)
     }
 
@@ -98,7 +98,7 @@ class ModelDiffControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/models/${fixture.base.id}/diff/${fixture.target.id}")
-                .withAuth(grantee.id!!, Role.USER)
+                .withAuth(grantee.id!!, Role.reader)
         ).andExpect(status().isForbidden)
     }
 
@@ -110,7 +110,7 @@ class ModelDiffControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/models/${fixture.base.id}/diff/${fixture.target.id}")
-                .withAuth(grantee.id!!, Role.USER)
+                .withAuth(grantee.id!!, Role.reader)
         ).andExpect(status().isForbidden)
     }
 
@@ -123,7 +123,7 @@ class ModelDiffControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/models/${fixture.base.id}/diff/${fixture.target.id}")
-                .withAuth(grantee.id!!, Role.USER)
+                .withAuth(grantee.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.nodes[0].kind").value("modified"))
@@ -170,7 +170,7 @@ class ModelDiffControllerTest : ControllerIntegrationTest() {
         usersRepository.save(
             Users(
                 email = email,
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )

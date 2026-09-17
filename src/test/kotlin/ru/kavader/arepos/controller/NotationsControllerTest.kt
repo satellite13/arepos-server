@@ -49,7 +49,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -79,7 +79,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "owner@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -115,14 +115,14 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val userA = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "notation-a@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val userB = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "notation-b@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -145,7 +145,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/notations?page=0&size=10")
-                .withAuth(userA.id!!, Role.USER)
+                .withAuth(userA.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.content.length()").value(1))
@@ -157,14 +157,14 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val userA = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "reader-a@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
         val userB = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "reader-b@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = Instant.now()
             )
         )
@@ -179,7 +179,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/notations/${foreignNotation.id}")
-                .withAuth(userA.id!!, Role.USER)
+                .withAuth(userA.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }
@@ -190,21 +190,21 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val notationOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "notation-owner-usage@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val modelOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "model-owner-usage@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val editor = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "model-editor-usage@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
@@ -251,7 +251,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/notations/${usedNotation.id}?modelId=${model.id}")
-                .withAuth(editor.id!!, Role.USER)
+                .withAuth(editor.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.id").value(usedNotation.id.toString()))
@@ -263,21 +263,21 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val notationOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "notation-owner-unrelated@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val modelOwner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "model-owner-unrelated@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val editor = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "model-editor-unrelated@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
@@ -313,7 +313,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/notations/${unrelatedNotation.id}?modelId=${model.id}")
-                .withAuth(editor.id!!, Role.USER)
+                .withAuth(editor.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }
@@ -324,14 +324,14 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "notation-owner-copy@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val viewer = usersRepository.save(
             ru.kavader.arepos.model.Users(
                 email = "notation-viewer-copy@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
@@ -365,7 +365,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             post("/api/v1/notations/${source.id}/copy")
-                .withAuth(viewer.id!!, Role.USER)
+                .withAuth(viewer.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload))
         )
@@ -380,7 +380,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             Users(
                 email = "perm-del-admin@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -415,7 +415,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             delete("/api/v1/notations/${notation.id}/permanent")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
         )
             .andExpect(status().isNoContent)
 
@@ -428,7 +428,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val admin = usersRepository.save(
             Users(
                 email = "perm-del-active@test.com",
-                role = Role.ADMIN,
+                role = Role.admin,
                 createdAt = Instant.now()
             )
         )
@@ -463,7 +463,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             delete("/api/v1/notations/${notation.id}/permanent")
-                .withAuth(admin.id!!, Role.ADMIN)
+                .withAuth(admin.id!!, Role.admin)
         )
             .andExpect(status().isConflict)
 
@@ -476,7 +476,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "meta-deleted-owner@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
@@ -513,7 +513,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/notations/${notation.id}/meta?modelId=${model.id}")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.id").value(notation.id.toString()))
@@ -527,14 +527,14 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "meta-deleted-secret-owner@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
         val stranger = usersRepository.save(
             Users(
                 email = "meta-deleted-stranger@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
@@ -550,7 +550,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/notations/${notation.id}/meta")
-                .withAuth(stranger.id!!, Role.USER)
+                .withAuth(stranger.id!!, Role.reader)
         )
             .andExpect(status().isForbidden)
     }
@@ -561,7 +561,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
         val owner = usersRepository.save(
             Users(
                 email = "newer-deleted-owner@test.com",
-                role = Role.USER,
+                role = Role.reader,
                 createdAt = now
             )
         )
@@ -609,7 +609,7 @@ class NotationsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             get("/api/v1/notations/${source.id}/newer-versions?modelId=${model.id}")
-                .withAuth(owner.id!!, Role.USER)
+                .withAuth(owner.id!!, Role.reader)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$[0].id").value(newer.id.toString()))

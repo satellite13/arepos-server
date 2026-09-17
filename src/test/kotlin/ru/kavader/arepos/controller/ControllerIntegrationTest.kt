@@ -59,11 +59,11 @@ abstract class ControllerIntegrationTest : PostgresContainerTest() {
         )
     }
 
-    fun bearerToken(userId: UUID, role: Role = Role.ADMIN): String {
+    fun bearerToken(userId: UUID, role: Role = Role.admin): String {
         return "Bearer ${jwtTokenProvider.generateAccessToken(userId, role.name)}"
     }
 
-    fun MockHttpServletRequestBuilder.withAuth(userId: UUID, role: Role = Role.ADMIN): MockHttpServletRequestBuilder {
+    fun MockHttpServletRequestBuilder.withAuth(userId: UUID, role: Role = Role.admin): MockHttpServletRequestBuilder {
         return this.header("Authorization", bearerToken(userId, role))
     }
 }

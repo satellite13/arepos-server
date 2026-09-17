@@ -165,7 +165,7 @@ class OidcAuthService(
             user = usersRepository.save(
                 Users(
                     email = email,
-                    role = Role.USER,
+                    role = Role.reader,
                     attrs = profileAttrs,
                     oidcSub = oidcSub,
                     createdAt = now,
