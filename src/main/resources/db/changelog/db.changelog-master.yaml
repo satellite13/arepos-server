@@ -618,3 +618,23 @@ databaseChangeLog:
             encoding: UTF-8
             splitStatements: true
             endDelimiter: ;
+
+  - changeSet:
+      id: 065-ui-language-switch-grant
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/065-ui-language-switch-grant.sql
+            encoding: UTF-8
+            splitStatements: true
+            endDelimiter: ;
+
+  - changeSet:
+      id: 066-comments-and-api-keys-grants
+      author: Nikolay Groznykh
+      changes:
+        - sqlFile:
+            path: classpath:db/changelog/066-comments-and-api-keys-grants.sql
+            encoding: UTF-8
+            splitStatements: true
+            endDelimiter: ;

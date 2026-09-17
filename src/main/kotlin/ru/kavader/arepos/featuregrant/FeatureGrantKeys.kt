@@ -25,6 +25,9 @@ object FeatureGrantKeys {
         "model.runValidationScripts",
         "model.inspectJson",
         "model.createBaseline",
+        "ui.languageSwitch",
+        "model.comments",
+        "profile.apiKeys",
     )
 
     private val KNOWN = ALL.toSet()
