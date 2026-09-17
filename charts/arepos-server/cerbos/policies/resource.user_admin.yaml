@@ -8,4 +8,4 @@ resourcePolicy:
       actions: ["*"]
       effect: EFFECT_ALLOW
       roles:
-        - ADMIN
+        - admin

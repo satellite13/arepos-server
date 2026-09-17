@@ -9,20 +9,20 @@ resourcePolicy:
       actions: ["*"]
       effect: EFFECT_ALLOW
       roles:
-        - ADMIN
+        - admin
 
     - name: anyone-view
       actions: ["view"]
       effect: EFFECT_ALLOW
       roles:
-        - USER
-        - EDITOR
-        - ADMIN
+        - reader
+        - editor
+        - admin
 
     - name: authenticated-download
       actions: ["download"]
       effect: EFFECT_ALLOW
       roles:
-        - USER
-        - EDITOR
-        - ADMIN
+        - reader
+        - editor
+        - admin

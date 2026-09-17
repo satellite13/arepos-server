@@ -9,31 +9,31 @@ resourcePolicy:
       actions: ["manage"]
       effect: EFFECT_ALLOW
       roles:
-        - ADMIN
+        - admin
 
     - name: public-view
       actions: ["view"]
       effect: EFFECT_ALLOW
       roles:
-        - USER
-        - EDITOR
-        - ADMIN
+        - reader
+        - editor
+        - admin
 
     - name: authenticated-create-vote-comment
       actions: ["create", "vote", "comment"]
       effect: EFFECT_ALLOW
       roles:
-        - USER
-        - EDITOR
-        - ADMIN
+        - reader
+        - editor
+        - admin
 
     - name: author-edit-delete-when-new
       actions: ["edit", "delete"]
       effect: EFFECT_ALLOW
       roles:
-        - USER
-        - EDITOR
-        - ADMIN
+        - reader
+        - editor
+        - admin
       condition:
         match:
           expr: request.resource.attr.isAuthor == true && request.resource.attr.status == "new"

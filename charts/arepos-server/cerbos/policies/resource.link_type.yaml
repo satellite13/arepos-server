@@ -8,14 +8,14 @@ resourcePolicy:
       actions: ["*"]
       effect: EFFECT_ALLOW
       roles:
-        - ADMIN
+        - admin
 
     - name: owner-view-edit
       actions: ["view", "edit"]
       effect: EFFECT_ALLOW
       roles:
-        - USER
-        - EDITOR
+        - reader
+        - editor
       condition:
         match:
           expr: request.resource.attr.isOwner == true
@@ -24,8 +24,8 @@ resourcePolicy:
       actions: ["view"]
       effect: EFFECT_ALLOW
       roles:
-        - USER
-        - EDITOR
+        - reader
+        - editor
       condition:
         match:
           expr: request.resource.attr.hasShareView == true
@@ -34,8 +34,8 @@ resourcePolicy:
       actions: ["edit"]
       effect: EFFECT_ALLOW
       roles:
-        - USER
-        - EDITOR
+        - reader
+        - editor
       condition:
         match:
           expr: request.resource.attr.hasShareEdit == true

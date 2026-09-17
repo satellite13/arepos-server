@@ -8,14 +8,14 @@ resourcePolicy:
       actions: ["*"]
       effect: EFFECT_ALLOW
       roles:
-        - ADMIN
+        - admin
 
     - name: owner-view
       actions: ["view"]
       effect: EFFECT_ALLOW
       roles:
-        - USER
-        - EDITOR
+        - reader
+        - editor
       condition:
         match:
           expr: request.principal.id == request.resource.attr.ownerId

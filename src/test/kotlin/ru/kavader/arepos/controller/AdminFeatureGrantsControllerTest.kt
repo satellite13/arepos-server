@@ -47,6 +47,22 @@ class AdminFeatureGrantsControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `non-admin cannot get role feature grants matrix`() {
+        val regularUser = usersRepository.save(
+            Users(
+                email = "feature-grants-matrix-forbidden@test.com",
+                role = Role.reader,
+                createdAt = Instant.now(),
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/admin/role-feature-grants")
+                .withAuth(regularUser.id!!, Role.reader)
+        ).andExpect(status().isForbidden)
+    }
+
+    @Test
     fun `non-admin cannot put role feature grants`() {
         val regularUser = usersRepository.save(
             Users(
@@ -58,6 +74,40 @@ class AdminFeatureGrantsControllerTest : ControllerIntegrationTest() {
 
         mockMvc.perform(
             put("/api/v1/admin/role-feature-grants/editor")
+                .withAuth(regularUser.id!!, Role.reader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        FeatureGrantsUpdateRequest(grants = listOf("model.export"))
+                    )
+                )
+        ).andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `non-admin cannot get or put user feature grant allows`() {
+        val regularUser = usersRepository.save(
+            Users(
+                email = "feature-grants-user-allows-forbidden@test.com",
+                role = Role.reader,
+                createdAt = Instant.now(),
+            )
+        )
+        val targetUser = usersRepository.save(
+            Users(
+                email = "feature-grants-user-allows-target@test.com",
+                role = Role.reader,
+                createdAt = Instant.now(),
+            )
+        )
+
+        mockMvc.perform(
+            get("/api/v1/admin/users/${targetUser.id}/feature-grant-allows")
+                .withAuth(regularUser.id!!, Role.reader)
+        ).andExpect(status().isForbidden)
+
+        mockMvc.perform(
+            put("/api/v1/admin/users/${targetUser.id}/feature-grant-allows")
                 .withAuth(regularUser.id!!, Role.reader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(

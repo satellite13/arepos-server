@@ -9,14 +9,14 @@ resourcePolicy:
       actions: ["manage"]
       effect: EFFECT_ALLOW
       roles:
-        - ADMIN
+        - admin
 
     - name: owner-manage
       actions: ["manage"]
       effect: EFFECT_ALLOW
       roles:
-        - USER
-        - EDITOR
+        - reader
+        - editor
       condition:
         match:
           expr: request.resource.attr.isOwner == true
