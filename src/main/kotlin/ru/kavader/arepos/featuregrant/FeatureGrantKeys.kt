@@ -27,5 +27,7 @@ object FeatureGrantKeys {
         "model.createBaseline",
     )
 
-    fun isKnown(key: String): Boolean = key in ALL.toSet()
+    private val KNOWN = ALL.toSet()
+
+    fun isKnown(key: String): Boolean = key in KNOWN
 }

@@ -1,7 +1,13 @@
 -- Migrate legacy role names to the new product role set.
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
+
 UPDATE public.users SET role = 'admin' WHERE role = 'ADMIN';
 UPDATE public.users SET role = 'editor' WHERE role = 'EDITOR';
 UPDATE public.users SET role = 'reader' WHERE role IN ('USER', 'user');
+
+ALTER TABLE public.users
+    ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'architect', 'editor', 'reader', 'viewer'));
+ALTER TABLE public.users ALTER COLUMN role SET DEFAULT 'reader';
 
 -- Default feature grants per role (admin is always full catalog in code; not seeded).
 CREATE TABLE IF NOT EXISTS public.role_feature_grants (
@@ -22,6 +28,7 @@ COMMENT ON TABLE public.role_feature_grants IS
 COMMENT ON TABLE public.user_feature_grant_allows IS
     'Allow-only override feature-грантов пользователя поверх роли';
 
+-- source of truth for keys = FeatureGrantKeys.ALL
 -- architect: all catalog keys
 INSERT INTO public.role_feature_grants (role, grant_key) VALUES
     ('architect', 'model.create'),
