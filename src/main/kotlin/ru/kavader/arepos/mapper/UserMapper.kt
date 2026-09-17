@@ -4,12 +4,14 @@ import org.springframework.stereotype.Component
 import ru.kavader.arepos.dto.auth.UserInfoResponse
 import ru.kavader.arepos.dto.user.UserPublicResponse
 import ru.kavader.arepos.dto.user.UserResponse
+import ru.kavader.arepos.featuregrant.FeatureGrantService
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.service.UserProfileAttrsService
 
 @Component
 class UserMapper(
-    private val profileService: UserProfileAttrsService
+    private val profileService: UserProfileAttrsService,
+    private val featureGrantService: FeatureGrantService
 ) {
     fun ownerDisplayName(user: Users): String {
         val profile = profileService.readProfile(user.attrs)
@@ -34,7 +36,8 @@ class UserMapper(
             attrs = user.attrs,
             oidcSub = user.oidcSub,
             createdAt = user.createdAt,
-            updatedAt = user.updatedAt
+            updatedAt = user.updatedAt,
+            featureGrants = featureGrantService.effectiveGrants(user)
         )
     }
 
@@ -63,7 +66,8 @@ class UserMapper(
             position = profile.position,
             attrs = profileService.serializeProfile(profile),
             createdAt = user.createdAt,
-            updatedAt = user.updatedAt
+            updatedAt = user.updatedAt,
+            featureGrants = featureGrantService.effectiveGrants(user)
         )
     }
 }

@@ -80,5 +80,6 @@ data class UserInfoResponse(
     val position: String?,
     val attrs: String?,
     val createdAt: Instant?,
-    val updatedAt: Instant?
+    val updatedAt: Instant?,
+    val featureGrants: List<String> = emptyList()
 )

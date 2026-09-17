@@ -45,7 +45,8 @@ data class UserResponse(
     val attrs: String?,
     val oidcSub: String?,
     val createdAt: Instant?,
-    val updatedAt: Instant?
+    val updatedAt: Instant?,
+    val featureGrants: List<String> = emptyList()
 )
 
 data class UserPublicResponse(

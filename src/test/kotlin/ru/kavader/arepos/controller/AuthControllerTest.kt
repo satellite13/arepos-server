@@ -1,6 +1,8 @@
 package ru.kavader.arepos.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.hamcrest.Matchers.hasItem
+import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -193,6 +195,10 @@ class AuthControllerTest : ControllerIntegrationTest() {
                 .content(objectMapper.writeValueAsString(registerRequest("me@test.com")))
         )
             .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.user.role").value("reader"))
+            .andExpect(jsonPath("$.user.featureGrants").isArray)
+            .andExpect(jsonPath("$.user.featureGrants").value(hasItem("model.relationMatrix")))
+            .andExpect(jsonPath("$.user.featureGrants").value(not(hasItem("model.create"))))
             .andReturn()
             .response.contentAsString
 
@@ -207,6 +213,9 @@ class AuthControllerTest : ControllerIntegrationTest() {
             .andExpect(jsonPath("$.role").value("reader"))
             .andExpect(jsonPath("$.firstName").value("Иван"))
             .andExpect(jsonPath("$.lastName").value("Иванов"))
+            .andExpect(jsonPath("$.featureGrants").isArray)
+            .andExpect(jsonPath("$.featureGrants").value(hasItem("model.relationMatrix")))
+            .andExpect(jsonPath("$.featureGrants").value(not(hasItem("model.create"))))
     }
 
     @Test
