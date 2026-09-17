@@ -16,6 +16,8 @@ resourcePolicy:
       roles:
         - reader
         - editor
+        - architect
+        - viewer
       condition:
         match:
           expr: request.principal.id == request.resource.attr.ownerId

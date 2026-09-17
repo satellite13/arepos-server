@@ -17,6 +17,8 @@ resourcePolicy:
       roles:
         - reader
         - editor
+        - architect
+        - viewer
         - admin
 
     - name: authenticated-download
@@ -25,4 +27,6 @@ resourcePolicy:
       roles:
         - reader
         - editor
+        - architect
+        - viewer
         - admin

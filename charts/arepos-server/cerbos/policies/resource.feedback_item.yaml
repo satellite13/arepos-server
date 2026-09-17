@@ -17,6 +17,8 @@ resourcePolicy:
       roles:
         - reader
         - editor
+        - architect
+        - viewer
         - admin
 
     - name: authenticated-create-vote-comment
@@ -25,6 +27,8 @@ resourcePolicy:
       roles:
         - reader
         - editor
+        - architect
+        - viewer
         - admin
 
     - name: author-edit-delete-when-new
@@ -33,6 +37,8 @@ resourcePolicy:
       roles:
         - reader
         - editor
+        - architect
+        - viewer
         - admin
       condition:
         match:

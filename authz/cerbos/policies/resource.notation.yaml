@@ -17,6 +17,8 @@ resourcePolicy:
       roles:
         - reader
         - editor
+        - architect
+        - viewer
       condition:
         match:
           expr: request.resource.attr.isOwner == true
@@ -27,6 +29,8 @@ resourcePolicy:
       roles:
         - reader
         - editor
+        - architect
+        - viewer
       condition:
         match:
           expr: request.resource.attr.hasShareView == true
@@ -37,6 +41,8 @@ resourcePolicy:
       roles:
         - reader
         - editor
+        - architect
+        - viewer
       condition:
         match:
           expr: request.resource.attr.hasShareEdit == true

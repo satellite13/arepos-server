@@ -36,6 +36,6 @@ class ModelSyncStompHandshakeHandlerTest {
             as UsernamePasswordAuthenticationToken
 
         assertEquals(userId, principal.principal)
-        assertTrue(principal.authorities.contains(SimpleGrantedAuthority("ROLE_ADMIN")))
+        assertTrue(principal.authorities.contains(SimpleGrantedAuthority("ROLE_admin")))
     }
 }
