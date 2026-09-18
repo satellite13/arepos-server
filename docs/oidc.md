@@ -21,7 +21,10 @@ Profile linking (signed-in user; session required):
 
 - `GET /api/v1/auth/sso/authorize?linkUserId=<currentUserId>` — `linkUserId` must equal the authenticated user (cookie/Bearer).
 - `POST /api/v1/auth/sso/link/callback` — requires the same authenticated session; state must be a link-purpose token for that user.
-- `GET /api/v1/auth/sso/status`, `DELETE /api/v1/auth/sso/unlink`
+- `GET /api/v1/auth/sso/status`
+- Self-service unlink (`DELETE /api/v1/auth/sso/unlink`) is **forbidden** (403). Admins unlink via `DELETE /api/v1/admin/users/{userId}/sso` (user management permission).
+
+While `oidc_sub` is set, updating personal profile fields (`PUT /users/me/profile` and name/position fields in `PUT /users/{id}`) returns **403**.
 
 Link requires verified IdP email matching the account email; an `oidc_sub` already linked to another user is rejected.
 

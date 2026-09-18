@@ -551,6 +551,109 @@ class UsersControllerTest : ControllerIntegrationTest() {
     }
 
     @Test
+    fun `sso-linked user cannot update own profile`() {
+        val user = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "sso-self@test.com",
+                attrs = """{"firstName":"Иван","lastName":"Иванов"}""",
+                role = Role.reader,
+                oidcSub = "kc-sub-1",
+                createdAt = Instant.now()
+            )
+        )
+
+        val payload = UserProfileUpdateRequest(
+            firstName = "Пётр",
+            lastName = "Петров",
+            middleName = null,
+            position = null
+        )
+
+        mockMvc.perform(
+            put("/api/v1/users/me/profile")
+                .withAuth(user.id!!, Role.reader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload))
+        )
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `admin cannot patch profile fields of sso-linked user`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin-sso-edit@test.com",
+                role = Role.admin,
+                createdAt = Instant.now()
+            )
+        )
+        val user = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "sso-target@test.com",
+                attrs = """{"firstName":"Иван","lastName":"Иванов"}""",
+                role = Role.reader,
+                oidcSub = "kc-sub-2",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            put("/api/v1/users/${user.id}")
+                .withAuth(admin.id!!)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"firstName":"Пётр","lastName":"Петров"}""")
+        )
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `admin can unlink sso from user`() {
+        val admin = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "admin-sso-unlink@test.com",
+                role = Role.admin,
+                createdAt = Instant.now()
+            )
+        )
+        val user = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "sso-unlink-target@test.com",
+                role = Role.reader,
+                oidcSub = "kc-sub-unlink",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            delete("/api/v1/admin/users/${user.id}/sso")
+                .withAuth(admin.id!!)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.linked").value(false))
+
+        val reloaded = usersRepository.findById(user.id!!).get()
+        assertEquals(null, reloaded.oidcSub)
+    }
+
+    @Test
+    fun `self sso unlink is forbidden`() {
+        val user = usersRepository.save(
+            ru.kavader.arepos.model.Users(
+                email = "sso-self-unlink@test.com",
+                role = Role.reader,
+                oidcSub = "kc-sub-self",
+                createdAt = Instant.now()
+            )
+        )
+
+        mockMvc.perform(
+            delete("/api/v1/auth/sso/unlink")
+                .withAuth(user.id!!, Role.reader)
+        )
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
     fun `deletes user`() {
         val admin = usersRepository.save(
             ru.kavader.arepos.model.Users(

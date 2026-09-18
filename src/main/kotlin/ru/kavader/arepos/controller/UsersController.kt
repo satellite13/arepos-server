@@ -179,6 +179,18 @@ class UsersController(
             passwordPolicyValidator.validateOrThrow(newPassword, user.email)
         }
 
+        val wantsProfilePatch =
+            request.firstName != null ||
+                request.lastName != null ||
+                request.middleName != null ||
+                request.position != null
+        if (wantsProfilePatch && !user.oidcSub.isNullOrBlank()) {
+            throw ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Personal profile fields are managed by SSO; unlink SSO first"
+            )
+        }
+
         val nextAttrs = userProfileAttrsService.mergeProfile(
             existingAttrs = request.attrs ?: user.attrs,
             patch = UserProfilePatch(
@@ -208,6 +220,13 @@ class UsersController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User $currentUserId not found")
             }
+
+        if (!user.oidcSub.isNullOrBlank()) {
+            throw ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Personal profile fields are managed by SSO"
+            )
+        }
 
         user.attrs = userProfileAttrsService.mergeProfile(
             existingAttrs = user.attrs,

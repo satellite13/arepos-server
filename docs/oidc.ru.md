@@ -21,7 +21,10 @@
 
 - `GET /api/v1/auth/sso/authorize?linkUserId=<currentUserId>` — `linkUserId` должен совпадать с аутентифицированным пользователем.
 - `POST /api/v1/auth/sso/link/callback` — та же сессия; state должен быть link-токеном для этого пользователя.
-- `GET /api/v1/auth/sso/status`, `DELETE /api/v1/auth/sso/unlink`
+- `GET /api/v1/auth/sso/status`
+- Самостоятельная отвязка (`DELETE /api/v1/auth/sso/unlink`) **запрещена** (403). Отвязка: `DELETE /api/v1/admin/users/{userId}/sso` (право управления пользователями).
+
+Пока у пользователя задан `oidc_sub`, обновление личных полей профиля (`PUT /users/me/profile` и поля имени/должности в `PUT /users/{id}`) возвращает **403**.
 
 Для привязки нужен верифицированный email IdP, совпадающий с email аккаунта; `oidc_sub`, уже привязанный к другому пользователю, отклоняется.
 

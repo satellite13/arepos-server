@@ -138,22 +138,11 @@ class OidcController(
 
     @DeleteMapping("/unlink")
     fun unlinkOidc(): OidcStatusResponse {
-        requireOidcEnabled()
-        val userId = (SecurityContextHolder.getContext().authentication?.principal as? UUID)
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated")
-
-        val user = userRepository.findById(userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
-
-        if (user.oidcSub == null) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "OIDC is not linked")
-        }
-
-        user.oidcSub = null
-        user.updatedAt = Instant.now()
-        userRepository.save(user)
-
-        return OidcStatusResponse(linked = false, oidcSub = null)
+        // Self-service unlink removed: only admins may unlink via /api/v1/admin/users/{id}/sso
+        throw ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "SSO unlink is available only to administrators"
+        )
     }
 
     @GetMapping("/status")
