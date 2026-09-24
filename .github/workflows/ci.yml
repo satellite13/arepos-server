@@ -64,9 +64,8 @@ jobs:
         run: |
           curl -fsSL https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz -o /tmp/rg.tgz
           tar -xzf /tmp/rg.tgz -C /tmp
-          mv /tmp/ripgrep-14.1.1-x86_64-unknown-linux-musl/rg /tmp/rg
-          echo "/tmp" >> "$GITHUB_PATH"
-          rg --version
+          echo "/tmp/ripgrep-14.1.1-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+          /tmp/ripgrep-14.1.1-x86_64-unknown-linux-musl/rg --version
 
       - name: Set up JDK 24
         uses: actions/setup-java@v4
@@ -75,7 +74,9 @@ jobs:
           java-version: "24"
 
       - name: Verify Cerbos-only authorization
-        run: bash ./scripts/verify-cerbos-only.sh
+        run: |
+          export PATH="/tmp/ripgrep-14.1.1-x86_64-unknown-linux-musl:$PATH"
+          bash ./scripts/verify-cerbos-only.sh
 
   helm:
     name: Helm chart
@@ -87,15 +88,17 @@ jobs:
 
       - name: Install Helm
         run: |
-          curl -fsSL https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz -o /tmp/helm.tgz
+          if ! curl -fsSL https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz -o /tmp/helm.tgz; then
+            curl -fsSL https://github.com/helm/helm/releases/download/v3.16.4/helm-v3.16.4-linux-amd64.tar.gz -o /tmp/helm.tgz
+          fi
           tar -xzf /tmp/helm.tgz -C /tmp
-          mv /tmp/linux-amd64/helm /tmp/helm
-          echo "/tmp" >> "$GITHUB_PATH"
-          helm version --short
+          echo "/tmp/linux-amd64" >> "$GITHUB_PATH"
+          /tmp/linux-amd64/helm version --short
 
       - name: Lint and render chart
         run: |
           set -euo pipefail
+          export PATH="/tmp/linux-amd64:$PATH"
           helm lint ./charts/arepos-server
           helm template ci-arepos ./charts/arepos-server \
             --values ./charts/arepos-server/values.yaml \
