@@ -73,7 +73,7 @@ class AuthController(
                     middleName = request.middleName,
                     position = request.position
                 ),
-                role = Role.reader,
+                role = authProperties.defaultRole,
                 createdAt = now,
                 updatedAt = now
             )

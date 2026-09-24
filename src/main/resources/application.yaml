@@ -68,6 +68,8 @@ springdoc:
 arepos:
   auth:
     registration-enabled: ${AREPOS_AUTH_REGISTRATION_ENABLED:true}
+    # Роль для новых пользователей (демо-стенды могут поднять до architect)
+    default-role: ${AREPOS_AUTH_DEFAULT_ROLE:reader}
     cookie-secure: ${AREPOS_AUTH_COOKIE_SECURE:false}
     csrf-enabled: ${AREPOS_AUTH_CSRF_ENABLED:true}
     # Parent domain for www/app SSO, e.g. .example.com (empty = host-only)

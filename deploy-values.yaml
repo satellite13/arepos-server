@@ -60,6 +60,9 @@ env:
   # Shared SSO between warchi and warchi-site on *.arch.svc.cluster.local (Orbstack/k8s).
   - name: AREPOS_AUTH_COOKIE_DOMAIN
     value: ".arch.svc.cluster.local"
+  # Прод — демо-стенд: новые пользователи получают роль architect, а не reader.
+  - name: AREPOS_AUTH_DEFAULT_ROLE
+    value: "architect"
   # Ehcache sizeof on JDK 24+ requires reflective access to java.base.
   - name: JAVA_TOOL_OPTIONS
     value: "--add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED -XX:MaxRAMPercentage=70.0"

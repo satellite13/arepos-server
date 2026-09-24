@@ -246,6 +246,10 @@ minio:
 env: []
 # - name: SPRING_PROFILES_ACTIVE
 #   value: "production"
+# Role for newly registered users (application.yaml: arepos.auth.default-role);
+# demo stands may raise it from the default "reader" to "architect":
+# - name: AREPOS_AUTH_DEFAULT_ROLE
+#   value: "architect"
 # Model live sync outbox (application.yaml: arepos.model-sync.*):
 # - name: MODEL_SYNC_OUTBOX_ENABLED
 #   value: "false"

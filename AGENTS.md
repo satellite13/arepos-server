@@ -218,12 +218,12 @@ Use Bearer for non-browser API clients and tests. Swagger documents Bearer; cook
 ### User Roles
 
 ```kotlin
-enum class Role { USER, EDITOR, ADMIN }
+enum class Role { admin, architect, editor, reader, viewer }
 ```
 
-- **USER**: Standard user, can manage own resources
-- **EDITOR**: Legacy/shared-edit role (resource access is Cerbos + shares, not role bypass)
-- **ADMIN**: Admin-panel capabilities via Cerbos `admin_panel` / `user_admin` policies
+- New users get `arepos.auth.default-role` (`AREPOS_AUTH_DEFAULT_ROLE`, default `reader`; demo stands may set `architect`)
+- Resource access is Cerbos + shares, not role bypass
+- **admin**: Admin-panel capabilities via Cerbos `admin_panel` / `user_admin` policies
 
 ### Access Control
 
@@ -252,6 +252,7 @@ JWT_REFRESH_EXPIRATION        # Default: P7D
 AREPOS_AUTH_COOKIE_SECURE     # Set true behind HTTPS (Secure cookie flag)
 AREPOS_AUTH_CSRF_ENABLED      # Default true; disable only for controlled non-browser setups
 AREPOS_AUTH_REGISTRATION_ENABLED  # Default true
+AREPOS_AUTH_DEFAULT_ROLE          # Role for new users (reader|architect|…); default reader; demo stands may set architect
 ```
 
 ## Configuration

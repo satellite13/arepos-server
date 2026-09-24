@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito.lenient
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
+import ru.kavader.arepos.config.AreposAuthProperties
 import ru.kavader.arepos.model.Role
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.UsersRepository
@@ -27,6 +28,7 @@ class OidcAuthServiceTest {
 
     private lateinit var service: OidcAuthService
     private lateinit var oidcProperties: OidcProperties
+    private lateinit var authProperties: AreposAuthProperties
 
     private val testIssuer = "https://idp.example.com/realms/app"
     private val testClientId = "test-client-id"
@@ -43,13 +45,15 @@ class OidcAuthServiceTest {
             scope = "openid email profile",
             stateSecret = ""
         )
+        authProperties = AreposAuthProperties()
         service = OidcAuthService(
             oidcProperties,
             usersRepository,
             jwtTokenProvider,
             userProfileAttrsService,
             idTokenVerifier,
-            ObjectMapper()
+            ObjectMapper(),
+            authProperties
         )
     }
 
@@ -243,6 +247,86 @@ class OidcAuthServiceTest {
     }
 
     @Test
+    fun `syncUser creates new user with configured default role`() {
+        lenient().`when`(usersRepository.findByOidcSub("kc-new-1")).thenReturn(null)
+        lenient().`when`(usersRepository.findByEmailIgnoreCase("new@example.com")).thenReturn(null)
+        lenient().`when`(usersRepository.save(org.mockito.ArgumentMatchers.any(Users::class.java)))
+            .thenAnswer { it.arguments[0] }
+        lenient().`when`(
+            userProfileAttrsService.buildProfileAttrs(anyProfileArg(), anyProfileArg(), anyProfileArg(), anyProfileArg())
+        ).thenReturn("""{"firstName":null}""")
+
+        service = OidcAuthService(
+            oidcProperties,
+            usersRepository,
+            jwtTokenProvider,
+            userProfileAttrsService,
+            idTokenVerifier,
+            ObjectMapper(),
+            AreposAuthProperties(defaultRole = Role.architect)
+        )
+
+        val claims = buildClaims(
+            subject = "kc-new-1",
+            email = "new@example.com",
+            emailVerified = true,
+            givenName = "Анна",
+            familyName = "Смирнова"
+        )
+
+        val synced = service.syncUser(claims)
+
+        assertEquals(Role.architect, synced.role)
+        assertEquals("kc-new-1", synced.oidcSub)
+        assertEquals("new@example.com", synced.email)
+    }
+
+    @Test
+    fun `syncUser creates new user with reader role by default`() {
+        lenient().`when`(usersRepository.findByOidcSub("kc-new-2")).thenReturn(null)
+        lenient().`when`(usersRepository.findByEmailIgnoreCase("new2@example.com")).thenReturn(null)
+        lenient().`when`(usersRepository.save(org.mockito.ArgumentMatchers.any(Users::class.java)))
+            .thenAnswer { it.arguments[0] }
+        lenient().`when`(
+            userProfileAttrsService.buildProfileAttrs(anyProfileArg(), anyProfileArg(), anyProfileArg(), anyProfileArg())
+        ).thenReturn("""{"firstName":null}""")
+
+        val claims = buildClaims(
+            subject = "kc-new-2",
+            email = "new2@example.com",
+            emailVerified = true,
+            givenName = "Пётр",
+            familyName = "Иванов"
+        )
+
+        val synced = service.syncUser(claims)
+
+        assertEquals(Role.reader, synced.role)
+    }
+
+    @Test
+    fun `syncUser creates new user when name claims are absent`() {
+        lenient().`when`(usersRepository.findByOidcSub("kc-noname")).thenReturn(null)
+        lenient().`when`(usersRepository.findByEmailIgnoreCase("noname@example.com")).thenReturn(null)
+        lenient().`when`(usersRepository.save(org.mockito.ArgumentMatchers.any(Users::class.java)))
+            .thenAnswer { it.arguments[0] }
+        lenient().`when`(
+            userProfileAttrsService.buildProfileAttrs(anyProfileArg(), anyProfileArg(), anyProfileArg(), anyProfileArg())
+        ).thenReturn("""{"firstName":null}""")
+
+        val claims = buildClaims(
+            subject = "kc-noname",
+            email = "noname@example.com",
+            emailVerified = true
+        )
+
+        val synced = service.syncUser(claims)
+
+        assertEquals("noname@example.com", synced.email)
+        assertEquals("kc-noname", synced.oidcSub)
+    }
+
+    @Test
     fun `syncUser throws OidcException for deactivated user`() {
         val inactiveUser = testUser(
             id = UUID.randomUUID(),
@@ -270,10 +354,15 @@ class OidcAuthServiceTest {
         assertTrue(thrown.message!!.contains("deactivated", ignoreCase = true))
     }
 
+    /** Registers an any() matcher for non-null String params (Kotlin intrinsic null-check). */
+    private fun anyProfileArg(): String = org.mockito.ArgumentMatchers.any<String>() ?: ""
+
     private fun buildClaims(
         subject: String?,
         email: String?,
-        emailVerified: Boolean = true
+        emailVerified: Boolean = true,
+        givenName: String? = null,
+        familyName: String? = null
     ): JWTClaimsSet {
         val builder = JWTClaimsSet.Builder()
             .issuer(testIssuer)
@@ -281,6 +370,9 @@ class OidcAuthServiceTest {
             .expirationTime(Date.from(Instant.now().plusSeconds(3600)))
             .issueTime(Date.from(Instant.now()))
             .claim("email_verified", emailVerified)
+
+        if (givenName != null) builder.claim("given_name", givenName)
+        if (familyName != null) builder.claim("family_name", familyName)
 
         if (subject != null) builder.subject(subject)
         if (email != null) builder.claim("email", email)

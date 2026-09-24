@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.client.RestTemplate
 import org.springframework.web.util.UriComponentsBuilder
-import ru.kavader.arepos.model.Role
+import ru.kavader.arepos.config.AreposAuthProperties
 import ru.kavader.arepos.model.Users
 import ru.kavader.arepos.repository.UsersRepository
 import ru.kavader.arepos.service.UserProfileAttrsService
@@ -28,7 +28,8 @@ class OidcAuthService(
     private val jwtTokenProvider: JwtTokenProvider,
     private val userProfileAttrsService: UserProfileAttrsService,
     private val idTokenVerifier: OidcIdTokenVerifier,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val authProperties: AreposAuthProperties
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(OidcAuthService::class.java)
@@ -165,7 +166,7 @@ class OidcAuthService(
             user = usersRepository.save(
                 Users(
                     email = email,
-                    role = Role.reader,
+                    role = authProperties.defaultRole,
                     attrs = profileAttrs,
                     oidcSub = oidcSub,
                     createdAt = now,

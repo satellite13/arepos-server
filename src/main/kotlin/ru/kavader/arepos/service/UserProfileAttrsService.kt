@@ -72,8 +72,8 @@ class UserProfileAttrsService(
     }
 
     fun buildProfileAttrs(
-        firstName: String,
-        lastName: String,
+        firstName: String?,
+        lastName: String?,
         middleName: String?,
         position: String?
     ): String {

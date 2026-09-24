@@ -9,6 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import ru.kavader.arepos.config.AreposAuthProperties
 import ru.kavader.arepos.dto.common.ListResponse
 import ru.kavader.arepos.dto.common.toListResponse
 import ru.kavader.arepos.dto.user.*
@@ -31,7 +32,8 @@ class UsersController(
     private val userProfileAttrsService: UserProfileAttrsService,
     private val accessService: ResourceAccessService,
     private val userMapper: UserMapper,
-    private val passwordPolicyValidator: PasswordPolicyValidator
+    private val passwordPolicyValidator: PasswordPolicyValidator,
+    private val authProperties: AreposAuthProperties
 ) {
 
     @GetMapping
@@ -150,7 +152,7 @@ class UsersController(
             Users(
                 email = request.email,
                 attrs = request.attrs,
-                role = request.role ?: Role.reader,
+                role = request.role ?: authProperties.defaultRole,
                 createdAt = now,
                 updatedAt = now
             )
