@@ -469,8 +469,8 @@ ResourceShares - cross-cutting permission delegation
 
 ## License
 
-Dual licensing:
-- `AGPL-3.0-or-later` for open-source usage
-- Commercial license for proprietary usage
+MIT License.
 
-See `LICENSE` and `LICENSE_COMMERCIAL.md` for details.
+Previously dual-licensed (AGPL-3.0-or-later + commercial option); since 2026-09-24 the project is MIT.
+
+See `LICENSE` for details. Licensing questions: `nikolay@groznykh.ru`.

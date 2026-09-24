@@ -166,12 +166,11 @@ CI (GitHub Actions): `.github/workflows/ci.yml` — build/test, Cerbos-only chec
 
 ## Лицензия
 
-Проект использует dual licensing:
+Проект распространяется под лицензией MIT.
 
-- `AGPL-3.0-or-later` для open-source использования
-- Коммерческая лицензия для проприетарного/закрытого коммерческого использования
+Ранее проект был под двойной лицензией AGPL-3.0-or-later + коммерческая; с 2026-09-24 — MIT.
 
 См.:
 
 - `LICENSE` / `LICENSE.ru.md`
-- `LICENSE_COMMERCIAL.md` / `LICENSE_COMMERCIAL.ru.md`
+- Вопросы по лицензированию: `nikolay@groznykh.ru`
